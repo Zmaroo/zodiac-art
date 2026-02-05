@@ -1,0 +1,13 @@
+name: zodiac_art
+channels:
+  - conda-forge
+channel_priority: strict
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pillow
+  - cairosvg=2.8.2
+  - pip:
+      - pyswisseph==2.10.3.2
+      - svgwrite
