@@ -6,12 +6,17 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ASSETS_DIR = PROJECT_ROOT / "assets"
+GLYPH_FONT_PATH = ASSETS_DIR / "fonts" / "NotoSansSymbols2-Regular.ttf"
+LABEL_FONT_PATH: Path | None = None
+
 
 @dataclass(frozen=True)
 class AppConfig:
     """Configuration values for the Zodiac Art Generator."""
 
-    glyph_mode: str = "unicode"
+    glyph_mode: str = "path"
     frame_dir: Path = Path("frames")
     output_dir: Path = Path("output")
     canvas_width: int = 4500

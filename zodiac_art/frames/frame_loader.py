@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 
+from PIL import Image
+
+from zodiac_art.frames.validation import validate_meta
 from zodiac_art.utils.file_utils import load_json
+
+SUPPORTED_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 
 
 @dataclass(frozen=True)
-class FrameConfig:
-    """Configuration describing frame alignment."""
+class FrameMeta:
+    """Alignment metadata for a frame."""
 
-    frame_path: Path
     canvas_width: int
     canvas_height: int
     chart_center_x: float
@@ -20,34 +25,89 @@ class FrameConfig:
     ring_outer: float
     ring_inner: float
     rotation_deg: float
+    chart_fit_dx: float
+    chart_fit_dy: float
+    chart_fit_scale: float
+    chart_fit_rotation_deg: float
 
 
-def load_frame(frame_dir: Path, frame_name: str) -> FrameConfig:
-    """Load frame PNG and JSON metadata."""
+@dataclass(frozen=True)
+class FrameAsset:
+    """Frame asset bundle with metadata and paths."""
 
-    json_path = frame_dir / f"{frame_name}.json"
-    png_path = frame_dir / f"{frame_name}.png"
+    frame_id: str
+    frame_dir: Path
+    image_path: Path
+    metadata_path: Path
+    meta: FrameMeta
+    image: Image.Image | None = None
 
-    if not png_path.exists():
-        raise FileNotFoundError(f"Frame PNG not found: {png_path}")
 
-    data = load_json(json_path)
-    canvas = data.get("canvas")
-    chart = data.get("chart")
-    if not canvas or not chart:
-        raise ValueError("Frame metadata missing required 'canvas' or 'chart'.")
+def _frames_root() -> Path:
+    return Path(__file__).resolve().parent
 
-    center = chart.get("center")
-    if not center:
-        raise ValueError("Frame metadata missing chart center.")
 
-    return FrameConfig(
-        frame_path=png_path,
-        canvas_width=int(canvas["width"]),
-        canvas_height=int(canvas["height"]),
-        chart_center_x=float(center["x"]),
-        chart_center_y=float(center["y"]),
-        ring_outer=float(chart["ring_outer"]),
-        ring_inner=float(chart["ring_inner"]),
-        rotation_deg=float(chart.get("rotation_deg", 0.0)),
+def _find_frame_image(frame_dir: Path) -> Path:
+    candidates = [frame_dir / f"frame{ext}" for ext in SUPPORTED_IMAGE_EXTENSIONS]
+    existing = [path for path in candidates if path.exists()]
+    if not existing:
+        supported = ", ".join(f"frame{ext}" for ext in SUPPORTED_IMAGE_EXTENSIONS)
+        raise FileNotFoundError(
+            f"Frame image not found in {frame_dir}. Expected one of: {supported}"
+        )
+    if len(existing) > 1:
+        names = ", ".join(path.name for path in existing)
+        raise ValueError(
+            f"Multiple frame images found in {frame_dir}. Keep only one: {names}"
+        )
+    return existing[0]
+
+
+def _load_image(image_path: Path) -> Image.Image:
+    with Image.open(image_path) as image:
+        image.load()
+        return image.copy()
+
+
+def load_frame(frame_id: str) -> FrameAsset:
+    """Load a frame asset folder by id."""
+
+    frame_dir = _frames_root() / frame_id
+    if not frame_dir.exists():
+        raise FileNotFoundError(
+            f"Frame '{frame_id}' not found. Expected folder: {frame_dir}"
+        )
+    if not frame_dir.is_dir():
+        raise NotADirectoryError(f"Frame path is not a directory: {frame_dir}")
+
+    image_path = _find_frame_image(frame_dir).resolve()
+    metadata_path = (frame_dir / "metadata.json").resolve()
+    try:
+        data = load_json(metadata_path)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Invalid JSON in frame metadata: {metadata_path}. "
+            "Ensure metadata.json is valid JSON."
+        ) from exc
+
+    image = _load_image(image_path)
+    meta = validate_meta(data, image.size)
+    return FrameAsset(
+        frame_id=frame_id,
+        frame_dir=frame_dir.resolve(),
+        image_path=image_path,
+        metadata_path=metadata_path,
+        meta=meta,
+        image=image,
     )
+
+
+def discover_frames() -> list[FrameAsset]:
+    """Load all frames available in the registry."""
+
+    from zodiac_art.frames.registry import list_frames
+
+    assets: list[FrameAsset] = []
+    for entry in list_frames():
+        assets.append(load_frame(entry.frame_id))
+    return assets

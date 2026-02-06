@@ -160,7 +160,7 @@ python -c "import swisseph, svgwrite, cairosvg, PIL, numpy; print('Environment O
 ```text
 zodiac-art/
 ├── assets/          # Fonts, textures, and decorative elements
-├── frames/          # AI‑generated background frames
+├── zodiac_art/frames/          # Frame presets and metadata
 ├── astro/           # Astrology calculation logic
 ├── renderer/        # SVG chart generation
 ├── compositor/      # Layer combination and export
@@ -187,13 +187,36 @@ Each frame stores metadata describing chart placement:
 
 ```json
 {
-  "center": [x, y],
-  "ring_outer": value,
-  "ring_inner": value
+  "canvas": {"width": 4500, "height": 5400},
+  "chart": {
+    "center": {"x": 2250, "y": 2700},
+    "ring_outer": 1800,
+    "ring_inner": 1500,
+    "rotation_deg": 0
+  }
 }
 ```
 
 This ensures accurate chart alignment across multiple artistic themes.
+
+Example frame tooling:
+
+```bash
+python -m zodiac_art.main --list-frames
+python -m zodiac_art.frames.debug_overlay --frame default --out output/default_debug.png
+```
+
+## Frame Alignment + Layout Editor (V1)
+
+The editor is a separate dev tool in `editor/` for dragging/scaling/rotating the
+chart overlay and nudging planet labels. It writes `chart_fit` into
+`metadata.json` and label overrides into `layout.json`.
+
+```bash
+cd editor
+npm install
+npm run dev
+```
 
 ---
 

@@ -11,8 +11,11 @@ from zodiac_art.astro.chart_builder import build_chart
 from zodiac_art.astro.ephemeris import calculate_ephemeris
 from zodiac_art.compositor.compositor import compose_svg, export_artwork
 from zodiac_art.config import load_config
+from zodiac_art.frames.debug_overlay import generate_debug_overlay
 from zodiac_art.frames.frame_loader import load_frame
-from zodiac_art.renderer.svg_chart import RenderSettings, SvgChartRenderer
+from zodiac_art.frames.layout import load_layout
+from zodiac_art.frames.registry import list_frames
+from zodiac_art.renderer.svg_chart import ChartFit, ElementOverride, RenderSettings, SvgChartRenderer
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -23,6 +26,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--longitude", type=float, help="Longitude")
     parser.add_argument("--frame", type=str, default="default", help="Frame name")
     parser.add_argument("--output-name", type=str, default="zodiac_art", help="Output file base name")
+    parser.add_argument("--list-frames", action="store_true", help="List available frames")
+    parser.add_argument(
+        "--debug-frame",
+        type=str,
+        help="Generate debug overlay for a frame id",
+    )
     return parser.parse_args(argv)
 
 
@@ -32,17 +41,17 @@ def _parse_datetime(date_str: str, time_str: str) -> datetime:
     return datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
 
 
-def _build_renderer_settings(frame_config) -> RenderSettings:
+def _build_renderer_settings(frame_meta) -> RenderSettings:
     config = load_config()
-    if frame_config.ring_outer <= 0:
+    if frame_meta.ring_outer <= 0:
         raise ValueError("Frame ring outer radius must be positive.")
-    inner_ratio = frame_config.ring_inner / frame_config.ring_outer
+    inner_ratio = frame_meta.ring_inner / frame_meta.ring_outer
     return RenderSettings(
-        width=frame_config.canvas_width,
-        height=frame_config.canvas_height,
-        center_x=frame_config.chart_center_x,
-        center_y=frame_config.chart_center_y,
-        radius=frame_config.ring_outer,
+        width=frame_meta.canvas_width,
+        height=frame_meta.canvas_height,
+        center_x=frame_meta.chart_center_x,
+        center_y=frame_meta.chart_center_y,
+        radius=frame_meta.ring_outer,
         sign_ring_inner_ratio=inner_ratio,
         sign_ring_outer_ratio=1.0,
         planet_ring_ratio=config.planet_ring_ratio,
@@ -64,7 +73,8 @@ def run_pipeline(
         raise ValueError("Latitude and longitude are required.")
     birth_datetime = _parse_datetime(birth_date, birth_time)
 
-    frame_config = load_frame(config.frame_dir, frame_name)
+    frame_asset = load_frame(frame_name)
+    layout = load_layout(frame_asset.frame_dir)
     ephemeris = calculate_ephemeris(birth_datetime, latitude, longitude)
     chart = build_chart(
         ephemeris.planet_longitudes,
@@ -73,9 +83,20 @@ def run_pipeline(
         ephemeris.midheaven,
     )
 
-    renderer = SvgChartRenderer(_build_renderer_settings(frame_config))
-    chart_svg = renderer.render(chart)
-    final_svg = compose_svg(chart_svg, frame_config)
+    settings = _build_renderer_settings(frame_asset.meta)
+    renderer = SvgChartRenderer(settings)
+    chart_fit = ChartFit(
+        dx=frame_asset.meta.chart_fit_dx,
+        dy=frame_asset.meta.chart_fit_dy,
+        scale=frame_asset.meta.chart_fit_scale,
+        rotation_deg=frame_asset.meta.chart_fit_rotation_deg,
+    )
+    overrides: dict[str, ElementOverride] = {
+        key: ElementOverride(dx=value["dx"], dy=value["dy"])
+        for key, value in layout.overrides.items()
+    }
+    chart_svg = renderer.render(chart, global_transform=chart_fit, overrides=overrides)
+    final_svg = compose_svg(chart_svg, frame_asset)
     output = export_artwork(final_svg, config.output_dir, output_name)
 
     print(f"SVG output: {output.svg_path}")
@@ -96,6 +117,20 @@ def example_run() -> None:
 def main(argv: list[str]) -> None:
     args = _parse_args(argv)
     try:
+        if args.list_frames:
+            frames = list_frames()
+            if not frames:
+                print("No frames found.")
+            else:
+                for entry in frames:
+                    print(entry.frame_id)
+            return
+        if args.debug_frame:
+            config = load_config()
+            output_path = config.output_dir / f"{args.debug_frame}_debug.png"
+            generate_debug_overlay(args.debug_frame, output_path)
+            print(f"Debug overlay written to: {output_path}")
+            return
         if not args.birth_date:
             example_run()
             return

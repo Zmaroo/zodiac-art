@@ -1,0 +1,121 @@
+.app {
+  display: flex;
+  height: 100vh;
+  background: #e9e6dd;
+  color: #1f1b16;
+}
+
+.sidebar {
+  width: 320px;
+  padding: 24px;
+  background: #f7f4ed;
+  border-right: 1px solid #d9d2c5;
+  overflow-y: auto;
+}
+
+.sidebar h1 {
+  font-size: 18px;
+  margin: 0 0 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e0d7c8;
+}
+
+.section h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.field select,
+.field input {
+  padding: 8px 10px;
+  border: 1px solid #c8bfae;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.actions button {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  background: #2f2a22;
+  color: #f8f5ef;
+  cursor: pointer;
+}
+
+.actions button:last-child {
+  background: #b59b6d;
+  color: #1f1b16;
+}
+
+.canvas {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top, #fefbf5, #e2d9c6 70%);
+  overflow: auto;
+}
+
+.canvas svg {
+  background: #fff;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+}
+
+.canvas svg:active {
+  cursor: grabbing;
+}
+
+.crosshair line {
+  stroke: rgba(120, 0, 0, 0.6);
+  stroke-width: 2;
+}
+
+.hint {
+  font-size: 11px;
+  color: #6b6254;
+}
+
+.selection {
+  font-size: 12px;
+  padding: 8px 10px;
+  background: #efe9de;
+  border-radius: 6px;
+}
+
+.error {
+  padding: 10px;
+  background: #f7d9d4;
+  color: #5d1f18;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.placeholder {
+  font-size: 14px;
+  color: #5b5246;
+}

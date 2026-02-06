@@ -1,0 +1,16 @@
+{
+  "frames": [
+    {
+      "id": "artnouveau_test",
+      "image": "/@fs/Users/michaelmarler/Projects/zodiac-art/zodiac_art/frames/artnouveau_test/frame.png",
+      "meta": "/@fs/Users/michaelmarler/Projects/zodiac-art/zodiac_art/frames/artnouveau_test/metadata.json",
+      "layout": "/@fs/Users/michaelmarler/Projects/zodiac-art/zodiac_art/frames/artnouveau_test/layout.json"
+    },
+    {
+      "id": "default",
+      "image": "/@fs/Users/michaelmarler/Projects/zodiac-art/zodiac_art/frames/default/frame.png",
+      "meta": "/@fs/Users/michaelmarler/Projects/zodiac-art/zodiac_art/frames/default/metadata.json",
+      "layout": "/@fs/Users/michaelmarler/Projects/zodiac-art/zodiac_art/frames/default/layout.json"
+    }
+  ]
+}
