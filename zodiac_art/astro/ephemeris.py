@@ -76,7 +76,7 @@ def calculate_ephemeris(
             position, _ = swe.calc_ut(jd, planet_id)
             planet_longitudes[name] = normalize_degrees(position[0])
 
-        house_cusps, ascmc = swe.houses(jd, latitude, longitude)
+        house_cusps, ascmc = swe.houses(jd, latitude, longitude, b"P")
         ascendant = normalize_degrees(ascmc[0])
         midheaven = normalize_degrees(ascmc[1])
 

@@ -35,10 +35,23 @@ def load_layout(frame_dir: Path) -> LayoutOverrides:
             raise ValueError("Layout override keys must be strings.")
         if not isinstance(value, dict):
             raise ValueError(f"Layout override for {key} must be an object.")
-        dx = value.get("dx", 0.0)
-        dy = value.get("dy", 0.0)
-        if not isinstance(dx, (int, float)) or not isinstance(dy, (int, float)):
-            raise ValueError(f"Layout override for {key} requires numeric dx/dy.")
-        parsed[key] = {"dx": float(dx), "dy": float(dy)}
+        parsed_entry: dict[str, float] = {}
+        if "dx" in value or "dy" in value:
+            dx = value.get("dx", 0.0)
+            dy = value.get("dy", 0.0)
+            if not isinstance(dx, (int, float)) or not isinstance(dy, (int, float)):
+                raise ValueError(f"Layout override for {key} requires numeric dx/dy.")
+            parsed_entry["dx"] = float(dx)
+            parsed_entry["dy"] = float(dy)
+        if "dr" in value or "dt" in value:
+            dr = value.get("dr", 0.0)
+            dt = value.get("dt", 0.0)
+            if not isinstance(dr, (int, float)) or not isinstance(dt, (int, float)):
+                raise ValueError(f"Layout override for {key} requires numeric dr/dt.")
+            parsed_entry["dr"] = float(dr)
+            parsed_entry["dt"] = float(dt)
+        if not parsed_entry:
+            parsed_entry = {"dx": 0.0, "dy": 0.0}
+        parsed[key] = parsed_entry
 
     return LayoutOverrides(overrides=parsed)

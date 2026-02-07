@@ -1,0 +1,172 @@
+"""Storage adapters for chart state."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+from pathlib import Path
+from typing import Iterable
+from uuid import uuid4
+
+from zodiac_art.config import PROJECT_ROOT
+from zodiac_art.frames.frame_loader import SUPPORTED_IMAGE_EXTENSIONS
+from zodiac_art.utils.file_utils import load_json
+
+
+@dataclass(frozen=True)
+class ChartRecord:
+    """Stored chart inputs."""
+
+    chart_id: str
+    birth_date: str
+    birth_time: str
+    latitude: float
+    longitude: float
+    default_frame_id: str | None
+
+    def to_dict(self) -> dict:
+        return {
+            "birth_date": self.birth_date,
+            "birth_time": self.birth_time,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "default_frame_id": self.default_frame_id,
+        }
+
+
+class FileStorage:
+    """File-based storage for chart state."""
+
+    def __init__(
+        self,
+        base_dir: Path | None = None,
+        frames_dir: Path | None = None,
+    ) -> None:
+        self.base_dir = base_dir or PROJECT_ROOT / "data"
+        self.frames_dir = frames_dir or PROJECT_ROOT / "zodiac_art" / "frames"
+
+    def _chart_dir(self, chart_id: str) -> Path:
+        return self.base_dir / "charts" / chart_id
+
+    def _chart_file(self, chart_id: str) -> Path:
+        return self._chart_dir(chart_id) / "chart.json"
+
+    def _frame_state_dir(self, chart_id: str, frame_id: str) -> Path:
+        return self._chart_dir(chart_id) / "frames" / frame_id
+
+    def _metadata_path(self, chart_id: str, frame_id: str) -> Path:
+        return self._frame_state_dir(chart_id, frame_id) / "metadata.json"
+
+    def _layout_path(self, chart_id: str, frame_id: str) -> Path:
+        return self._frame_state_dir(chart_id, frame_id) / "layout.json"
+
+    def _template_frame_dir(self, frame_id: str) -> Path:
+        return self.frames_dir / frame_id
+
+    def _template_meta_path(self, frame_id: str) -> Path:
+        return self._template_frame_dir(frame_id) / "metadata.json"
+
+    def _template_image_path(self, frame_id: str) -> Path:
+        frame_dir = self._template_frame_dir(frame_id)
+        candidates = [frame_dir / f"frame{ext}" for ext in SUPPORTED_IMAGE_EXTENSIONS]
+        existing = [path for path in candidates if path.exists()]
+        if not existing:
+            raise FileNotFoundError(f"Frame image not found for {frame_id}.")
+        if len(existing) > 1:
+            names = ", ".join(path.name for path in existing)
+            raise ValueError(f"Multiple frame images found for {frame_id}: {names}")
+        return existing[0]
+
+    def list_frames(self) -> list[str]:
+        if not self.frames_dir.exists():
+            return []
+        frame_ids: list[str] = []
+        for child in sorted(self.frames_dir.iterdir(), key=lambda path: path.name):
+            if child.is_dir() and (child / "metadata.json").exists():
+                frame_ids.append(child.name)
+        return frame_ids
+
+    def create_chart(
+        self,
+        birth_date: str,
+        birth_time: str,
+        latitude: float,
+        longitude: float,
+        default_frame_id: str | None,
+    ) -> ChartRecord:
+        chart_id = str(uuid4())
+        record = ChartRecord(
+            chart_id=chart_id,
+            birth_date=birth_date,
+            birth_time=birth_time,
+            latitude=latitude,
+            longitude=longitude,
+            default_frame_id=default_frame_id,
+        )
+        chart_dir = self._chart_dir(chart_id)
+        chart_dir.mkdir(parents=True, exist_ok=True)
+        self._chart_file(chart_id).write_text(
+            json.dumps(record.to_dict(), indent=2),
+            encoding="utf-8",
+        )
+        return record
+
+    def load_chart(self, chart_id: str) -> ChartRecord:
+        chart_path = self._chart_file(chart_id)
+        data = load_json(chart_path)
+        return ChartRecord(
+            chart_id=chart_id,
+            birth_date=str(data.get("birth_date")),
+            birth_time=str(data.get("birth_time")),
+            latitude=float(data.get("latitude")),
+            longitude=float(data.get("longitude")),
+            default_frame_id=data.get("default_frame_id"),
+        )
+
+    def chart_exists(self, chart_id: str) -> bool:
+        return self._chart_file(chart_id).exists()
+
+    def metadata_exists(self, chart_id: str, frame_id: str) -> bool:
+        return self._metadata_path(chart_id, frame_id).exists()
+
+    def layout_exists(self, chart_id: str, frame_id: str) -> bool:
+        return self._layout_path(chart_id, frame_id).exists()
+
+    def load_template_meta(self, frame_id: str) -> dict:
+        return load_json(self._template_meta_path(frame_id))
+
+    def load_chart_meta(self, chart_id: str, frame_id: str) -> dict | None:
+        path = self._metadata_path(chart_id, frame_id)
+        if not path.exists():
+            return None
+        return load_json(path)
+
+    def load_chart_layout(self, chart_id: str, frame_id: str) -> dict | None:
+        path = self._layout_path(chart_id, frame_id)
+        if not path.exists():
+            return None
+        return load_json(path)
+
+    def save_chart_meta(self, chart_id: str, frame_id: str, meta: dict) -> None:
+        target = self._metadata_path(chart_id, frame_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    def save_chart_layout(self, chart_id: str, frame_id: str, layout: dict) -> None:
+        target = self._layout_path(chart_id, frame_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(layout, indent=2), encoding="utf-8")
+
+    def template_image_path(self, frame_id: str) -> Path:
+        return self._template_image_path(frame_id)
+
+    def template_meta_path(self, frame_id: str) -> Path:
+        return self._template_meta_path(frame_id)
+
+    def iter_frame_dirs(self) -> Iterable[Path]:
+        if not self.frames_dir.exists():
+            return []
+        return sorted(
+            [path for path in self.frames_dir.iterdir() if path.is_dir()],
+            key=lambda path: path.name,
+        )

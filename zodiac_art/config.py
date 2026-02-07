@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+from urllib.parse import quote_plus
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -48,3 +49,23 @@ def load_config() -> AppConfig:
             sweph_path=sweph_path,
         )
     return config
+
+
+def build_database_url() -> str | None:
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return database_url
+    env_keys = ["PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"]
+    if not any(os.environ.get(key) for key in env_keys):
+        return None
+    host = os.environ.get("PGHOST", "127.0.0.1")
+    port = os.environ.get("PGPORT", "5432")
+    user = os.environ.get("PGUSER")
+    password = os.environ.get("PGPASSWORD")
+    database = os.environ.get("PGDATABASE", "zodiac_art")
+    if user:
+        auth = quote_plus(user)
+        if password:
+            auth = f"{auth}:{quote_plus(password)}"
+        return f"postgresql://{auth}@{host}:{port}/{database}"
+    return f"postgresql://{host}:{port}/{database}"

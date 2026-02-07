@@ -218,6 +218,52 @@ npm install
 npm run dev
 ```
 
+## API (V2)
+
+FastAPI backend for chart creation, rendering, and per-chart layout storage.
+
+```bash
+python -m zodiac_art.api.app
+```
+
+Manual test examples: `docs/api.md`
+
+### Database (Postgres)
+
+Set the connection string or component variables:
+
+```bash
+export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/zodiac_art
+```
+
+Initialize schema:
+
+```bash
+python -m zodiac_art.db.init_db
+```
+
+Start the API:
+
+```bash
+python -m zodiac_art.api.app
+```
+
+Quick test:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/charts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "birth_date": "1990-04-12",
+    "birth_time": "08:45",
+    "latitude": 40.7128,
+    "longitude": -74.0060,
+    "default_frame_id": "artnouveau_test"
+  }'
+
+curl http://127.0.0.1:8000/api/charts/<chart_id>
+```
+
 ---
 
 ## Output Formats

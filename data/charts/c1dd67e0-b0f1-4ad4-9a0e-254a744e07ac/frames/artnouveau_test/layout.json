@@ -1,0 +1,50 @@
+{
+  "overrides": {
+    "planet.Jupiter.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 48
+    },
+    "planet.Pluto.glyph": {
+      "dx": -64.268,
+      "dy": -101.472
+    },
+    "planet.Pluto.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 54
+    },
+    "planet.Uranus.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 42
+    },
+    "planet.Neptune.glyph": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 42
+    },
+    "planet.Neptune.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 78
+    },
+    "planet.Saturn.glyph": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 54
+    },
+    "planet.Saturn.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 78
+    }
+  }
+}

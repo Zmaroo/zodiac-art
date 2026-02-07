@@ -1,0 +1,32 @@
+{
+  "overrides": {
+    "planet.Saturn.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 42
+    },
+    "planet.Pluto.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 6
+    },
+    "planet.Venus.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 12
+    },
+    "planet.Mars.glyph": {
+      "dx": -11.133,
+      "dy": -64.093
+    },
+    "planet.Mars.label": {
+      "dx": 0,
+      "dy": 0,
+      "dr": 0,
+      "dt": 24
+    }
+  }
+}

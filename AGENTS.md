@@ -70,6 +70,12 @@ pytest
 pytest path/to/test_file.py::test_name
 ```
 
+If you add a different runner, include a single-test command, e.g.:
+
+```bash
+python -m unittest path.to.module.TestClass.test_name
+```
+
 ## Code Style Guidelines
 
 ### Imports
@@ -84,6 +90,7 @@ pytest path/to/test_file.py::test_name
 - Keep lines reasonably short and avoid excessive wrapping.
 - Use f-strings for string interpolation.
 - Use double quotes for user-facing messages and f-strings.
+- Keep docstrings concise and one-line when possible.
 
 ### Typing
 
@@ -91,6 +98,7 @@ pytest path/to/test_file.py::test_name
 - Prefer explicit type hints for function parameters and returns.
 - Use `list[...]`, `dict[...]`, and `tuple[...]` generics.
 - Dataclasses are used for structured data; prefer `@dataclass(frozen=True)`.
+- Use `Path` and `Path | None` for optional filesystem paths.
 
 ### Naming Conventions
 
@@ -104,12 +112,14 @@ pytest path/to/test_file.py::test_name
 - Validate inputs early and raise `ValueError` for invalid user input.
 - Wrap external library failures with a clear `RuntimeError` and `from exc`.
 - Let exceptions propagate to `main`, which prints a single-line error.
+- Prefer clear, user-facing error text for CLI usage.
 
 ### Data and Paths
 
 - Use `pathlib.Path` for filesystem paths.
 - Prefer small helper functions for transformations (e.g., normalize degrees).
 - JSON loading should validate file existence and raise `FileNotFoundError`.
+- Keep assets and output paths configurable via config/env.
 
 ### SVG / Rendering
 
@@ -130,6 +140,7 @@ pytest path/to/test_file.py::test_name
 - `frames/*.json` provides chart placement; `frames/*.png` is the artwork.
 - Output paths are returned as a dataclass `CompositeOutput`.
 - The compositor writes SVG first, then uses CairoSVG to export PNG.
+- Chart rendering is in `zodiac_art/renderer/`; frame assembly in `zodiac_art/frames/`.
 
 ## Cursor / Copilot Rules
 

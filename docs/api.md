@@ -1,0 +1,63 @@
+# API Manual Tests
+
+## Start the API
+
+```bash
+python -m zodiac_art.api.app
+```
+
+## List frames
+
+```bash
+curl http://127.0.0.1:8000/api/frames
+```
+
+## Create chart
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/charts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "birth_date": "1990-04-12",
+    "birth_time": "08:45",
+    "latitude": 40.7128,
+    "longitude": -74.0060,
+    "default_frame_id": "artnouveau_test"
+  }'
+```
+
+## Fetch chart
+
+```bash
+curl http://127.0.0.1:8000/api/charts/<chart_id>
+```
+
+## Render SVG
+
+```bash
+curl http://127.0.0.1:8000/api/charts/<chart_id>/render.svg?frame_id=artnouveau_test \
+  -o /tmp/zodiac_art.svg
+```
+
+## Render PNG
+
+```bash
+curl http://127.0.0.1:8000/api/charts/<chart_id>/render.png?frame_id=artnouveau_test\&size=1024 \
+  -o /tmp/zodiac_art.png
+```
+
+## Save metadata
+
+```bash
+curl -X PUT http://127.0.0.1:8000/api/charts/<chart_id>/frames/artnouveau_test/metadata \
+  -H "Content-Type: application/json" \
+  -d @/path/to/metadata.json
+```
+
+## Save layout
+
+```bash
+curl -X PUT http://127.0.0.1:8000/api/charts/<chart_id>/frames/artnouveau_test/layout \
+  -H "Content-Type: application/json" \
+  -d @/path/to/layout.json
+```

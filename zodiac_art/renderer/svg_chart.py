@@ -7,7 +7,12 @@ import svgwrite
 
 from zodiac_art.config import load_config
 from zodiac_art.models.chart_models import Chart
-from zodiac_art.renderer.geometry import arc_path, longitude_to_angle, polar_to_cartesian
+from zodiac_art.renderer.geometry import (
+    arc_path,
+    longitude_to_angle,
+    polar_offset_to_xy,
+    polar_to_cartesian,
+)
 from zodiac_art.renderer.glyph_paths import glyph_path_data
 from zodiac_art.renderer.glyphs import get_planet_glyph, get_zodiac_glyph
 
@@ -44,6 +49,8 @@ class ElementOverride:
 
     dx: float
     dy: float
+    dr: float | None = None
+    dt: float | None = None
 
 
 class SvgChartRenderer:
@@ -66,6 +73,7 @@ class SvgChartRenderer:
         dwg = svgwrite.Drawing(
             size=(self.settings.width, self.settings.height),
             profile="full",
+            debug=False,
         )
         dwg.viewbox(0, 0, self.settings.width, self.settings.height)
 
@@ -91,10 +99,27 @@ class SvgChartRenderer:
         )
         chart_group = dwg.g(id="chartRoot", transform=chart_transform)
 
+        angle_offset = 180.0 - longitude_to_angle(chart.ascendant)
+
+        zodiac_signs = [
+            "Aries",
+            "Taurus",
+            "Gemini",
+            "Cancer",
+            "Leo",
+            "Virgo",
+            "Libra",
+            "Scorpio",
+            "Sagittarius",
+            "Capricorn",
+            "Aquarius",
+            "Pisces",
+        ]
+
         for index, house in enumerate(chart.houses):
-            start_angle = longitude_to_angle(house.cusp_longitude)
+            start_angle = longitude_to_angle(house.cusp_longitude) + angle_offset
             end_longitude = chart.houses[(index + 1) % 12].cusp_longitude
-            end_angle = longitude_to_angle(end_longitude)
+            end_angle = longitude_to_angle(end_longitude) + angle_offset
             chart_group.add(
                 dwg.path(
                     d=arc_path(center[0], center[1], outer_radius, start_angle, end_angle),
@@ -111,14 +136,59 @@ class SvgChartRenderer:
                     stroke_width=3,
                 )
             )
-            mid_angle = longitude_to_angle((house.cusp_longitude + end_longitude) / 2)
-            label_pos = polar_to_cartesian(center[0], center[1], label_radius, mid_angle)
-            glyph = get_zodiac_glyph(house.sign)
-            sign_id = f"sign.{house.sign}"
+            
+
+        sign_radius = label_radius * 0.98
+        asc_radius = inner_radius * 0.90
+        asc_size = 56
+        asc_angle = longitude_to_angle(chart.ascendant) + angle_offset
+        asc_pos = polar_to_cartesian(center[0], center[1], asc_radius, asc_angle)
+        asc_group = dwg.g(id="asc.marker")
+        asc_group.update({"data-theta": f"{asc_angle:.3f}"})
+        asc_override = overrides.get("asc.marker")
+        if asc_override:
+            dx, dy = _resolve_override(asc_override, asc_angle)
+            asc_group.translate(dx, dy)
+        if glyph_mode == "path":
+            path_data = glyph_path_data("↑", asc_pos[0], asc_pos[1], asc_size)
+            if path_data:
+                d, transform = path_data
+                asc_group.add(dwg.path(d=d, fill="#000", transform=transform))
+            else:
+                asc_group.add(
+                    dwg.text(
+                        "↑",
+                        insert=asc_pos,
+                        text_anchor="middle",
+                        alignment_baseline="middle",
+                        font_size=asc_size,
+                        font_family="serif",
+                    )
+                )
+        else:
+            asc_group.add(
+                dwg.text(
+                    "↑",
+                    insert=asc_pos,
+                    text_anchor="middle",
+                    alignment_baseline="middle",
+                    font_size=asc_size,
+                    font_family="serif",
+                )
+            )
+        chart_group.add(asc_group)
+        for index, sign in enumerate(zodiac_signs):
+            longitude = index * 30 + 15
+            mid_angle = longitude_to_angle(longitude) + angle_offset
+            label_pos = polar_to_cartesian(center[0], center[1], sign_radius, mid_angle)
+            glyph = get_zodiac_glyph(sign)
+            sign_id = f"sign.{sign}"
             sign_override = overrides.get(sign_id)
             sign_group = dwg.g(id=sign_id)
+            sign_group.update({"data-theta": f"{mid_angle:.3f}"})
             if sign_override:
-                sign_group.translate(sign_override.dx, sign_override.dy)
+                dx, dy = _resolve_override(sign_override, mid_angle)
+                sign_group.translate(dx, dy)
             if glyph_mode == "path":
                 path_data = glyph_path_data(glyph, label_pos[0], label_pos[1], 56)
                 if path_data:
@@ -149,7 +219,7 @@ class SvgChartRenderer:
             chart_group.add(sign_group)
 
         for index, house in enumerate(chart.houses):
-            angle = longitude_to_angle(house.cusp_longitude)
+            angle = longitude_to_angle(house.cusp_longitude) + angle_offset
             line_end = polar_to_cartesian(center[0], center[1], inner_radius, angle)
             house_id = f"house.{index + 1}.line"
             line_group = dwg.g(id=house_id)
@@ -164,7 +234,7 @@ class SvgChartRenderer:
             chart_group.add(line_group)
 
         for planet in chart.planets:
-            angle = longitude_to_angle(planet.longitude)
+            angle = longitude_to_angle(planet.longitude) + angle_offset
             planet_pos = polar_to_cartesian(center[0], center[1], planet_radius, angle)
             label_pos = polar_to_cartesian(
                 center[0], center[1], planet_radius + label_offset, angle
@@ -173,8 +243,10 @@ class SvgChartRenderer:
             planet_glyph_id = f"planet.{planet.name}.glyph"
             glyph_override = overrides.get(planet_glyph_id)
             glyph_group = dwg.g(id=planet_glyph_id)
+            glyph_group.update({"data-theta": f"{angle:.3f}"})
             if glyph_override:
-                glyph_group.translate(glyph_override.dx, glyph_override.dy)
+                dx, dy = _resolve_override(glyph_override, angle)
+                glyph_group.translate(dx, dy)
             if glyph_mode == "path":
                 path_data = glyph_path_data(planet_glyph, planet_pos[0], planet_pos[1], 60)
                 if path_data:
@@ -207,8 +279,10 @@ class SvgChartRenderer:
             planet_label_id = f"planet.{planet.name}.label"
             label_override = overrides.get(planet_label_id)
             label_group = dwg.g(id=planet_label_id)
+            label_group.update({"data-theta": f"{angle:.3f}"})
             if label_override:
-                label_group.translate(label_override.dx, label_override.dy)
+                dx, dy = _resolve_override(label_override, angle)
+                label_group.translate(dx, dy)
             label_group.add(
                 dwg.text(
                     planet.name,
@@ -223,6 +297,13 @@ class SvgChartRenderer:
 
         dwg.add(chart_group)
         return dwg.tostring()
+
+
+def _resolve_override(override: ElementOverride, theta_deg: float) -> tuple[float, float]:
+    if override.dr is not None or override.dt is not None:
+        dx, dy = polar_offset_to_xy(override.dr or 0.0, override.dt or 0.0, theta_deg)
+        return dx, dy
+    return override.dx, override.dy
 
 
 def default_render_settings(radius: float, center_x: float, center_y: float) -> RenderSettings:

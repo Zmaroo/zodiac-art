@@ -29,6 +29,15 @@ def polar_to_cartesian(
     return x, y
 
 
+def polar_offset_to_xy(dr: float, dt: float, angle_deg: float) -> tuple[float, float]:
+    """Convert radial/tangential offsets to Cartesian offsets."""
+
+    angle_rad = math.radians(angle_deg)
+    dx = dr * math.cos(angle_rad) - dt * math.sin(angle_rad)
+    dy = dr * math.sin(angle_rad) + dt * math.cos(angle_rad)
+    return dx, dy
+
+
 def arc_path(
     center_x: float,
     center_y: float,

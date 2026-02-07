@@ -1,0 +1,63 @@
+"""API request/response models."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+
+class ChartCreateRequest(BaseModel):
+    """Request to create a chart."""
+
+    birth_date: str
+    birth_time: str
+    latitude: float
+    longitude: float
+    default_frame_id: str | None = None
+
+
+class ChartCreateResponse(BaseModel):
+    """Response containing the new chart id."""
+
+    chart_id: str
+
+
+class FrameListItem(BaseModel):
+    """Frame entry returned by the API."""
+
+    id: str
+    image_path: str
+    template_meta_path: str
+
+
+class ChartFrameStatus(BaseModel):
+    """Saved state for a chart frame."""
+
+    id: str
+    has_metadata: bool = Field(default=False)
+    has_layout: bool = Field(default=False)
+
+
+class ChartInfoResponse(BaseModel):
+    """Chart info response."""
+
+    chart_id: str
+    birth_date: str
+    birth_time: str
+    latitude: float
+    longitude: float
+    default_frame_id: str | None
+    frames: list[ChartFrameStatus]
+
+
+class AutoLayoutRequest(BaseModel):
+    """Request for auto layout."""
+
+    mode: str = "labels"
+    min_gap_px: int = 10
+    max_iter: int = 200
+
+
+class AutoLayoutResponse(BaseModel):
+    """Auto layout response."""
+
+    overrides: dict[str, dict[str, float]]

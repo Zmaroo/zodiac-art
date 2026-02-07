@@ -11,6 +11,7 @@
   background: #f7f4ed;
   border-right: 1px solid #d9d2c5;
   overflow-y: auto;
+  height: 100%;
 }
 
 .sidebar h1 {
@@ -25,6 +26,7 @@
   padding-top: 16px;
   border-top: 1px solid #e0d7c8;
 }
+
 
 .section h2 {
   font-size: 14px;
@@ -49,6 +51,17 @@
   background: #fff;
 }
 
+.field.checkbox {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.field.checkbox input {
+  width: 16px;
+  height: 16px;
+}
+
 .actions {
   display: flex;
   flex-direction: column;
@@ -70,13 +83,24 @@
   color: #1f1b16;
 }
 
+.secondary {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #c8bfae;
+  background: #efe9de;
+  color: #2f2a22;
+  cursor: pointer;
+}
+
 .canvas {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   background: radial-gradient(circle at top, #fefbf5, #e2d9c6 70%);
   overflow: auto;
+  padding: 24px;
+  height: 100%;
 }
 
 .canvas svg {
@@ -110,6 +134,15 @@
   padding: 10px;
   background: #f7d9d4;
   color: #5d1f18;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.status {
+  padding: 10px;
+  background: #dce7d3;
+  color: #2d4f2a;
   border-radius: 6px;
   margin-bottom: 12px;
   font-size: 12px;

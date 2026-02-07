@@ -13,3 +13,6 @@ dependencies:
       - svgwrite
       - svgpathlib
       - fonttools
+      - fastapi
+      - uvicorn
+      - asyncpg

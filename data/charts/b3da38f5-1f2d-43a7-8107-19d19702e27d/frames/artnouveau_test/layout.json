@@ -1,0 +1,24 @@
+{
+  "overrides": {
+    "planet.Uranus.glyph": {
+      "dx": -17.398,
+      "dy": -1.555
+    },
+    "planet.Neptune.glyph": {
+      "dx": 25.513,
+      "dy": 1.89
+    },
+    "planet.Saturn.glyph": {
+      "dx": -18.835,
+      "dy": 0.03
+    },
+    "planet.Pluto.glyph": {
+      "dx": 24.25,
+      "dy": -24.513
+    },
+    "planet.Moon.glyph": {
+      "dx": -13.814,
+      "dy": 11.576
+    }
+  }
+}

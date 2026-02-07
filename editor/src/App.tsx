@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { PointerEvent } from 'react'
 import './App.css'
-
-type FrameIndex = {
-  frames: FrameEntry[]
-}
 
 type FrameEntry = {
   id: string
-  image: string
-  meta: string
-  layout?: string
+  image_path: string
+  template_meta_path: string
 }
 
 type ChartMeta = {
@@ -35,7 +31,7 @@ type ChartFit = {
   rotation_deg: number
 }
 
-type Offset = { dx: number; dy: number }
+type Offset = { dx?: number; dy?: number; dr?: number; dt?: number }
 
 type LayoutFile = {
   overrides?: Record<string, Offset>
@@ -52,9 +48,19 @@ type DragState = {
 const defaultChartFit: ChartFit = { dx: 0, dy: 0, scale: 1, rotation_deg: 0 }
 
 function App() {
+  const defaultApiBase = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
+  const [apiBase, setApiBase] = useState(
+    () => localStorage.getItem('zodiac_editor.apiBaseUrl') ?? defaultApiBase
+  )
   const [frames, setFrames] = useState<FrameEntry[]>([])
-  const [selectedId, setSelectedId] = useState<string>('')
+  const [selectedId, setSelectedId] = useState<string>(
+    () => localStorage.getItem('zodiac_editor.frameId') ?? ''
+  )
+  const [chartId, setChartId] = useState<string>(
+    () => localStorage.getItem('zodiac_editor.chartId') ?? ''
+  )
   const [meta, setMeta] = useState<ChartMeta | null>(null)
+  const [chartSvgBase, setChartSvgBase] = useState<string>('')
   const [chartSvg, setChartSvg] = useState<string>('')
   const [chartFit, setChartFit] = useState<ChartFit>(defaultChartFit)
   const [overrides, setOverrides] = useState<Record<string, Offset>>({})
@@ -63,21 +69,56 @@ function App() {
   const [selectedElement, setSelectedElement] = useState<string>('')
   const [drag, setDrag] = useState<DragState | null>(null)
   const [error, setError] = useState<string>('')
+  const [showLabels, setShowLabels] = useState(true)
+  const [status, setStatus] = useState<string>('')
+  const [birthDate, setBirthDate] = useState(
+    () => localStorage.getItem('zodiac_editor.birthDate') ?? '1990-04-12'
+  )
+  const [birthTime, setBirthTime] = useState(
+    () => localStorage.getItem('zodiac_editor.birthTime') ?? '08:45'
+  )
+  const [latitude, setLatitude] = useState(
+    () => Number(localStorage.getItem('zodiac_editor.latitude') ?? 40.7128)
+  )
+  const [longitude, setLongitude] = useState(
+    () => Number(localStorage.getItem('zodiac_editor.longitude') ?? -74.006)
+  )
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const chartRootRef = useRef<SVGGElement | null>(null)
 
   useEffect(() => {
-    fetch('/frames_index.json')
+    fetch(`${apiBase}/api/frames`)
       .then((response) => response.json())
-      .then((data: FrameIndex) => {
-        setFrames(data.frames)
-        if (data.frames.length > 0) {
-          setSelectedId(data.frames[0].id)
+      .then((data: FrameEntry[]) => {
+        setFrames(data)
+        if (data.length > 0) {
+          const saved = localStorage.getItem('zodiac_editor.frameId')
+          const exists = saved && data.some((frame) => frame.id === saved)
+          setSelectedId(exists ? (saved as string) : data[0].id)
         }
       })
       .catch((err) => setError(String(err)))
-  }, [])
+  }, [apiBase])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.apiBaseUrl', apiBase)
+  }, [apiBase])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.chartId', chartId)
+  }, [chartId])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.frameId', selectedId)
+  }, [selectedId])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.birthDate', birthDate)
+    localStorage.setItem('zodiac_editor.birthTime', birthTime)
+    localStorage.setItem('zodiac_editor.latitude', String(latitude))
+    localStorage.setItem('zodiac_editor.longitude', String(longitude))
+  }, [birthDate, birthTime, latitude, longitude])
 
   const selectedFrame = useMemo(
     () => frames.find((frame) => frame.id === selectedId) || null,
@@ -89,14 +130,26 @@ function App() {
       return
     }
     setError('')
+    setStatus('')
+    const templateMetaUrl = `${apiBase}${selectedFrame.template_meta_path}`
+    const chartMetaUrl = chartId
+      ? `${apiBase}/static/data/charts/${chartId}/frames/${selectedFrame.id}/metadata.json`
+      : null
+    const layoutUrl = chartId
+      ? `${apiBase}/static/data/charts/${chartId}/frames/${selectedFrame.id}/layout.json`
+      : null
+    const svgUrl = chartId
+      ? `${apiBase}/api/charts/${chartId}/render.svg?frame_id=${selectedFrame.id}`
+      : null
+
     Promise.all([
-      fetch(selectedFrame.meta).then((response) => response.json()),
-      fetch(selectedFrame.layout || '').then((response) =>
-        response.ok ? response.json() : { overrides: {} }
-      ),
-      fetch('/sample_chart.svg').then((response) => response.text()),
+      fetchJson(templateMetaUrl),
+      chartMetaUrl ? fetchJsonIfOk(chartMetaUrl) : Promise.resolve(null),
+      layoutUrl ? fetchJsonIfOk(layoutUrl) : Promise.resolve({ overrides: {} }),
+      svgUrl ? fetchTextIfOk(svgUrl) : Promise.resolve(''),
     ])
-      .then(([metaData, layoutData, svgText]: [ChartMeta, LayoutFile, string]) => {
+      .then(([templateMeta, chartMeta, layoutData, svgText]) => {
+        const metaData = (chartMeta as ChartMeta) || (templateMeta as ChartMeta)
         setMeta(metaData)
         const fit = {
           dx: metaData.chart_fit?.dx ?? 0,
@@ -106,12 +159,22 @@ function App() {
         }
         setChartFit(fit)
         setInitialFit(fit)
-        setOverrides(layoutData.overrides || {})
-        setInitialOverrides(layoutData.overrides || {})
-        setChartSvg(extractChartInner(svgText))
+        const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
+        setOverrides(nextOverrides)
+        setInitialOverrides(nextOverrides)
+        const inner = svgText ? extractChartInner(svgText as string) : ''
+        setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
       })
       .catch((err) => setError(String(err)))
-  }, [selectedFrame])
+  }, [apiBase, chartId, selectedFrame])
+
+  useEffect(() => {
+    if (!chartSvgBase) {
+      setChartSvg('')
+      return
+    }
+    setChartSvg(applyOverrides(chartSvgBase, overrides, showLabels))
+  }, [chartSvgBase, overrides, showLabels])
 
   useEffect(() => {
     if (!chartRootRef.current || !meta) {
@@ -128,47 +191,32 @@ function App() {
     chartRootRef.current.setAttribute('transform', transform)
   }, [chartFit, meta, chartSvg])
 
-  useEffect(() => {
-    if (!chartRootRef.current) {
-      return
-    }
-    const nodes = chartRootRef.current.querySelectorAll('[id$=".label"]')
-    nodes.forEach((node) => {
-      const id = node.getAttribute('id') || ''
-      const override = overrides[id]
-      if (override) {
-        node.setAttribute(
-          'transform',
-          `translate(${override.dx.toFixed(3)} ${override.dy.toFixed(3)})`
-        )
-      } else {
-        node.removeAttribute('transform')
-      }
-    })
-  }, [overrides, chartSvg])
-
-  const onPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+  const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (!svgRef.current || !chartRootRef.current) {
       return
     }
     const target = event.target as Element | null
-    const labelElement = target?.closest('[id$=".label"]') as Element | null
+    const labelElement = target?.closest('[id]') as Element | null
     const chartElement = target?.closest('#chartRoot') as Element | null
 
-    const point = toSvgPoint(event, svgRef.current)
+    const point = labelElement && chartRootRef.current
+      ? toNodePoint(event, chartRootRef.current)
+      : toSvgPoint(event, svgRef.current)
     if (labelElement) {
       const id = labelElement.getAttribute('id') || ''
-      const current = overrides[id] || { dx: 0, dy: 0 }
-      setSelectedElement(id)
-      setDrag({
-        mode: 'label',
-        startPoint: point,
-        startFit: chartFit,
-        labelId: id,
-        startOffset: current,
-      })
-      svgRef.current.setPointerCapture(event.pointerId)
-      return
+      if (isDraggableElement(id)) {
+        const current = overrides[id] || { dx: 0, dy: 0 }
+        setSelectedElement(id)
+        setDrag({
+          mode: 'label',
+          startPoint: point,
+          startFit: chartFit,
+          labelId: id,
+          startOffset: current,
+        })
+        svgRef.current.setPointerCapture(event.pointerId)
+        return
+      }
     }
 
     if (chartElement) {
@@ -183,11 +231,14 @@ function App() {
     }
   }
 
-  const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+  const onPointerMove = (event: PointerEvent<SVGSVGElement>) => {
     if (!drag || !svgRef.current) {
       return
     }
-    const point = toSvgPoint(event, svgRef.current)
+    const point =
+      drag.mode === 'label' && chartRootRef.current
+        ? toNodePoint(event, chartRootRef.current)
+        : toSvgPoint(event, svgRef.current)
     const dx = point.x - drag.startPoint.x
     const dy = point.y - drag.startPoint.y
 
@@ -212,17 +263,17 @@ function App() {
       return
     }
     if (drag.mode === 'label' && drag.labelId && drag.startOffset) {
-      setOverrides((current) => ({
-        ...current,
-        [drag.labelId as string]: {
-          dx: drag.startOffset.dx + dx,
-          dy: drag.startOffset.dy + dy,
-        },
-      }))
+        setOverrides((current) => ({
+          ...current,
+          [drag.labelId as string]: {
+            dx: (drag.startOffset?.dx ?? 0) + dx,
+            dy: (drag.startOffset?.dy ?? 0) + dy,
+          },
+        }))
     }
   }
 
-  const onPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+  const onPointerUp = (event: PointerEvent<SVGSVGElement>) => {
     if (!svgRef.current) {
       return
     }
@@ -232,11 +283,15 @@ function App() {
     setDrag(null)
   }
 
-  const handleSaveMeta = () => {
-    if (!meta) {
+  const handleSaveAll = async () => {
+    if (!meta || !selectedFrame) {
       return
     }
-    const output = {
+    if (!chartId) {
+      setError('Chart ID is required to save changes.')
+      return
+    }
+    const metaPayload = {
       ...meta,
       chart_fit: {
         dx: round(chartFit.dx),
@@ -245,25 +300,146 @@ function App() {
         rotation_deg: round(chartFit.rotation_deg),
       },
     }
-    downloadJson('metadata.json', output)
-  }
-
-  const handleSaveLayout = () => {
-    const output = {
+    const layoutPayload = {
       overrides: Object.fromEntries(
         Object.entries(overrides).map(([key, value]) => [
           key,
-          { dx: round(value.dx), dy: round(value.dy) },
+          normalizeOverride(value),
         ])
       ),
     }
-    downloadJson('layout.json', output)
+    const metaResponse = await fetch(
+      `${apiBase}/api/charts/${chartId}/frames/${selectedFrame.id}/metadata`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metaPayload),
+      }
+    )
+    if (!metaResponse.ok) {
+      const detail = await readApiError(metaResponse)
+      setError(detail ?? 'Failed to save metadata.')
+      setStatus('')
+      return
+    }
+    const layoutResponse = await fetch(
+      `${apiBase}/api/charts/${chartId}/frames/${selectedFrame.id}/layout`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(layoutPayload),
+      }
+    )
+    if (!layoutResponse.ok) {
+      const detail = await readApiError(layoutResponse)
+      setError(detail ?? 'Failed to save layout.')
+      setStatus('')
+      return
+    }
+    setError('')
+    setStatus('Saved metadata and layout.')
+  }
+
+  const handleAutoFix = async () => {
+    if (!selectedFrame) {
+      setError('Select a frame before auto-fix.')
+      return
+    }
+    if (!chartId) {
+      setError('Chart ID is required for auto-fix.')
+      return
+    }
+    const response = await fetch(
+      `${apiBase}/api/charts/${chartId}/frames/${selectedFrame.id}/auto_layout`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'labels', min_gap_px: 10, max_iter: 200 }),
+      }
+    )
+    if (!response.ok) {
+      setError('Failed to auto-fix overlaps.')
+      setStatus('')
+      return
+    }
+    const data = (await response.json()) as { overrides: Record<string, Offset> }
+    setOverrides((current) => ({ ...current, ...data.overrides }))
+    setError('')
+    setStatus('Auto-fix applied.')
   }
 
   const handleReset = () => {
     setChartFit(initialFit)
     setOverrides(initialOverrides)
     setSelectedElement('')
+    setStatus('')
+  }
+
+  const handleCreateChart = async () => {
+    if (!selectedFrame) {
+      setError('Select a frame before creating a chart.')
+      return
+    }
+    const payload = {
+      birth_date: birthDate,
+      birth_time: birthTime,
+      latitude,
+      longitude,
+      default_frame_id: selectedFrame.id,
+    }
+    const response = await fetch(`${apiBase}/api/charts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+      setError('Failed to create chart.')
+      setStatus('')
+      return
+    }
+    const data = (await response.json()) as { chart_id: string }
+    setChartId(data.chart_id)
+    setError('')
+    setStatus(`Created chart ${data.chart_id}`)
+  }
+
+  const handleResetSession = () => {
+    localStorage.removeItem('zodiac_editor.chartId')
+    localStorage.removeItem('zodiac_editor.birthDate')
+    localStorage.removeItem('zodiac_editor.birthTime')
+    localStorage.removeItem('zodiac_editor.latitude')
+    localStorage.removeItem('zodiac_editor.longitude')
+    setBirthDate('1990-04-12')
+    setBirthTime('08:45')
+    setLatitude(40.7128)
+    setLongitude(-74.006)
+    setChartId('')
+    setChartFit(defaultChartFit)
+    setInitialFit(defaultChartFit)
+    setOverrides({})
+    setInitialOverrides({})
+    setSelectedElement('')
+    setStatus('')
+    setError('')
+  }
+
+  const handleFactoryReset = () => {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith('zodiac_editor.'))
+      .forEach((key) => localStorage.removeItem(key))
+    setApiBase(defaultApiBase)
+    setBirthDate('1990-04-12')
+    setBirthTime('08:45')
+    setLatitude(40.7128)
+    setLongitude(-74.006)
+    setChartId('')
+    setChartFit(defaultChartFit)
+    setInitialFit(defaultChartFit)
+    setOverrides({})
+    setInitialOverrides({})
+    setSelectedElement('')
+    setStatus('')
+    setError('')
   }
 
   return (
@@ -271,6 +447,64 @@ function App() {
       <aside className="sidebar">
         <h1>Frame Alignment + Layout</h1>
         {error ? <div className="error">{error}</div> : null}
+        {status ? <div className="status">{status}</div> : null}
+        <label className="field">
+          Chart ID
+          <input
+            type="text"
+            value={chartId}
+            onChange={(event) => setChartId(event.target.value)}
+            placeholder="Paste chart id"
+          />
+        </label>
+        <div className="section">
+          <h2>Create Chart</h2>
+          <label className="field">
+            Birth date
+            <input
+              type="date"
+              value={birthDate}
+              onChange={(event) => setBirthDate(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            Birth time
+            <input
+              type="time"
+              value={birthTime}
+              onChange={(event) => setBirthTime(event.target.value)}
+            />
+          </label>
+          <NumberField
+            label="Latitude"
+            value={latitude}
+            step={0.0001}
+            onChange={setLatitude}
+          />
+          <NumberField
+            label="Longitude"
+            value={longitude}
+            step={0.0001}
+            onChange={setLongitude}
+          />
+          <button className="secondary" onClick={handleCreateChart}>
+            Create chart
+          </button>
+          <button
+            className="secondary"
+            onClick={handleResetSession}
+            title="Clears chart ID and birth inputs; resets fit/overrides for this session."
+          >
+            Reset chart session
+          </button>
+          <button
+            className="secondary"
+            onClick={handleFactoryReset}
+            title="Clears all editor local storage and restores defaults."
+          >
+            Factory reset
+          </button>
+        </div>
         <label className="field">
           Frame
           <select
@@ -303,14 +537,31 @@ function App() {
         </div>
 
         <div className="section">
+          <h2>Visibility</h2>
+          <label className="field checkbox">
+            <span>Show labels</span>
+            <input
+              type="checkbox"
+              checked={showLabels}
+              onChange={(event) => setShowLabels(event.target.checked)}
+            />
+          </label>
+        </div>
+
+        <div className="section">
           <h2>Selection</h2>
           <div className="selection">{selectedElement || 'None'}</div>
         </div>
 
         <div className="actions">
-          <button onClick={handleSaveMeta}>Save metadata.json</button>
-          <button onClick={handleSaveLayout}>Save layout.json</button>
-          <button onClick={handleReset}>Reset</button>
+          <button onClick={handleSaveAll}>Save all</button>
+          <button onClick={handleAutoFix}>Auto-fix overlaps</button>
+          <button
+            onClick={handleReset}
+            title="Reverts fit and label overrides to the initial loaded state."
+          >
+            Reset
+          </button>
         </div>
       </aside>
 
@@ -327,7 +578,7 @@ function App() {
           >
             {selectedFrame ? (
               <image
-                href={selectedFrame.image}
+                href={`${apiBase}${selectedFrame.image_path}`}
                 x={0}
                 y={0}
                 width={meta.canvas.width}
@@ -350,21 +601,34 @@ function App() {
               stroke="rgba(0,0,0,0.2)"
               strokeWidth={2}
             />
-            <g className="crosshair">
-              <line
-                x1={meta.chart.center.x - 20}
-                y1={meta.chart.center.y}
-                x2={meta.chart.center.x + 20}
-                y2={meta.chart.center.y}
-              />
-              <line
-                x1={meta.chart.center.x}
-                y1={meta.chart.center.y - 20}
-                x2={meta.chart.center.x}
-                y2={meta.chart.center.y + 20}
-              />
+            <g ref={chartRootRef} id="chartRoot">
+              <g className="crosshair">
+                <line
+                  x1={meta.chart.center.x - 20}
+                  y1={meta.chart.center.y}
+                  x2={meta.chart.center.x + 20}
+                  y2={meta.chart.center.y}
+                />
+                <line
+                  x1={meta.chart.center.x}
+                  y1={meta.chart.center.y - 20}
+                  x2={meta.chart.center.x}
+                  y2={meta.chart.center.y + 20}
+                />
+              </g>
+              <g dangerouslySetInnerHTML={{ __html: chartSvg }} />
             </g>
-            <g ref={chartRootRef} id="chartRoot" dangerouslySetInnerHTML={{ __html: chartSvg }} />
+            {!chartId ? (
+              <text
+                x={meta.chart.center.x}
+                y={meta.chart.center.y}
+                textAnchor="middle"
+                fill="rgba(20, 20, 20, 0.6)"
+                fontSize={18}
+              >
+                Set chart ID to load overlay
+              </text>
+            ) : null}
           </svg>
         ) : (
           <div className="placeholder">Select a frame to begin.</div>
@@ -384,7 +648,89 @@ function extractChartInner(svgText: string): string {
   return doc.documentElement.innerHTML
 }
 
-function toSvgPoint(event: React.PointerEvent, svg: SVGSVGElement) {
+function stripOverrideTransforms(svgInner: string, overrides: Record<string, Offset>) {
+  if (!svgInner) {
+    return svgInner
+  }
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${svgInner}</svg>`,
+    'image/svg+xml'
+  )
+  const keys = Object.keys(overrides)
+  if (keys.length === 0) {
+    return svgInner
+  }
+  keys.forEach((key) => {
+    const node = doc.querySelector(`[id="${CSS.escape(key)}"]`)
+    if (node) {
+      node.removeAttribute('transform')
+    }
+  })
+  return doc.documentElement.innerHTML
+}
+
+function applyOverrides(
+  svgInner: string,
+  overrides: Record<string, Offset>,
+  showLabels: boolean
+) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${svgInner}</svg>`,
+    'image/svg+xml'
+  )
+  if (!showLabels) {
+    const labelNodes = doc.querySelectorAll('[id$=".label"]')
+    labelNodes.forEach((node) => node.remove())
+  }
+  const nodes = doc.querySelectorAll('[id]')
+  nodes.forEach((node) => {
+    const id = node.getAttribute('id') || ''
+    const override = overrides[id]
+    if (!override) {
+      return
+    }
+    const theta = Number(node.getAttribute('data-theta'))
+    let dx = override.dx ?? 0
+    let dy = override.dy ?? 0
+    if ((override.dr !== undefined || override.dt !== undefined) && Number.isFinite(theta)) {
+      const offset = polarOffsetToXY(override.dr ?? 0, override.dt ?? 0, theta)
+      dx = offset.dx
+      dy = offset.dy
+    }
+    const translate = `translate(${dx.toFixed(3)} ${dy.toFixed(3)})`
+    const existing = node.getAttribute('transform')
+    node.setAttribute('transform', existing ? `${existing} ${translate}` : translate)
+  })
+  return doc.documentElement.innerHTML
+}
+
+async function fetchJson(url: string) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to load JSON: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+async function fetchJsonIfOk(url: string) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    return null
+  }
+  return response.json()
+}
+
+async function fetchTextIfOk(url: string) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    return ''
+  }
+  return response.text()
+}
+
+function toSvgPoint(event: PointerEvent, svg: SVGSVGElement) {
   const point = svg.createSVGPoint()
   point.x = event.clientX
   point.y = event.clientY
@@ -396,16 +742,19 @@ function toSvgPoint(event: React.PointerEvent, svg: SVGSVGElement) {
   return { x: transformed.x, y: transformed.y }
 }
 
-function downloadJson(filename: string, data: unknown) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: 'application/json',
-  })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  URL.revokeObjectURL(url)
+function toNodePoint(event: PointerEvent, node: SVGGElement) {
+  const point = node.ownerSVGElement?.createSVGPoint()
+  if (!point) {
+    return { x: event.clientX, y: event.clientY }
+  }
+  point.x = event.clientX
+  point.y = event.clientY
+  const ctm = node.getScreenCTM()
+  if (!ctm) {
+    return { x: event.clientX, y: event.clientY }
+  }
+  const transformed = point.matrixTransform(ctm.inverse())
+  return { x: transformed.x, y: transformed.y }
 }
 
 function NumberField({
@@ -434,6 +783,48 @@ function NumberField({
 
 function round(value: number) {
   return Math.round(value * 1000) / 1000
+}
+
+function normalizeOverride(value: Offset) {
+  const dx = Number.isFinite(value.dx) ? round(value.dx as number) : 0
+  const dy = Number.isFinite(value.dy) ? round(value.dy as number) : 0
+  const override: Record<string, number> = { dx, dy }
+  if (Number.isFinite(value.dr)) {
+    override.dr = round(value.dr as number)
+  }
+  if (Number.isFinite(value.dt)) {
+    override.dt = round(value.dt as number)
+  }
+  return override
+}
+
+async function readApiError(response: Response): Promise<string | null> {
+  try {
+    const data = (await response.json()) as { detail?: string }
+    if (data?.detail) {
+      return `Error: ${data.detail}`
+    }
+  } catch (err) {
+    return null
+  }
+  return null
+}
+
+function polarOffsetToXY(dr: number, dt: number, thetaDeg: number) {
+  const angle = (Math.PI / 180) * thetaDeg
+  return {
+    dx: dr * Math.cos(angle) - dt * Math.sin(angle),
+    dy: dr * Math.sin(angle) + dt * Math.cos(angle),
+  }
+}
+
+function isDraggableElement(id: string) {
+  return (
+    (id.startsWith('planet.') && id.endsWith('.label')) ||
+    (id.startsWith('planet.') && id.endsWith('.glyph')) ||
+    id.startsWith('sign.') ||
+    id === 'asc.marker'
+  )
 }
 
 export default App

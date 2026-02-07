@@ -1,0 +1,21 @@
+{
+  "canvas": {
+    "width": 1024,
+    "height": 1024
+  },
+  "chart": {
+    "center": {
+      "x": 512,
+      "y": 512
+    },
+    "ring_outer": 465,
+    "ring_inner": 345,
+    "rotation_deg": 0
+  },
+  "chart_fit": {
+    "dx": -3.178,
+    "dy": -9.123,
+    "scale": 0.577,
+    "rotation_deg": 0
+  }
+}

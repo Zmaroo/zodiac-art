@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
+import asyncio
 from pathlib import Path
 import sys
 
@@ -16,6 +17,9 @@ from zodiac_art.frames.frame_loader import load_frame
 from zodiac_art.frames.layout import load_layout
 from zodiac_art.frames.registry import list_frames
 from zodiac_art.renderer.svg_chart import ChartFit, ElementOverride, RenderSettings, SvgChartRenderer
+from zodiac_art.api.rendering import render_chart_svg
+from zodiac_art.api.storage import FileStorage
+from zodiac_art.api.storage_async import AsyncFileStorage
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -25,6 +29,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--latitude", type=float, help="Latitude")
     parser.add_argument("--longitude", type=float, help="Longitude")
     parser.add_argument("--frame", type=str, default="default", help="Frame name")
+    parser.add_argument("--chart-id", type=str, help="Chart id to load")
     parser.add_argument("--output-name", type=str, default="zodiac_art", help="Output file base name")
     parser.add_argument("--list-frames", action="store_true", help="List available frames")
     parser.add_argument(
@@ -91,14 +96,36 @@ def run_pipeline(
         scale=frame_asset.meta.chart_fit_scale,
         rotation_deg=frame_asset.meta.chart_fit_rotation_deg,
     )
-    overrides: dict[str, ElementOverride] = {
-        key: ElementOverride(dx=value["dx"], dy=value["dy"])
-        for key, value in layout.overrides.items()
-    }
+    overrides: dict[str, ElementOverride] = {}
+    for key, value in layout.overrides.items():
+        overrides[key] = ElementOverride(
+            dx=value.get("dx", 0.0),
+            dy=value.get("dy", 0.0),
+            dr=value.get("dr"),
+            dt=value.get("dt"),
+        )
     chart_svg = renderer.render(chart, global_transform=chart_fit, overrides=overrides)
     final_svg = compose_svg(chart_svg, frame_asset)
     output = export_artwork(final_svg, config.output_dir, output_name)
 
+    print(f"SVG output: {output.svg_path}")
+    print(f"PNG output: {output.png_path}")
+
+
+def run_chart_id_pipeline(chart_id: str, frame_name: str | None, output_name: str) -> None:
+    storage = FileStorage()
+    if not storage.chart_exists(chart_id):
+        raise ValueError(f"Chart id not found: {chart_id}")
+    record = storage.load_chart(chart_id)
+    frame_id = frame_name
+    if frame_id == "default" and record.default_frame_id:
+        frame_id = record.default_frame_id
+    if not frame_id:
+        raise ValueError("Frame id is required when chart has no default frame.")
+    async_storage = AsyncFileStorage(storage)
+    result = asyncio.run(render_chart_svg(async_storage, record, frame_id))
+    config = load_config()
+    output = export_artwork(result.svg, config.output_dir, output_name)
     print(f"SVG output: {output.svg_path}")
     print(f"PNG output: {output.png_path}")
 
@@ -117,6 +144,9 @@ def example_run() -> None:
 def main(argv: list[str]) -> None:
     args = _parse_args(argv)
     try:
+        if args.chart_id:
+            run_chart_id_pipeline(args.chart_id, args.frame, args.output_name)
+            return
         if args.list_frames:
             frames = list_frames()
             if not frames:
