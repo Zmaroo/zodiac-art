@@ -22,15 +22,23 @@ class ChartRecord:
     birth_time: str
     latitude: float
     longitude: float
-    default_frame_id: str | None
+    default_frame_id: str | None = None
+    user_id: str | None = None
+    name: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
     def to_dict(self) -> dict:
         return {
+            "user_id": self.user_id,
+            "name": self.name,
             "birth_date": self.birth_date,
             "birth_time": self.birth_time,
             "latitude": self.latitude,
             "longitude": self.longitude,
             "default_frame_id": self.default_frame_id,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
         }
 
 
@@ -88,6 +96,8 @@ class FileStorage:
 
     def create_chart(
         self,
+        user_id: str | None,
+        name: str | None,
         birth_date: str,
         birth_time: str,
         latitude: float,
@@ -97,11 +107,15 @@ class FileStorage:
         chart_id = str(uuid4())
         record = ChartRecord(
             chart_id=chart_id,
+            user_id=user_id,
+            name=name,
             birth_date=birth_date,
             birth_time=birth_time,
             latitude=latitude,
             longitude=longitude,
             default_frame_id=default_frame_id,
+            created_at=None,
+            updated_at=None,
         )
         chart_dir = self._chart_dir(chart_id)
         chart_dir.mkdir(parents=True, exist_ok=True)
@@ -116,11 +130,15 @@ class FileStorage:
         data = load_json(chart_path)
         return ChartRecord(
             chart_id=chart_id,
+            user_id=data.get("user_id"),
+            name=data.get("name"),
             birth_date=str(data.get("birth_date")),
             birth_time=str(data.get("birth_time")),
-            latitude=float(data.get("latitude")),
-            longitude=float(data.get("longitude")),
+            latitude=float(data.get("latitude", 0.0)),
+            longitude=float(data.get("longitude", 0.0)),
             default_frame_id=data.get("default_frame_id"),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
         )
 
     def chart_exists(self, chart_id: str) -> bool:

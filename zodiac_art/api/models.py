@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ChartCreateRequest(BaseModel):
     """Request to create a chart."""
 
+    name: str | None = None
     birth_date: str
     birth_time: str
     latitude: float
@@ -41,12 +42,23 @@ class ChartInfoResponse(BaseModel):
     """Chart info response."""
 
     chart_id: str
+    name: str | None = None
     birth_date: str
     birth_time: str
     latitude: float
     longitude: float
     default_frame_id: str | None
+    created_at: str | None = None
     frames: list[ChartFrameStatus]
+
+
+class ChartListItem(BaseModel):
+    """Chart list entry."""
+
+    chart_id: str
+    name: str | None = None
+    created_at: str | None = None
+    default_frame_id: str | None = None
 
 
 class AutoLayoutRequest(BaseModel):

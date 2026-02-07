@@ -9,6 +9,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = PROJECT_ROOT / "assets"
+STORAGE_ROOT = PROJECT_ROOT / "storage"
 GLYPH_FONT_PATH = ASSETS_DIR / "fonts" / "NotoSansSymbols2-Regular.ttf"
 LABEL_FONT_PATH: Path | None = None
 
@@ -69,3 +70,20 @@ def build_database_url() -> str | None:
             auth = f"{auth}:{quote_plus(password)}"
         return f"postgresql://{auth}@{host}:{port}/{database}"
     return f"postgresql://{host}:{port}/{database}"
+
+
+def get_dev_mode() -> bool:
+    value = os.environ.get("DEV_MODE", "false").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def get_jwt_secret() -> str | None:
+    return os.environ.get("JWT_SECRET")
+
+
+def get_jwt_expires_seconds() -> int:
+    raw = os.environ.get("JWT_EXPIRES_SECONDS", "604800")
+    try:
+        return int(raw)
+    except ValueError:
+        return 604800

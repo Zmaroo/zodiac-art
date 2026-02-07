@@ -228,6 +228,8 @@ python -m zodiac_art.api.app
 
 Manual test examples: `docs/api.md`
 
+Frame library details: `docs/frames.md`
+
 ### Database (Postgres)
 
 Set the connection string or component variables:
@@ -240,6 +242,12 @@ Initialize schema:
 
 ```bash
 python -m zodiac_art.db.init_db
+```
+
+Seed built-in frames:
+
+```bash
+python -m zodiac_art.db.seed_frames
 ```
 
 Start the API:

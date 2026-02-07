@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from zodiac_art.api.storage import ChartRecord
-from zodiac_art.config import PROJECT_ROOT
+from zodiac_art.config import PROJECT_ROOT, STORAGE_ROOT
 from zodiac_art.frames.frame_loader import SUPPORTED_IMAGE_EXTENSIONS
 from zodiac_art.utils.file_utils import load_json
 
@@ -29,6 +29,21 @@ class PostgresStorage:
     def _template_frame_dir(self, frame_id: str) -> Path:
         return self.frames_dir / frame_id
 
+    async def _frame_row(self, frame_id: str) -> asyncpg.Record | None:
+        try:
+            frame_uuid = self._validate_uuid(frame_id)
+        except ValueError:
+            return None
+        async with self.pool.acquire() as conn:
+            return await conn.fetchrow(
+                """
+                SELECT id, image_path, thumb_path, template_metadata_json
+                FROM frames
+                WHERE id = $1
+                """,
+                frame_uuid,
+            )
+
     def _template_meta_path(self, frame_id: str) -> Path:
         return self._template_frame_dir(frame_id) / "metadata.json"
 
@@ -44,16 +59,21 @@ class PostgresStorage:
         return existing[0]
 
     async def list_frames(self) -> list[str]:
-        if not self.frames_dir.exists():
-            return []
         frame_ids: list[str] = []
-        for child in sorted(self.frames_dir.iterdir(), key=lambda path: path.name):
-            if child.is_dir() and (child / "metadata.json").exists():
-                frame_ids.append(child.name)
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT id FROM frames ORDER BY created_at DESC")
+        frame_ids.extend([str(row["id"]) for row in rows])
+        if self.frames_dir.exists():
+            for child in sorted(self.frames_dir.iterdir(), key=lambda path: path.name):
+                if child.is_dir() and (child / "metadata.json").exists():
+                    if child.name not in frame_ids:
+                        frame_ids.append(child.name)
         return frame_ids
 
     async def create_chart(
         self,
+        user_id: str | None,
+        name: str | None,
         birth_date: str,
         birth_time: str,
         latitude: float,
@@ -65,10 +85,12 @@ class PostgresStorage:
             await conn.execute(
                 """
                 INSERT INTO charts (
-                    id, birth_date, birth_time, latitude, longitude, default_frame_id
-                ) VALUES ($1, $2, $3, $4, $5, $6)
+                    id, user_id, name, birth_date, birth_time, latitude, longitude, default_frame_id
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 """,
                 chart_id,
+                UUID(user_id) if user_id else None,
+                name,
                 birth_date,
                 birth_time,
                 latitude,
@@ -77,6 +99,8 @@ class PostgresStorage:
             )
         return ChartRecord(
             chart_id=str(chart_id),
+            user_id=user_id,
+            name=name,
             birth_date=birth_date,
             birth_time=birth_time,
             latitude=latitude,
@@ -92,7 +116,8 @@ class PostgresStorage:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, birth_date, birth_time, latitude, longitude, default_frame_id
+                SELECT id, user_id, name, birth_date, birth_time, latitude, longitude,
+                       default_frame_id, created_at, updated_at
                 FROM charts
                 WHERE id = $1
                 """,
@@ -102,11 +127,43 @@ class PostgresStorage:
             raise FileNotFoundError("Chart not found")
         return ChartRecord(
             chart_id=str(row["id"]),
+            user_id=str(row["user_id"]) if row["user_id"] else None,
+            name=row["name"],
             birth_date=row["birth_date"],
             birth_time=row["birth_time"],
             latitude=float(row["latitude"]),
             longitude=float(row["longitude"]),
             default_frame_id=row["default_frame_id"],
+            created_at=_format_ts(row["created_at"]),
+            updated_at=_format_ts(row["updated_at"]),
+        )
+
+    async def load_chart_for_user(self, chart_id: str, user_id: str) -> ChartRecord | None:
+        chart_uuid = self._validate_uuid(chart_id)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, user_id, name, birth_date, birth_time, latitude, longitude,
+                       default_frame_id, created_at, updated_at
+                FROM charts
+                WHERE id = $1 AND user_id = $2
+                """,
+                chart_uuid,
+                UUID(user_id),
+            )
+        if not row:
+            return None
+        return ChartRecord(
+            chart_id=str(row["id"]),
+            user_id=str(row["user_id"]),
+            name=row["name"],
+            birth_date=row["birth_date"],
+            birth_time=row["birth_time"],
+            latitude=float(row["latitude"]),
+            longitude=float(row["longitude"]),
+            default_frame_id=row["default_frame_id"],
+            created_at=_format_ts(row["created_at"]),
+            updated_at=_format_ts(row["updated_at"]),
         )
 
     async def chart_exists(self, chart_id: str) -> bool:
@@ -117,6 +174,46 @@ class PostgresStorage:
                 chart_uuid,
             )
         return row is not None
+
+    async def chart_exists_for_user(self, chart_id: str, user_id: str) -> bool:
+        chart_uuid = self._validate_uuid(chart_id)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                "SELECT 1 FROM charts WHERE id = $1 AND user_id = $2",
+                chart_uuid,
+                UUID(user_id),
+            )
+        return row is not None
+
+    async def list_charts(self, user_id: str, limit: int = 20) -> list[ChartRecord]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, name, birth_date, birth_time, latitude, longitude,
+                       default_frame_id, created_at, updated_at
+                FROM charts
+                WHERE user_id = $1
+                ORDER BY updated_at DESC, created_at DESC
+                LIMIT $2
+                """,
+                UUID(user_id),
+                limit,
+            )
+        return [
+            ChartRecord(
+                chart_id=str(row["id"]),
+                user_id=str(row["user_id"]),
+                name=row["name"],
+                birth_date=row["birth_date"],
+                birth_time=row["birth_time"],
+                latitude=float(row["latitude"]),
+                longitude=float(row["longitude"]),
+                default_frame_id=row["default_frame_id"],
+                created_at=_format_ts(row["created_at"]),
+                updated_at=_format_ts(row["updated_at"]),
+            )
+            for row in rows
+        ]
 
     async def metadata_exists(self, chart_id: str, frame_id: str) -> bool:
         chart_uuid = self._validate_uuid(chart_id)
@@ -147,6 +244,12 @@ class PostgresStorage:
         return bool(row)
 
     async def load_template_meta(self, frame_id: str) -> dict:
+        row = await self._frame_row(frame_id)
+        if row:
+            data = row["template_metadata_json"]
+            if isinstance(data, str):
+                return json.loads(data)
+            return dict(data)
         return load_json(self._template_meta_path(frame_id))
 
     async def load_chart_meta(self, chart_id: str, frame_id: str) -> dict | None:
@@ -234,9 +337,16 @@ class PostgresStorage:
             )
 
     async def template_image_path(self, frame_id: str) -> Path:
+        row = await self._frame_row(frame_id)
+        if row:
+            return STORAGE_ROOT / row["image_path"]
         return self._template_image_path(frame_id)
 
     async def template_meta_path(self, frame_id: str) -> Path:
+        row = await self._frame_row(frame_id)
+        if row:
+            image_path = STORAGE_ROOT / row["image_path"]
+            return image_path.parent / "template_metadata.json"
         return self._template_meta_path(frame_id)
 
     async def iter_frame_dirs(self) -> Iterable[Path]:

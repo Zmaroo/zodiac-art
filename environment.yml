@@ -16,3 +16,5 @@ dependencies:
       - fastapi
       - uvicorn
       - asyncpg
+      - pyjwt
+      - passlib[bcrypt]

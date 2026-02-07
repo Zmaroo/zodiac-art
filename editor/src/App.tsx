@@ -4,8 +4,16 @@ import './App.css'
 
 type FrameEntry = {
   id: string
-  image_path: string
-  template_meta_path: string
+  name: string
+  tags: string[]
+  width: number
+  height: number
+  thumb_url: string
+}
+
+type FrameDetail = FrameEntry & {
+  image_url: string
+  template_metadata_json: ChartMeta
 }
 
 type ChartMeta = {
@@ -56,6 +64,7 @@ function App() {
   const [selectedId, setSelectedId] = useState<string>(
     () => localStorage.getItem('zodiac_editor.frameId') ?? ''
   )
+  const [selectedFrameDetail, setSelectedFrameDetail] = useState<FrameDetail | null>(null)
   const [chartId, setChartId] = useState<string>(
     () => localStorage.getItem('zodiac_editor.chartId') ?? ''
   )
@@ -71,6 +80,12 @@ function App() {
   const [error, setError] = useState<string>('')
   const [showLabels, setShowLabels] = useState(true)
   const [status, setStatus] = useState<string>('')
+  const [frameSearch, setFrameSearch] = useState('')
+  const [tagFilter, setTagFilter] = useState('')
+  const [uploadName, setUploadName] = useState('')
+  const [uploadTags, setUploadTags] = useState('')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [birthDate, setBirthDate] = useState(
     () => localStorage.getItem('zodiac_editor.birthDate') ?? '1990-04-12'
   )
@@ -87,7 +102,7 @@ function App() {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const chartRootRef = useRef<SVGGElement | null>(null)
 
-  useEffect(() => {
+  const loadFrames = () => {
     fetch(`${apiBase}/api/frames`)
       .then((response) => response.json())
       .then((data: FrameEntry[]) => {
@@ -99,6 +114,10 @@ function App() {
         }
       })
       .catch((err) => setError(String(err)))
+  }
+
+  useEffect(() => {
+    loadFrames()
   }, [apiBase])
 
   useEffect(() => {
@@ -120,35 +139,48 @@ function App() {
     localStorage.setItem('zodiac_editor.longitude', String(longitude))
   }, [birthDate, birthTime, latitude, longitude])
 
-  const selectedFrame = useMemo(
-    () => frames.find((frame) => frame.id === selectedId) || null,
-    [frames, selectedId]
-  )
+  const filteredFrames = useMemo(() => {
+    const search = frameSearch.trim().toLowerCase()
+    const tag = tagFilter.trim().toLowerCase()
+    return frames.filter((frame) => {
+      if (search && !frame.name.toLowerCase().includes(search)) {
+        return false
+      }
+      if (tag && !frame.tags.some((entry) => entry.toLowerCase().includes(tag))) {
+        return false
+      }
+      return true
+    })
+  }, [frames, frameSearch, tagFilter])
 
   useEffect(() => {
-    if (!selectedFrame) {
+    if (!selectedId) {
+      setSelectedFrameDetail(null)
       return
     }
     setError('')
     setStatus('')
-    const templateMetaUrl = `${apiBase}${selectedFrame.template_meta_path}`
+    const frameDetailUrl = `${apiBase}/api/frames/${selectedId}`
     const chartMetaUrl = chartId
-      ? `${apiBase}/static/data/charts/${chartId}/frames/${selectedFrame.id}/metadata.json`
+      ? `${apiBase}/api/charts/${chartId}/frames/${selectedId}/metadata`
       : null
     const layoutUrl = chartId
-      ? `${apiBase}/static/data/charts/${chartId}/frames/${selectedFrame.id}/layout.json`
+      ? `${apiBase}/api/charts/${chartId}/frames/${selectedId}/layout`
       : null
     const svgUrl = chartId
-      ? `${apiBase}/api/charts/${chartId}/render.svg?frame_id=${selectedFrame.id}`
+      ? `${apiBase}/api/charts/${chartId}/render.svg?frame_id=${selectedId}`
       : null
 
     Promise.all([
-      fetchJson(templateMetaUrl),
+      fetchJson(frameDetailUrl),
       chartMetaUrl ? fetchJsonIfOk(chartMetaUrl) : Promise.resolve(null),
       layoutUrl ? fetchJsonIfOk(layoutUrl) : Promise.resolve({ overrides: {} }),
       svgUrl ? fetchTextIfOk(svgUrl) : Promise.resolve(''),
     ])
-      .then(([templateMeta, chartMeta, layoutData, svgText]) => {
+      .then(([frameDetail, chartMeta, layoutData, svgText]) => {
+        const detail = frameDetail as FrameDetail
+        setSelectedFrameDetail(detail)
+        const templateMeta = detail.template_metadata_json
         const metaData = (chartMeta as ChartMeta) || (templateMeta as ChartMeta)
         setMeta(metaData)
         const fit = {
@@ -166,7 +198,7 @@ function App() {
         setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
       })
       .catch((err) => setError(String(err)))
-  }, [apiBase, chartId, selectedFrame])
+  }, [apiBase, chartId, selectedId])
 
   useEffect(() => {
     if (!chartSvgBase) {
@@ -284,7 +316,7 @@ function App() {
   }
 
   const handleSaveAll = async () => {
-    if (!meta || !selectedFrame) {
+    if (!meta || !selectedId) {
       return
     }
     if (!chartId) {
@@ -309,7 +341,7 @@ function App() {
       ),
     }
     const metaResponse = await fetch(
-      `${apiBase}/api/charts/${chartId}/frames/${selectedFrame.id}/metadata`,
+      `${apiBase}/api/charts/${chartId}/frames/${selectedId}/metadata`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -323,7 +355,7 @@ function App() {
       return
     }
     const layoutResponse = await fetch(
-      `${apiBase}/api/charts/${chartId}/frames/${selectedFrame.id}/layout`,
+      `${apiBase}/api/charts/${chartId}/frames/${selectedId}/layout`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -341,7 +373,7 @@ function App() {
   }
 
   const handleAutoFix = async () => {
-    if (!selectedFrame) {
+    if (!selectedId) {
       setError('Select a frame before auto-fix.')
       return
     }
@@ -350,7 +382,7 @@ function App() {
       return
     }
     const response = await fetch(
-      `${apiBase}/api/charts/${chartId}/frames/${selectedFrame.id}/auto_layout`,
+      `${apiBase}/api/charts/${chartId}/frames/${selectedId}/auto_layout`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -376,7 +408,7 @@ function App() {
   }
 
   const handleCreateChart = async () => {
-    if (!selectedFrame) {
+    if (!selectedId) {
       setError('Select a frame before creating a chart.')
       return
     }
@@ -385,7 +417,7 @@ function App() {
       birth_time: birthTime,
       latitude,
       longitude,
-      default_frame_id: selectedFrame.id,
+      default_frame_id: selectedId,
     }
     const response = await fetch(`${apiBase}/api/charts`, {
       method: 'POST',
@@ -401,6 +433,47 @@ function App() {
     setChartId(data.chart_id)
     setError('')
     setStatus(`Created chart ${data.chart_id}`)
+  }
+
+  const handleUploadFrame = async () => {
+    if (!uploadFile) {
+      setError('Select an image to upload.')
+      return
+    }
+    if (!uploadName.trim()) {
+      setError('Frame name is required.')
+      return
+    }
+    setUploading(true)
+    setError('')
+    setStatus('Uploading frame...')
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+      formData.append('name', uploadName.trim())
+      if (uploadTags.trim()) {
+        formData.append('tags', uploadTags.trim())
+      }
+      const response = await fetch(`${apiBase}/api/frames`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!response.ok) {
+        const detail = await readApiError(response)
+        setError(detail ?? 'Failed to upload frame.')
+        setStatus('')
+        return
+      }
+      const data = (await response.json()) as { id: string; name: string }
+      setStatus(`Uploaded frame ${data.name}`)
+      setUploadFile(null)
+      setUploadName('')
+      setUploadTags('')
+      loadFrames()
+      setSelectedId(data.id)
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleResetSession = () => {
@@ -505,19 +578,43 @@ function App() {
             Factory reset
           </button>
         </div>
-        <label className="field">
-          Frame
-          <select
-            value={selectedId}
-            onChange={(event) => setSelectedId(event.target.value)}
-          >
-            {frames.map((frame) => (
-              <option key={frame.id} value={frame.id}>
-                {frame.id}
-              </option>
+        <div className="section">
+          <h2>Frames</h2>
+          <label className="field">
+            Search
+            <input
+              type="text"
+              value={frameSearch}
+              onChange={(event) => setFrameSearch(event.target.value)}
+              placeholder="Find by name"
+            />
+          </label>
+          <label className="field">
+            Tag filter
+            <input
+              type="text"
+              value={tagFilter}
+              onChange={(event) => setTagFilter(event.target.value)}
+              placeholder="e.g. art"
+            />
+          </label>
+          <div className="frame-grid">
+            {filteredFrames.map((frame) => (
+              <button
+                key={frame.id}
+                type="button"
+                className={`frame-card ${frame.id === selectedId ? 'active' : ''}`}
+                onClick={() => setSelectedId(frame.id)}
+              >
+                <img src={`${apiBase}${frame.thumb_url}`} alt={frame.name} />
+                <div className="frame-name">{frame.name}</div>
+              </button>
             ))}
-          </select>
-        </label>
+            {filteredFrames.length === 0 ? (
+              <div className="hint">No frames match the current filters.</div>
+            ) : null}
+          </div>
+        </div>
 
         <div className="section">
           <h2>Chart Fit</h2>
@@ -534,6 +631,39 @@ function App() {
             setChartFit((current) => ({ ...current, rotation_deg: value }))
           } />
           <div className="hint">Drag to move. Shift+drag to scale. Alt+drag to rotate.</div>
+        </div>
+
+        <div className="section">
+          <h2>Upload Frame</h2>
+          <label className="field">
+            Name
+            <input
+              type="text"
+              value={uploadName}
+              onChange={(event) => setUploadName(event.target.value)}
+              placeholder="Frame name"
+            />
+          </label>
+          <label className="field">
+            Tags
+            <input
+              type="text"
+              value={uploadTags}
+              onChange={(event) => setUploadTags(event.target.value)}
+              placeholder="comma-separated"
+            />
+          </label>
+          <label className="field">
+            Image
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button className="secondary" onClick={handleUploadFrame} disabled={uploading}>
+            {uploading ? 'Uploading...' : 'Upload frame'}
+          </button>
         </div>
 
         <div className="section">
@@ -576,9 +706,9 @@ function App() {
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
           >
-            {selectedFrame ? (
+            {selectedFrameDetail ? (
               <image
-                href={`${apiBase}${selectedFrame.image_path}`}
+                href={`${apiBase}${selectedFrameDetail.image_url}`}
                 x={0}
                 y={0}
                 width={meta.canvas.width}
