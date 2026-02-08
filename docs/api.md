@@ -6,6 +6,9 @@
 python -m zodiac_art.api.app
 ```
 
+Auth is required for chart endpoints. Get a token via `/api/auth/register` or
+`/api/auth/login` and include `Authorization: Bearer <token>`.
+
 ## List frames
 
 ```bash
@@ -16,20 +19,36 @@ curl http://127.0.0.1:8000/api/frames
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/charts \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
+    "name": "Chart 1",
     "birth_date": "1990-04-12",
     "birth_time": "08:45",
-    "latitude": 40.7128,
-    "longitude": -74.0060,
+    "birth_place_id": "<place_id>",
     "default_frame_id": "artnouveau_test"
   }'
+```
+
+## Place search
+
+```bash
+curl "http://127.0.0.1:8000/api/places/search?q=New%20York&limit=5" \
+  -H "Authorization: Bearer <token>"
+```
+
+## List charts
+
+```bash
+curl http://127.0.0.1:8000/api/charts \
+  -H "Authorization: Bearer <token>"
 ```
 
 ## Fetch chart
 
 ```bash
-curl http://127.0.0.1:8000/api/charts/<chart_id>
+curl http://127.0.0.1:8000/api/charts/<chart_id> \
+  -H "Authorization: Bearer <token>"
 ```
 
 ## Render SVG

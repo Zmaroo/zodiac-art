@@ -20,19 +20,31 @@ class AsyncFileStorage:
 
     async def create_chart(
         self,
+        user_id: str | None,
+        name: str | None,
         birth_date: str,
         birth_time: str,
         latitude: float,
         longitude: float,
         default_frame_id: str | None,
+        birth_place_text: str | None = None,
+        birth_place_id: str | None = None,
+        timezone: str | None = None,
+        birth_datetime_utc: str | None = None,
     ) -> ChartRecord:
         return await asyncio.to_thread(
             self._storage.create_chart,
+            user_id,
+            name,
             birth_date,
             birth_time,
             latitude,
             longitude,
             default_frame_id,
+            birth_place_text,
+            birth_place_id,
+            timezone,
+            birth_datetime_utc,
         )
 
     async def get_chart(self, chart_id: str) -> ChartRecord:
@@ -41,8 +53,21 @@ class AsyncFileStorage:
     async def load_chart(self, chart_id: str) -> ChartRecord:
         return await asyncio.to_thread(self._storage.load_chart, chart_id)
 
+    async def load_chart_for_user(self, chart_id: str, user_id: str) -> ChartRecord | None:
+        record = await asyncio.to_thread(self._storage.load_chart, chart_id)
+        if record.user_id and record.user_id != user_id:
+            return None
+        return record
+
+    async def list_charts(self, user_id: str, limit: int = 20) -> list[ChartRecord]:
+        return await asyncio.to_thread(self._storage.list_charts, user_id, limit)
+
     async def chart_exists(self, chart_id: str) -> bool:
         return await asyncio.to_thread(self._storage.chart_exists, chart_id)
+
+    async def chart_exists_for_user(self, chart_id: str, user_id: str) -> bool:
+        record = await self.load_chart_for_user(chart_id, user_id)
+        return record is not None
 
     async def metadata_exists(self, chart_id: str, frame_id: str) -> bool:
         return await asyncio.to_thread(self._storage.metadata_exists, chart_id, frame_id)

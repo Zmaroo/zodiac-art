@@ -25,6 +25,10 @@ class ChartRecord:
     default_frame_id: str | None = None
     user_id: str | None = None
     name: str | None = None
+    birth_place_text: str | None = None
+    birth_place_id: str | None = None
+    timezone: str | None = None
+    birth_datetime_utc: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -37,6 +41,10 @@ class ChartRecord:
             "latitude": self.latitude,
             "longitude": self.longitude,
             "default_frame_id": self.default_frame_id,
+            "birth_place_text": self.birth_place_text,
+            "birth_place_id": self.birth_place_id,
+            "timezone": self.timezone,
+            "birth_datetime_utc": self.birth_datetime_utc,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -103,8 +111,15 @@ class FileStorage:
         latitude: float,
         longitude: float,
         default_frame_id: str | None,
+        birth_place_text: str | None = None,
+        birth_place_id: str | None = None,
+        timezone: str | None = None,
+        birth_datetime_utc: str | None = None,
     ) -> ChartRecord:
+        from datetime import datetime, timezone
+
         chart_id = str(uuid4())
+        timestamp = datetime.now(timezone.utc).isoformat()
         record = ChartRecord(
             chart_id=chart_id,
             user_id=user_id,
@@ -114,8 +129,12 @@ class FileStorage:
             latitude=latitude,
             longitude=longitude,
             default_frame_id=default_frame_id,
-            created_at=None,
-            updated_at=None,
+            birth_place_text=birth_place_text,
+            birth_place_id=birth_place_id,
+            timezone=timezone,
+            birth_datetime_utc=birth_datetime_utc,
+            created_at=timestamp,
+            updated_at=timestamp,
         )
         chart_dir = self._chart_dir(chart_id)
         chart_dir.mkdir(parents=True, exist_ok=True)
@@ -137,9 +156,32 @@ class FileStorage:
             latitude=float(data.get("latitude", 0.0)),
             longitude=float(data.get("longitude", 0.0)),
             default_frame_id=data.get("default_frame_id"),
+            birth_place_text=data.get("birth_place_text"),
+            birth_place_id=data.get("birth_place_id"),
+            timezone=data.get("timezone"),
+            birth_datetime_utc=data.get("birth_datetime_utc"),
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
         )
+
+    def list_charts(self, user_id: str | None = None, limit: int = 20) -> list[ChartRecord]:
+        charts_dir = self.base_dir / "charts"
+        if not charts_dir.exists():
+            return []
+        records: list[ChartRecord] = []
+        for child in sorted(charts_dir.iterdir(), key=lambda path: path.name, reverse=True):
+            if not child.is_dir():
+                continue
+            chart_file = child / "chart.json"
+            if not chart_file.exists():
+                continue
+            record = self.load_chart(child.name)
+            if user_id and record.user_id != user_id:
+                continue
+            records.append(record)
+            if len(records) >= limit:
+                break
+        return records
 
     def chart_exists(self, chart_id: str) -> bool:
         return self._chart_file(chart_id).exists()

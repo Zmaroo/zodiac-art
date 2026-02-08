@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
@@ -20,6 +20,7 @@ from zodiac_art.renderer.geometry import longitude_to_angle, polar_offset_to_xy,
 from zodiac_art.renderer.svg_chart import ChartFit, ElementOverride, RenderSettings, SvgChartRenderer
 
 from zodiac_art.api.storage import ChartRecord
+from zodiac_art.geo.timezone import to_utc_iso
 
 
 @dataclass(frozen=True)
@@ -73,8 +74,20 @@ def _build_settings(meta) -> RenderSettings:
 
 
 def _build_chart(record: ChartRecord):
-    birth_datetime = f"{record.birth_date} {record.birth_time}"
-    dt = datetime.strptime(birth_datetime, "%Y-%m-%d %H:%M")
+    if record.birth_datetime_utc:
+        dt = datetime.fromisoformat(record.birth_datetime_utc)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+    elif record.timezone:
+        try:
+            utc_iso = to_utc_iso(record.birth_date, record.birth_time, record.timezone)
+            dt = datetime.fromisoformat(utc_iso)
+        except ValueError:
+            birth_datetime = f"{record.birth_date} {record.birth_time}"
+            dt = datetime.strptime(birth_datetime, "%Y-%m-%d %H:%M")
+    else:
+        birth_datetime = f"{record.birth_date} {record.birth_time}"
+        dt = datetime.strptime(birth_datetime, "%Y-%m-%d %H:%M")
     ephemeris = calculate_ephemeris(dt, record.latitude, record.longitude)
     return build_chart(
         ephemeris.planet_longitudes,

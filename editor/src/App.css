@@ -167,6 +167,75 @@
   border-radius: 6px;
 }
 
+.auth-status {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-item {
+  border: 1px solid #d4cbbd;
+  background: #fffaf1;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chart-item.active {
+  outline: 2px solid #2f2a22;
+  outline-offset: 1px;
+}
+
+.chart-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chart-meta {
+  font-size: 11px;
+  color: #6b6254;
+}
+
+.place-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.place-item {
+  border: 1px solid #d4cbbd;
+  background: #fffaf1;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.place-selected {
+  padding: 8px;
+  border-radius: 8px;
+  background: #efe9de;
+  margin-bottom: 10px;
+}
+
+.place-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.place-meta {
+  font-size: 11px;
+  color: #6b6254;
+}
+
 .error {
   padding: 10px;
   background: #f7d9d4;

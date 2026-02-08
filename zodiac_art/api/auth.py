@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Callable
+from typing import Awaitable, Callable
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -60,10 +60,14 @@ async def get_user_by_email(pool: asyncpg.Pool, email: str) -> AuthUser | None:
 
 
 async def get_user_by_id(pool: asyncpg.Pool, user_id: str) -> AuthUser | None:
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        return None
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id, email FROM users WHERE id = $1",
-            UUID(user_id),
+            user_uuid,
         )
     if not row:
         return None
@@ -98,7 +102,7 @@ def get_current_user_dependency(
     pool: asyncpg.Pool,
     secret: str,
     dev_mode: bool,
-) -> Callable[[Request], AuthUser]:
+) -> Callable[[Request], Awaitable[AuthUser]]:
     async def _get_current_user(request: Request) -> AuthUser:
         auth_header = request.headers.get("authorization")
         if not auth_header:

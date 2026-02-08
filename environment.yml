@@ -11,10 +11,15 @@ dependencies:
   - pip:
       - pyswisseph==2.10.3.2
       - svgwrite
-      - svgpathlib
+      - svgpathtools
       - fonttools
       - fastapi
       - uvicorn
       - asyncpg
       - pyjwt
       - passlib[bcrypt]
+      - bcrypt==3.2.2
+      - httpx
+      - timezonefinder
+      - python-dotenv
+      - python-dotenv

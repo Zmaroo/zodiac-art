@@ -3,14 +3,28 @@
 from __future__ import annotations
 
 import json
+import secrets
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from zodiac_art.api.auth import (
+    AuthUser,
+    create_access_token,
+    create_user,
+    get_current_user_dependency,
+    get_user_by_email,
+    hash_password,
+    verify_password,
+)
 from zodiac_art.api.models import (
     AutoLayoutRequest,
     AutoLayoutResponse,
@@ -18,6 +32,7 @@ from zodiac_art.api.models import (
     ChartCreateResponse,
     ChartInfoResponse,
     ChartFrameStatus,
+    ChartListItem,
 )
 from zodiac_art.api.rendering import (
     compute_auto_layout_overrides,
@@ -33,13 +48,66 @@ from zodiac_art.api.frames_store import (
     validate_frame_image,
     write_template_metadata,
 )
+from zodiac_art.api.places_store import PlacesStore
 from zodiac_art.api.storage import FileStorage
 from zodiac_art.api.storage_async import AsyncFileStorage
 from zodiac_art.api.storage_postgres import PostgresStorage
-from zodiac_art.config import PROJECT_ROOT, STORAGE_ROOT, build_database_url
+from zodiac_art.config import (
+    PROJECT_ROOT,
+    STORAGE_ROOT,
+    build_database_url,
+    get_dev_mode,
+    get_jwt_expires_seconds,
+    get_jwt_secret,
+)
 from zodiac_art.frames.validation import validate_meta
+from zodiac_art.geo.geocoder import NominatimGeocoder
+from zodiac_art.geo.timezone import resolve_timezone, to_utc_iso
 
-app = FastAPI(title="Zodiac Art API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global storage
+    global frame_store
+    global places_store
+    global geocoder
+    global db_pool
+    global current_user
+    global jwt_secret
+    global jwt_expires_seconds
+    global dev_mode
+
+    dev_mode = get_dev_mode()
+    jwt_expires_seconds = get_jwt_expires_seconds()
+    jwt_secret = get_jwt_secret()
+    if not jwt_secret:
+        if dev_mode:
+            jwt_secret = secrets.token_urlsafe(32)
+            print("Warning: JWT_SECRET not set; using a temporary dev secret.")
+        else:
+            raise RuntimeError("JWT_SECRET is required when DEV_MODE is false.")
+    database_url = build_database_url()
+    if database_url:
+        import asyncpg
+
+        db_pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
+        storage = PostgresStorage(db_pool)
+        frame_store = PostgresFrameStore(db_pool)
+        places_store = PlacesStore(db_pool)
+        geocoder = NominatimGeocoder()
+        current_user = get_current_user_dependency(db_pool, jwt_secret, dev_mode)
+    else:
+        storage = AsyncFileStorage(FileStorage())
+        frame_store = FileFrameStore()
+    try:
+        yield
+    finally:
+        if db_pool:
+            await db_pool.close()
+
+
+load_dotenv(override=False)
+
+app = FastAPI(title="Zodiac Art API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,7 +118,13 @@ app.add_middleware(
 
 storage: Any = None
 frame_store: Any = None
+places_store: Any = None
+geocoder: Any = None
 db_pool = None
+current_user: Any = None
+jwt_secret: str | None = None
+jwt_expires_seconds = 604800
+dev_mode = False
 
 frames_path = PROJECT_ROOT / "zodiac_art" / "frames"
 data_path = PROJECT_ROOT / "data"
@@ -61,29 +135,6 @@ app.mount("/static/data", StaticFiles(directory=data_path), name="data")
 app.mount("/static/storage", StaticFiles(directory=storage_path), name="storage")
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    global storage
-    global frame_store
-    global db_pool
-    database_url = build_database_url()
-    if database_url:
-        import asyncpg
-
-        db_pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
-        storage = PostgresStorage(db_pool)
-        frame_store = PostgresFrameStore(db_pool)
-    else:
-        storage = AsyncFileStorage(FileStorage())
-        frame_store = FileFrameStore()
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    global db_pool
-    if db_pool:
-        await db_pool.close()
-        db_pool = None
 
 
 def _validate_chart_id(chart_id: str) -> None:
@@ -118,6 +169,18 @@ def _parse_template_metadata(
     return data
 
 
+async def _require_user(request: Request) -> AuthUser:
+    if not current_user:
+        raise HTTPException(status_code=500, detail="Auth not initialized")
+    return await current_user(request)
+
+
+async def _optional_user(request: Request) -> AuthUser | None:
+    if not request.headers.get("authorization"):
+        return None
+    return await _require_user(request)
+
+
 async def _frame_exists(frame_id: str) -> bool:
     record = await frame_store.get_frame(frame_id)
     if record:
@@ -125,15 +188,37 @@ async def _frame_exists(frame_id: str) -> bool:
     return frame_id in await storage.list_frames()
 
 
+async def _load_chart_for_user(chart_id: str, user_id: str):
+    if hasattr(storage, "load_chart_for_user"):
+        record = await storage.load_chart_for_user(chart_id, user_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        return record
+    record = await storage.load_chart(chart_id)
+    if record.user_id and record.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return record
+
+
 @app.get("/api/frames")
 async def list_frames(
     tag: str | None = None,
     mine: bool | None = None,
     limit: int | None = 200,
+    user: AuthUser | None = Depends(_optional_user),
 ) -> list[dict]:
     tag_filter = tag.strip().lower() if tag else None
     safe_limit = max(1, min(limit or 200, 500))
-    records = await frame_store.list_frames(tag=tag_filter, mine=bool(mine), limit=safe_limit)
+    owner_user_id = None
+    if mine:
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        owner_user_id = user.user_id
+    records = await frame_store.list_frames(
+        tag=tag_filter,
+        owner_user_id=owner_user_id,
+        limit=safe_limit,
+    )
     response: list[dict] = []
     for record in records:
         response.append(
@@ -172,6 +257,7 @@ async def create_frame(
     name: str = Form(...),
     tags: str | None = Form(None),
     template_metadata_json: str | None = Form(None),
+    user: AuthUser = Depends(_require_user),
 ) -> dict:
     if not isinstance(frame_store, PostgresFrameStore):
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -209,6 +295,7 @@ async def create_frame(
     write_template_metadata(frame_id, metadata)
     record = await frame_store.create_frame(
         frame_id=frame_id,
+        owner_user_id=user.user_id,
         name=name.strip(),
         tags=normalize_tags(tags or ""),
         width=width,
@@ -233,28 +320,183 @@ async def create_frame(
     }
 
 
+@app.post("/api/auth/register")
+async def register(payload: dict) -> dict:
+    if not db_pool or not jwt_secret:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    email = str(payload.get("email", "")).strip().lower()
+    password = str(payload.get("password", "")).strip()
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="Password too long (max 72 bytes).",
+        )
+    existing = await get_user_by_email(db_pool, email)
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    password_hash = hash_password(password)
+    user = await create_user(db_pool, email, password_hash)
+    token = create_access_token(user, jwt_secret, jwt_expires_seconds)
+    return {"token": token, "user": {"id": user.user_id, "email": user.email}}
+
+
+@app.post("/api/auth/login")
+async def login(payload: dict) -> dict:
+    if not db_pool or not jwt_secret:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    email = str(payload.get("email", "")).strip().lower()
+    password = str(payload.get("password", "")).strip()
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="Password too long (max 72 bytes).",
+        )
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, email, password_hash FROM users WHERE email = $1",
+            email,
+        )
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_password(password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    user = AuthUser(user_id=str(row["id"]), email=row["email"])
+    token = create_access_token(user, jwt_secret, jwt_expires_seconds)
+    return {"token": token, "user": {"id": user.user_id, "email": user.email}}
+
+
+@app.get("/api/auth/me")
+async def me(user: AuthUser = Depends(_require_user)) -> dict:
+    return {"id": user.user_id, "email": user.email}
+
+
+@app.get("/api/places/search")
+async def search_places(
+    q: str,
+    limit: int | None = 5,
+    user: AuthUser = Depends(_require_user),
+) -> list[dict]:
+    if not places_store or not geocoder:
+        raise HTTPException(status_code=500, detail="Places service unavailable")
+    query = q.strip()
+    if len(query) < 3:
+        raise HTTPException(status_code=400, detail="Query must be at least 3 characters")
+    safe_limit = max(1, min(limit or 5, 5))
+    try:
+        results = await geocoder.search(query, limit=safe_limit)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    response: list[dict] = []
+    for entry in results:
+        tz = resolve_timezone(entry.lat, entry.lon)
+        place = await places_store.upsert_place(
+            query_text=query,
+            provider=entry.provider,
+            provider_place_id=entry.provider_place_id,
+            display_name=entry.display_name,
+            lat=entry.lat,
+            lon=entry.lon,
+            timezone=tz,
+            raw=entry.raw,
+        )
+        response.append(
+            {
+                "place_id": place.place_id,
+                "display_name": place.display_name,
+                "lat": place.lat,
+                "lon": place.lon,
+                "timezone": place.timezone,
+            }
+        )
+    return response
+
+
 @app.post("/api/charts", response_model=ChartCreateResponse)
-async def create_chart(payload: ChartCreateRequest) -> ChartCreateResponse:
+async def create_chart(
+    payload: ChartCreateRequest,
+    user: AuthUser = Depends(_require_user),
+) -> ChartCreateResponse:
     if payload.default_frame_id:
         frame = await frame_store.get_frame(payload.default_frame_id)
         if not frame and payload.default_frame_id not in await storage.list_frames():
             raise HTTPException(status_code=400, detail="Unknown frame_id")
+    name = payload.name.strip() if payload.name else None
+    if not name:
+        now = datetime.now(timezone.utc)
+        name = f"Chart {now.strftime('%Y-%m-%d %H:%M')}"
+    birth_place_text = None
+    birth_place_id = None
+    timezone_name = None
+    birth_datetime_utc = None
+    latitude = payload.latitude
+    longitude = payload.longitude
+
+    if payload.birth_place_id:
+        if not places_store:
+            raise HTTPException(status_code=500, detail="Places service unavailable")
+        place = await places_store.get_place(payload.birth_place_id)
+        if not place:
+            raise HTTPException(status_code=400, detail="Unknown birth_place_id")
+        birth_place_id = place.place_id
+        birth_place_text = place.display_name
+        latitude = place.lat
+        longitude = place.lon
+        timezone_name = place.timezone or resolve_timezone(place.lat, place.lon)
+    if latitude is None or longitude is None:
+        raise HTTPException(status_code=400, detail="Latitude/longitude or birth_place_id required")
+    if timezone_name is None:
+        timezone_name = resolve_timezone(latitude, longitude)
+    if timezone_name:
+        try:
+            birth_datetime_utc = to_utc_iso(payload.birth_date, payload.birth_time, timezone_name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     record = await storage.create_chart(
+        user_id=user.user_id,
+        name=name,
         birth_date=payload.birth_date,
         birth_time=payload.birth_time,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
+        latitude=latitude,
+        longitude=longitude,
         default_frame_id=payload.default_frame_id,
+        birth_place_text=birth_place_text,
+        birth_place_id=birth_place_id,
+        timezone=timezone_name,
+        birth_datetime_utc=birth_datetime_utc,
     )
     return ChartCreateResponse(chart_id=record.chart_id)
 
 
+@app.get("/api/charts", response_model=list[ChartListItem])
+async def list_charts(
+    limit: int | None = 20,
+    user: AuthUser = Depends(_require_user),
+) -> list[ChartListItem]:
+    safe_limit = max(1, min(limit or 20, 200))
+    if hasattr(storage, "list_charts"):
+        records = await storage.list_charts(user.user_id, safe_limit)
+    else:
+        records = []
+    return [
+        ChartListItem(
+            chart_id=record.chart_id,
+            name=record.name,
+            created_at=record.created_at,
+            default_frame_id=record.default_frame_id,
+        )
+        for record in records
+    ]
+
+
 @app.get("/api/charts/{chart_id}", response_model=ChartInfoResponse)
-async def get_chart(chart_id: str) -> ChartInfoResponse:
+async def get_chart(chart_id: str, user: AuthUser = Depends(_require_user)) -> ChartInfoResponse:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
-    record = await storage.load_chart(chart_id)
+    record = await _load_chart_for_user(chart_id, user.user_id)
     frames = []
     for frame in await frame_store.list_frames():
         frame_id = frame.frame_id
@@ -267,11 +509,17 @@ async def get_chart(chart_id: str) -> ChartInfoResponse:
         )
     return ChartInfoResponse(
         chart_id=record.chart_id,
+        name=record.name,
         birth_date=record.birth_date,
         birth_time=record.birth_time,
         latitude=record.latitude,
         longitude=record.longitude,
         default_frame_id=record.default_frame_id,
+        created_at=record.created_at,
+        birth_place_text=record.birth_place_text,
+        birth_place_id=record.birth_place_id,
+        timezone=record.timezone,
+        birth_datetime_utc=record.birth_datetime_utc,
         frames=frames,
     )
 
@@ -281,10 +529,10 @@ async def save_metadata(
     chart_id: str,
     frame_id: str,
     payload: dict = Body(...),
+    user: AuthUser = Depends(_require_user),
 ) -> dict:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
+    await _load_chart_for_user(chart_id, user.user_id)
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
 
@@ -299,10 +547,13 @@ async def save_metadata(
 
 
 @app.get("/api/charts/{chart_id}/frames/{frame_id}/metadata")
-async def load_metadata(chart_id: str, frame_id: str) -> dict:
+async def load_metadata(
+    chart_id: str,
+    frame_id: str,
+    user: AuthUser = Depends(_require_user),
+) -> dict:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
+    await _load_chart_for_user(chart_id, user.user_id)
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
     meta = await storage.load_chart_meta(chart_id, frame_id)
@@ -316,10 +567,10 @@ async def save_layout(
     chart_id: str,
     frame_id: str,
     payload: dict = Body(...),
+    user: AuthUser = Depends(_require_user),
 ) -> dict:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
+    await _load_chart_for_user(chart_id, user.user_id)
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
     overrides = payload.get("overrides", {})
@@ -347,10 +598,13 @@ async def save_layout(
 
 
 @app.get("/api/charts/{chart_id}/frames/{frame_id}/layout")
-async def load_layout(chart_id: str, frame_id: str) -> dict:
+async def load_layout(
+    chart_id: str,
+    frame_id: str,
+    user: AuthUser = Depends(_require_user),
+) -> dict:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
+    await _load_chart_for_user(chart_id, user.user_id)
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
     layout = await storage.load_chart_layout(chart_id, frame_id)
@@ -367,15 +621,14 @@ async def auto_layout(
     chart_id: str,
     frame_id: str,
     payload: AutoLayoutRequest = Body(default=AutoLayoutRequest()),
+    user: AuthUser = Depends(_require_user),
 ) -> AutoLayoutResponse:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
+    record = await _load_chart_for_user(chart_id, user.user_id)
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
     if payload.mode != "labels":
         raise HTTPException(status_code=400, detail="Unsupported auto layout mode")
-    record = await storage.load_chart(chart_id)
     overrides = await compute_auto_layout_overrides(
         storage,
         record,
@@ -387,11 +640,13 @@ async def auto_layout(
 
 
 @app.get("/api/charts/{chart_id}/render.svg")
-async def render_svg(chart_id: str, frame_id: str | None = None) -> Response:
+async def render_svg(
+    chart_id: str,
+    frame_id: str | None = None,
+    user: AuthUser = Depends(_require_user),
+) -> Response:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
-    record = await storage.load_chart(chart_id)
+    record = await _load_chart_for_user(chart_id, user.user_id)
     if frame_id is None:
         if record.default_frame_id:
             frame_id = record.default_frame_id
@@ -406,12 +661,13 @@ async def render_svg(chart_id: str, frame_id: str | None = None) -> Response:
 
 @app.get("/api/charts/{chart_id}/render.png")
 async def render_png(
-    chart_id: str, frame_id: str | None = None, size: int | None = None
+    chart_id: str,
+    frame_id: str | None = None,
+    size: int | None = None,
+    user: AuthUser = Depends(_require_user),
 ) -> Response:
     _validate_chart_id(chart_id)
-    if not await storage.chart_exists(chart_id):
-        raise HTTPException(status_code=404, detail="Chart not found")
-    record = await storage.load_chart(chart_id)
+    record = await _load_chart_for_user(chart_id, user.user_id)
     if frame_id is None:
         if record.default_frame_id:
             frame_id = record.default_frame_id

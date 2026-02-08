@@ -6,11 +6,13 @@ import asyncio
 from pathlib import Path
 
 import asyncpg
+from dotenv import load_dotenv
 
 from zodiac_art.config import PROJECT_ROOT, build_database_url
 
 
 async def _init_db() -> None:
+    load_dotenv(override=False)
     database_url = build_database_url()
     if not database_url:
         raise RuntimeError("Database is not configured. Set DATABASE_URL or PG* vars.")

@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import asyncpg
+from dotenv import load_dotenv
 from PIL import Image
 
 from zodiac_art.api.frames_store import (
@@ -19,6 +20,7 @@ from zodiac_art.utils.file_utils import load_json
 
 
 async def _seed_frames() -> None:
+    load_dotenv(override=False)
     database_url = build_database_url()
     if not database_url:
         raise RuntimeError("Database is not configured. Set DATABASE_URL or PG* vars.")

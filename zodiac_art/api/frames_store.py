@@ -61,7 +61,7 @@ class PostgresFrameStore:
     async def list_frames(
         self,
         tag: str | None = None,
-        mine: bool = False,
+        owner_user_id: str | None = None,
         limit: int = 200,
     ) -> list[FrameRecord]:
         query = (
@@ -73,6 +73,9 @@ class PostgresFrameStore:
         if tag:
             clauses.append("$1 = ANY(tags)")
             args.append(tag)
+        if owner_user_id:
+            clauses.append(f"owner_user_id = ${len(args) + 1}")
+            args.append(UUID(owner_user_id))
         if clauses:
             query = f"{query} WHERE {' AND '.join(clauses)}"
         query = f"{query} ORDER BY created_at DESC LIMIT ${len(args) + 1}"
@@ -165,6 +168,7 @@ class PostgresFrameStore:
     async def create_frame(
         self,
         frame_id: str,
+        owner_user_id: str | None,
         name: str,
         tags: list[str],
         width: int,
@@ -180,9 +184,10 @@ class PostgresFrameStore:
                 INSERT INTO frames (
                     id, owner_user_id, name, tags, width, height, image_path, thumb_path,
                     template_metadata_json
-                ) VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 """,
                 UUID(frame_id),
+                UUID(owner_user_id) if owner_user_id else None,
                 name,
                 tags,
                 width,
@@ -203,7 +208,7 @@ class PostgresFrameStore:
                 )
         return FrameRecord(
             frame_id=frame_id,
-            owner_user_id=None,
+            owner_user_id=owner_user_id,
             name=name,
             tags=tags,
             width=width,
@@ -223,7 +228,7 @@ class FileFrameStore:
     async def list_frames(
         self,
         tag: str | None = None,
-        mine: bool = False,
+        owner_user_id: str | None = None,
         limit: int = 200,
     ) -> list[FrameRecord]:
         if not self.frames_dir.exists():

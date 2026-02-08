@@ -11,8 +11,9 @@ class ChartCreateRequest(BaseModel):
     name: str | None = None
     birth_date: str
     birth_time: str
-    latitude: float
-    longitude: float
+    latitude: float | None = None
+    longitude: float | None = None
+    birth_place_id: str | None = None
     default_frame_id: str | None = None
 
 
@@ -49,6 +50,10 @@ class ChartInfoResponse(BaseModel):
     longitude: float
     default_frame_id: str | None
     created_at: str | None = None
+    birth_place_text: str | None = None
+    birth_place_id: str | None = None
+    timezone: str | None = None
+    birth_datetime_utc: str | None = None
     frames: list[ChartFrameStatus]
 
 

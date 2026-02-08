@@ -47,3 +47,35 @@ CREATE TABLE IF NOT EXISTS frame_thumbnails (
   path TEXT NOT NULL,
   PRIMARY KEY (frame_id, size)
 );
+
+CREATE TABLE IF NOT EXISTS places (
+  id UUID PRIMARY KEY,
+  query_text TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  provider_place_id TEXT NULL,
+  display_name TEXT NOT NULL,
+  lat DOUBLE PRECISION NOT NULL,
+  lon DOUBLE PRECISION NOT NULL,
+  timezone TEXT NULL,
+  raw JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DROP INDEX IF EXISTS places_provider_place_id_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS places_provider_place_id_idx
+  ON places(provider, provider_place_id);
+
+CREATE INDEX IF NOT EXISTS places_display_name_idx
+  ON places (lower(display_name));
+
+ALTER TABLE charts
+  ADD COLUMN IF NOT EXISTS user_id UUID NULL REFERENCES users(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS name TEXT NULL,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS birth_place_text TEXT NULL,
+  ADD COLUMN IF NOT EXISTS birth_place_id UUID NULL REFERENCES places(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS timezone TEXT NULL,
+  ADD COLUMN IF NOT EXISTS birth_datetime_utc TIMESTAMPTZ NULL;
+
+ALTER TABLE frames
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL;

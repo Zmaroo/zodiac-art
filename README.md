@@ -272,6 +272,20 @@ curl -X POST http://127.0.0.1:8000/api/charts \
 curl http://127.0.0.1:8000/api/charts/<chart_id>
 ```
 
+### Auth (V3.0)
+
+Set auth config:
+
+```bash
+export JWT_SECRET=change-me
+export JWT_EXPIRES_SECONDS=604800
+export DEV_MODE=false
+```
+
+Register/login flows: `docs/auth.md`
+
+Places search: `docs/places.md`
+
 ---
 
 ## Output Formats

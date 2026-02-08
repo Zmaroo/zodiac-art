@@ -79,14 +79,19 @@ class PostgresStorage:
         latitude: float,
         longitude: float,
         default_frame_id: str | None,
+        birth_place_text: str | None = None,
+        birth_place_id: str | None = None,
+        timezone: str | None = None,
+        birth_datetime_utc: str | None = None,
     ) -> ChartRecord:
         chart_id = uuid4()
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO charts (
-                    id, user_id, name, birth_date, birth_time, latitude, longitude, default_frame_id
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    id, user_id, name, birth_date, birth_time, latitude, longitude,
+                    default_frame_id, birth_place_text, birth_place_id, timezone, birth_datetime_utc
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 """,
                 chart_id,
                 UUID(user_id) if user_id else None,
@@ -96,6 +101,10 @@ class PostgresStorage:
                 latitude,
                 longitude,
                 default_frame_id,
+                birth_place_text,
+                UUID(birth_place_id) if birth_place_id else None,
+                timezone,
+                birth_datetime_utc,
             )
         return ChartRecord(
             chart_id=str(chart_id),
@@ -106,6 +115,10 @@ class PostgresStorage:
             latitude=latitude,
             longitude=longitude,
             default_frame_id=default_frame_id,
+            birth_place_text=birth_place_text,
+            birth_place_id=birth_place_id,
+            timezone=timezone,
+            birth_datetime_utc=birth_datetime_utc,
         )
 
     async def get_chart(self, chart_id: str) -> ChartRecord:
@@ -117,7 +130,8 @@ class PostgresStorage:
             row = await conn.fetchrow(
                 """
                 SELECT id, user_id, name, birth_date, birth_time, latitude, longitude,
-                       default_frame_id, created_at, updated_at
+                       default_frame_id, created_at, updated_at, birth_place_text,
+                       birth_place_id, timezone, birth_datetime_utc
                 FROM charts
                 WHERE id = $1
                 """,
@@ -134,6 +148,10 @@ class PostgresStorage:
             latitude=float(row["latitude"]),
             longitude=float(row["longitude"]),
             default_frame_id=row["default_frame_id"],
+            birth_place_text=row["birth_place_text"],
+            birth_place_id=str(row["birth_place_id"]) if row["birth_place_id"] else None,
+            timezone=row["timezone"],
+            birth_datetime_utc=_format_ts(row["birth_datetime_utc"]),
             created_at=_format_ts(row["created_at"]),
             updated_at=_format_ts(row["updated_at"]),
         )
@@ -144,7 +162,8 @@ class PostgresStorage:
             row = await conn.fetchrow(
                 """
                 SELECT id, user_id, name, birth_date, birth_time, latitude, longitude,
-                       default_frame_id, created_at, updated_at
+                       default_frame_id, created_at, updated_at, birth_place_text,
+                       birth_place_id, timezone, birth_datetime_utc
                 FROM charts
                 WHERE id = $1 AND user_id = $2
                 """,
@@ -162,6 +181,10 @@ class PostgresStorage:
             latitude=float(row["latitude"]),
             longitude=float(row["longitude"]),
             default_frame_id=row["default_frame_id"],
+            birth_place_text=row["birth_place_text"],
+            birth_place_id=str(row["birth_place_id"]) if row["birth_place_id"] else None,
+            timezone=row["timezone"],
+            birth_datetime_utc=_format_ts(row["birth_datetime_utc"]),
             created_at=_format_ts(row["created_at"]),
             updated_at=_format_ts(row["updated_at"]),
         )
@@ -190,7 +213,8 @@ class PostgresStorage:
             rows = await conn.fetch(
                 """
                 SELECT id, user_id, name, birth_date, birth_time, latitude, longitude,
-                       default_frame_id, created_at, updated_at
+                       default_frame_id, created_at, updated_at, birth_place_text,
+                       birth_place_id, timezone, birth_datetime_utc
                 FROM charts
                 WHERE user_id = $1
                 ORDER BY updated_at DESC, created_at DESC
@@ -209,6 +233,10 @@ class PostgresStorage:
                 latitude=float(row["latitude"]),
                 longitude=float(row["longitude"]),
                 default_frame_id=row["default_frame_id"],
+                birth_place_text=row["birth_place_text"],
+                birth_place_id=str(row["birth_place_id"]) if row["birth_place_id"] else None,
+                timezone=row["timezone"],
+                birth_datetime_utc=_format_ts(row["birth_datetime_utc"]),
                 created_at=_format_ts(row["created_at"]),
                 updated_at=_format_ts(row["updated_at"]),
             )
@@ -318,6 +346,10 @@ class PostgresStorage:
                 frame_id,
                 payload,
             )
+            await conn.execute(
+                "UPDATE charts SET updated_at = NOW() WHERE id = $1",
+                chart_uuid,
+            )
 
     async def save_chart_layout(self, chart_id: str, frame_id: str, layout: dict) -> None:
         chart_uuid = self._validate_uuid(chart_id)
@@ -334,6 +366,10 @@ class PostgresStorage:
                 chart_uuid,
                 frame_id,
                 payload,
+            )
+            await conn.execute(
+                "UPDATE charts SET updated_at = NOW() WHERE id = $1",
+                chart_uuid,
             )
 
     async def template_image_path(self, frame_id: str) -> Path:
@@ -368,3 +404,12 @@ def _merge_dicts(base: dict, override: dict | None) -> dict:
         else:
             merged[key] = value
     return merged
+
+
+def _format_ts(value) -> str | None:
+    if value is None:
+        return None
+    try:
+        return value.isoformat()
+    except AttributeError:
+        return str(value)

@@ -40,6 +40,7 @@ Upload frame:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/frames \
+  -H "Authorization: Bearer <token>" \
   -F "file=@/path/to/frame.png" \
   -F "name=My Frame" \
   -F "tags=art nouveau, gold"
