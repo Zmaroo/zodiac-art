@@ -284,7 +284,6 @@ export DEV_MODE=false
 
 Register/login flows: `docs/auth.md`
 
-Places search: `docs/places.md`
 
 ---
 

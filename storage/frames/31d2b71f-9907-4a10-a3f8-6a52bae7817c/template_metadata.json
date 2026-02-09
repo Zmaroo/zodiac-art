@@ -1,0 +1,15 @@
+{
+  "canvas": {
+    "width": 1024,
+    "height": 1024
+  },
+  "chart": {
+    "center": {
+      "x": 512.0,
+      "y": 512.0
+    },
+    "ring_outer": 460,
+    "ring_inner": 348,
+    "rotation_deg": 0
+  }
+}

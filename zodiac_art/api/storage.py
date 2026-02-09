@@ -76,6 +76,12 @@ class FileStorage:
     def _layout_path(self, chart_id: str, frame_id: str) -> Path:
         return self._frame_state_dir(chart_id, frame_id) / "layout.json"
 
+    def _chart_fit_path(self, chart_id: str) -> Path:
+        return self._chart_dir(chart_id) / "chart_fit.json"
+
+    def _chart_layout_path(self, chart_id: str) -> Path:
+        return self._chart_dir(chart_id) / "layout.json"
+
     def _template_frame_dir(self, frame_id: str) -> Path:
         return self.frames_dir / frame_id
 
@@ -192,6 +198,12 @@ class FileStorage:
     def layout_exists(self, chart_id: str, frame_id: str) -> bool:
         return self._layout_path(chart_id, frame_id).exists()
 
+    def chart_fit_exists(self, chart_id: str) -> bool:
+        return self._chart_fit_path(chart_id).exists()
+
+    def chart_layout_exists(self, chart_id: str) -> bool:
+        return self._chart_layout_path(chart_id).exists()
+
     def load_template_meta(self, frame_id: str) -> dict:
         return load_json(self._template_meta_path(frame_id))
 
@@ -207,6 +219,18 @@ class FileStorage:
             return None
         return load_json(path)
 
+    def load_chart_fit(self, chart_id: str) -> dict | None:
+        path = self._chart_fit_path(chart_id)
+        if not path.exists():
+            return None
+        return load_json(path)
+
+    def load_chart_layout_base(self, chart_id: str) -> dict | None:
+        path = self._chart_layout_path(chart_id)
+        if not path.exists():
+            return None
+        return load_json(path)
+
     def save_chart_meta(self, chart_id: str, frame_id: str, meta: dict) -> None:
         target = self._metadata_path(chart_id, frame_id)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -214,6 +238,16 @@ class FileStorage:
 
     def save_chart_layout(self, chart_id: str, frame_id: str, layout: dict) -> None:
         target = self._layout_path(chart_id, frame_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(layout, indent=2), encoding="utf-8")
+
+    def save_chart_fit(self, chart_id: str, chart_fit: dict) -> None:
+        target = self._chart_fit_path(chart_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(chart_fit, indent=2), encoding="utf-8")
+
+    def save_chart_layout_base(self, chart_id: str, layout: dict) -> None:
+        target = self._chart_layout_path(chart_id)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(layout, indent=2), encoding="utf-8")
 

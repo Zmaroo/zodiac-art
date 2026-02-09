@@ -75,6 +75,12 @@ class AsyncFileStorage:
     async def layout_exists(self, chart_id: str, frame_id: str) -> bool:
         return await asyncio.to_thread(self._storage.layout_exists, chart_id, frame_id)
 
+    async def chart_fit_exists(self, chart_id: str) -> bool:
+        return await asyncio.to_thread(self._storage.chart_fit_exists, chart_id)
+
+    async def chart_layout_exists(self, chart_id: str) -> bool:
+        return await asyncio.to_thread(self._storage.chart_layout_exists, chart_id)
+
     async def load_template_meta(self, frame_id: str) -> dict:
         return await asyncio.to_thread(self._storage.load_template_meta, frame_id)
 
@@ -83,6 +89,12 @@ class AsyncFileStorage:
 
     async def load_chart_layout(self, chart_id: str, frame_id: str) -> dict | None:
         return await asyncio.to_thread(self._storage.load_chart_layout, chart_id, frame_id)
+
+    async def load_chart_fit(self, chart_id: str) -> dict | None:
+        return await asyncio.to_thread(self._storage.load_chart_fit, chart_id)
+
+    async def load_chart_layout_base(self, chart_id: str) -> dict | None:
+        return await asyncio.to_thread(self._storage.load_chart_layout_base, chart_id)
 
     async def get_frame_metadata(self, chart_id: str, frame_id: str) -> dict:
         template_meta = await asyncio.to_thread(self._storage.load_template_meta, frame_id)
@@ -105,6 +117,12 @@ class AsyncFileStorage:
 
     async def save_chart_layout(self, chart_id: str, frame_id: str, layout: dict) -> None:
         await asyncio.to_thread(self._storage.save_chart_layout, chart_id, frame_id, layout)
+
+    async def save_chart_fit(self, chart_id: str, chart_fit: dict) -> None:
+        await asyncio.to_thread(self._storage.save_chart_fit, chart_id, chart_fit)
+
+    async def save_chart_layout_base(self, chart_id: str, layout: dict) -> None:
+        await asyncio.to_thread(self._storage.save_chart_layout_base, chart_id, layout)
 
     async def template_image_path(self, frame_id: str) -> Path:
         return await asyncio.to_thread(self._storage.template_image_path, frame_id)

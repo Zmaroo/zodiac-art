@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 from pathlib import Path
 from typing import Protocol
 
@@ -13,7 +14,7 @@ from PIL import Image
 from zodiac_art.astro.chart_builder import build_chart
 from zodiac_art.astro.ephemeris import calculate_ephemeris
 from zodiac_art.compositor.compositor import compose_svg
-from zodiac_art.frames.frame_loader import FrameAsset
+from zodiac_art.frames.frame_loader import FrameAsset, FrameMeta
 from zodiac_art.frames.validation import validate_meta
 from zodiac_art.config import load_config
 from zodiac_art.renderer.geometry import longitude_to_angle, polar_offset_to_xy, polar_to_cartesian
@@ -73,6 +74,94 @@ def _build_settings(meta) -> RenderSettings:
     )
 
 
+def _chart_only_radius() -> float:
+    config = load_config()
+    return min(config.canvas_width, config.canvas_height) * 0.4
+
+
+def _chart_only_canvas_size(radius: float, scale: float) -> int:
+    config = load_config()
+    label_extent = max(
+        1.0,
+        config.label_ring_ratio + config.planet_label_offset_ratio,
+    )
+    padding_ratio = max(1.2, label_extent + 0.2)
+    size = 2 * radius * padding_ratio * scale
+    return int(math.ceil(size))
+
+
+def _chart_only_meta(chart_fit: dict | None) -> FrameMeta:
+    config = load_config()
+    scale = 1.0
+    if chart_fit and isinstance(chart_fit, dict):
+        scale_value = chart_fit.get("scale", 1.0)
+        if isinstance(scale_value, (int, float)) and scale_value > 0:
+            scale = float(scale_value)
+    radius = _chart_only_radius()
+    canvas_size = _chart_only_canvas_size(radius, scale)
+    center = canvas_size / 2
+    meta = {
+        "canvas": {"width": canvas_size, "height": canvas_size},
+        "chart": {
+            "center": {"x": center, "y": center},
+            "ring_outer": radius,
+            "ring_inner": radius * config.sign_ring_inner_ratio,
+            "rotation_deg": 0,
+        },
+    }
+    return validate_meta(meta, (canvas_size, canvas_size))
+
+
+def chart_only_meta_payload(chart_fit: dict | None) -> dict:
+    meta = _chart_only_meta(chart_fit)
+    payload = {
+        "canvas": {"width": meta.canvas_width, "height": meta.canvas_height},
+        "chart": {
+            "center": {"x": meta.chart_center_x, "y": meta.chart_center_y},
+            "ring_outer": meta.ring_outer,
+            "ring_inner": meta.ring_inner,
+            "rotation_deg": meta.rotation_deg,
+        },
+    }
+    if chart_fit:
+        payload["chart_fit"] = chart_fit
+    return payload
+
+
+def _overrides_from_layout(layout: dict | None) -> dict[str, ElementOverride]:
+    overrides: dict[str, ElementOverride] = {}
+    if not layout:
+        return overrides
+    for key, value in layout.get("overrides", {}).items():
+        if not isinstance(value, dict):
+            continue
+        overrides[key] = ElementOverride(
+            dx=value.get("dx", 0.0),
+            dy=value.get("dy", 0.0),
+            dr=value.get("dr"),
+            dt=value.get("dt"),
+        )
+    return overrides
+
+
+def _chart_fit_from_payload(chart_fit: dict | None) -> ChartFit:
+    if not chart_fit or not isinstance(chart_fit, dict):
+        return ChartFit(dx=0.0, dy=0.0, scale=1.0, rotation_deg=0.0)
+    dx = chart_fit.get("dx", 0.0)
+    dy = chart_fit.get("dy", 0.0)
+    scale = chart_fit.get("scale", 1.0)
+    rotation = chart_fit.get("rotation_deg", 0.0)
+    if not isinstance(dx, (int, float)):
+        dx = 0.0
+    if not isinstance(dy, (int, float)):
+        dy = 0.0
+    if not isinstance(scale, (int, float)) or scale <= 0:
+        scale = 1.0
+    if not isinstance(rotation, (int, float)):
+        rotation = 0.0
+    return ChartFit(dx=float(dx), dy=float(dy), scale=float(scale), rotation_deg=float(rotation))
+
+
 def _build_chart(record: ChartRecord):
     if record.birth_datetime_utc:
         dt = datetime.fromisoformat(record.birth_datetime_utc)
@@ -112,16 +201,7 @@ async def render_chart_svg(
     meta = validate_meta(merged_meta, image_size)
 
     layout = await storage.load_chart_layout(chart.chart_id, frame_id) or {"overrides": {}}
-    overrides = {}
-    for key, value in layout.get("overrides", {}).items():
-        if not isinstance(value, dict):
-            continue
-        overrides[key] = ElementOverride(
-            dx=value.get("dx", 0.0),
-            dy=value.get("dy", 0.0),
-            dr=value.get("dr"),
-            dt=value.get("dt"),
-        )
+    overrides = _overrides_from_layout(layout)
 
     chart_fit = ChartFit(
         dx=meta.chart_fit_dx,
@@ -144,6 +224,21 @@ async def render_chart_svg(
     )
     final_svg = compose_svg(chart_svg, frame_asset)
     return RenderResult(svg=final_svg, width=meta.canvas_width, height=meta.canvas_height)
+
+
+async def render_chart_only_svg(
+    storage: StorageProtocol,
+    chart: ChartRecord,
+) -> RenderResult:
+    chart_fit_payload = await storage.load_chart_fit(chart.chart_id)
+    layout = await storage.load_chart_layout_base(chart.chart_id) or {"overrides": {}}
+    meta = _chart_only_meta(chart_fit_payload)
+    settings = _build_settings(meta)
+    renderer = SvgChartRenderer(settings)
+    overrides = _overrides_from_layout(layout)
+    chart_fit = _chart_fit_from_payload(chart_fit_payload)
+    chart_svg = renderer.render(_build_chart(chart), global_transform=chart_fit, overrides=overrides)
+    return RenderResult(svg=chart_svg, width=meta.canvas_width, height=meta.canvas_height)
 
 
 def _bbox_for_element(
@@ -200,10 +295,10 @@ async def compute_auto_layout_overrides(
         )
         label_font = 28.0
         glyph_font = 60.0
-        label_width = label_font * 0.6 * max(1, len(planet.name))
+        label_width = label_font * 0.7 * max(1, len(planet.name))
         label_height = label_font * 1.1
-        glyph_width = glyph_font * 0.9
-        glyph_height = glyph_font * 0.9
+        glyph_width = glyph_font * 1.0
+        glyph_height = glyph_font * 1.0
         elements.append(
             AutoLayoutElement(
                 element_id=f"planet.{planet.name}.label",
@@ -229,21 +324,26 @@ async def compute_auto_layout_overrides(
 
     accepted: list[tuple[float, float, float, float]] = []
     overrides: dict[str, dict[str, float]] = {}
-    dt_step = 6.0
-    dt_max = 120.0
-    dr_step = -8.0
+    dt_step = 5.0
+    dt_max = 90.0
+    dr_step = 6.0
+    dr_min = -40.0
+    dr_max = 40.0
 
     for element in elements:
         dr = 0.0
         dt = 0.0
         attempts = 0
         t_index = 0
+        placed = False
+        dr_direction = -1.0
         while attempts < max_iter:
             bbox = _bbox_for_element(element, dr, dt, min_gap_px)
             if not any(_overlaps(bbox, other) for other in accepted):
                 accepted.append(bbox)
                 if dr != 0.0 or dt != 0.0:
                     overrides[element.element_id] = {"dr": dr, "dt": dt}
+                placed = True
                 break
             attempts += 1
             t_index += 1
@@ -253,7 +353,17 @@ async def compute_auto_layout_overrides(
             if abs(dt) > dt_max:
                 dt = 0.0
                 t_index = 0
-                dr += dr_step
+                dr += dr_direction * dr_step
+                if dr_direction < 0 and dr <= dr_min:
+                    dr_direction = 1.0
+                    dr = dr_step
+                elif dr_direction > 0 and dr >= dr_max:
+                    break
+        if not placed:
+            bbox = _bbox_for_element(element, dr, dt, min_gap_px)
+            accepted.append(bbox)
+            if dr != 0.0 or dt != 0.0:
+                overrides[element.element_id] = {"dr": dr, "dt": dt}
 
     return overrides
 
@@ -282,9 +392,38 @@ async def render_chart_png(
     if png_bytes is None:
         raise RuntimeError("Failed to render PNG output.")
     return png_bytes
+
+
+async def render_chart_only_png(
+    storage: StorageProtocol,
+    chart: ChartRecord,
+    max_size: int | None = None,
+) -> bytes:
+    result = await render_chart_only_svg(storage, chart)
+    output_width = None
+    output_height = None
+    if max_size:
+        if result.width >= result.height:
+            output_width = max_size
+            output_height = int(result.height * (max_size / result.width))
+        else:
+            output_height = max_size
+            output_width = int(result.width * (max_size / result.height))
+    png_bytes = cairosvg.svg2png(
+        bytestring=result.svg.encode("utf-8"),
+        output_width=output_width,
+        output_height=output_height,
+    )
+    if png_bytes is None:
+        raise RuntimeError("Failed to render PNG output.")
+    return png_bytes
+
+
 class StorageProtocol(Protocol):
     async def load_template_meta(self, frame_id: str) -> dict: ...
     async def load_chart_meta(self, chart_id: str, frame_id: str) -> dict | None: ...
     async def load_chart_layout(self, chart_id: str, frame_id: str) -> dict | None: ...
+    async def load_chart_fit(self, chart_id: str) -> dict | None: ...
+    async def load_chart_layout_base(self, chart_id: str) -> dict | None: ...
     async def template_image_path(self, frame_id: str) -> Path: ...
     async def template_meta_path(self, frame_id: str) -> Path: ...

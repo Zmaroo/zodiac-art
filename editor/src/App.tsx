@@ -30,19 +30,7 @@ type ChartDetail = {
   birth_time: string
   latitude: number
   longitude: number
-  birth_place_text?: string
-  birth_place_id?: string
-  timezone?: string
-  birth_datetime_utc?: string
   default_frame_id?: string | null
-}
-
-type PlaceResult = {
-  place_id: string
-  display_name: string
-  lat: number
-  lon: number
-  timezone?: string | null
 }
 
 type ChartMeta = {
@@ -83,11 +71,12 @@ type DragState = {
 }
 
 const defaultChartFit: ChartFit = { dx: 0, dy: 0, scale: 1, rotation_deg: 0 }
+const CHART_ONLY_ID = '__chart_only__'
 
 function App() {
   const defaultApiBase = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
   const [jwt, setJwt] = useState(() => localStorage.getItem('zodiac_editor.jwt') ?? '')
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null)
+  const [user, setUser] = useState<{ id: string; email: string; is_admin?: boolean } | null>(null)
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [apiBase, setApiBase] = useState(
@@ -119,11 +108,9 @@ function App() {
   const [uploadTags, setUploadTags] = useState('')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadGlobal, setUploadGlobal] = useState(false)
   const [chartName, setChartName] = useState('')
   const [charts, setCharts] = useState<ChartListItem[]>([])
-  const [placeQuery, setPlaceQuery] = useState('')
-  const [placeResults, setPlaceResults] = useState<PlaceResult[]>([])
-  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null)
   const [birthDate, setBirthDate] = useState(
     () => localStorage.getItem('zodiac_editor.birthDate') ?? '1990-04-12'
   )
@@ -139,6 +126,8 @@ function App() {
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const chartRootRef = useRef<SVGGElement | null>(null)
+
+  const isChartOnly = selectedId === CHART_ONLY_ID
 
   const apiFetch = (url: string, init: RequestInit = {}) => {
     const headers = new Headers(init.headers || {})
@@ -178,6 +167,10 @@ function App() {
         setFrames(data)
         if (data.length > 0) {
           const saved = localStorage.getItem('zodiac_editor.frameId')
+          if (saved === CHART_ONLY_ID) {
+            setSelectedId(saved)
+            return
+          }
           const exists = saved && data.some((frame) => frame.id === saved)
           setSelectedId(exists ? (saved as string) : data[0].id)
         }
@@ -208,7 +201,7 @@ function App() {
     }
     apiFetch(`${apiBase}/api/auth/me`)
       .then((response) => response.json())
-      .then((data: { id: string; email: string }) => setUser(data))
+      .then((data: { id: string; email: string; is_admin?: boolean }) => setUser(data))
       .then(() => loadCharts())
       .catch((err) => setError(String(err)))
   }, [apiBase, jwt])
@@ -261,6 +254,46 @@ function App() {
     }
     setError('')
     setStatus('')
+    if (isChartOnly) {
+      if (!chartId) {
+        setSelectedFrameDetail(null)
+        setMeta(null)
+        setChartSvgBase('')
+        setChartFit(defaultChartFit)
+        setInitialFit(defaultChartFit)
+        setOverrides({})
+        setInitialOverrides({})
+        return
+      }
+      const chartMetaUrl = `${apiBase}/api/charts/${chartId}/chart_only/meta`
+      const layoutUrl = `${apiBase}/api/charts/${chartId}/layout`
+      const svgUrl = `${apiBase}/api/charts/${chartId}/render_chart.svg`
+      Promise.all([
+        fetchJsonAuth(chartMetaUrl),
+        fetchJsonIfOkAuth(layoutUrl),
+        fetchTextIfOkAuth(svgUrl),
+      ])
+        .then(([chartMeta, layoutData, svgText]) => {
+          setSelectedFrameDetail(null)
+          const metaData = chartMeta as ChartMeta
+          setMeta(metaData)
+          const fit = {
+            dx: metaData.chart_fit?.dx ?? 0,
+            dy: metaData.chart_fit?.dy ?? 0,
+            scale: metaData.chart_fit?.scale ?? 1,
+            rotation_deg: metaData.chart_fit?.rotation_deg ?? 0,
+          }
+          setChartFit(fit)
+          setInitialFit(fit)
+          const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
+          setOverrides(nextOverrides)
+          setInitialOverrides(nextOverrides)
+          const inner = svgText ? extractChartInner(svgText as string) : ''
+          setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
+        })
+        .catch((err) => setError(String(err)))
+      return
+    }
     const frameDetailUrl = `${apiBase}/api/frames/${selectedId}`
     const chartMetaUrl = chartId
       ? `${apiBase}/api/charts/${chartId}/frames/${selectedId}/metadata`
@@ -277,11 +310,11 @@ function App() {
       chartMetaUrl ? fetchJsonIfOkAuth(chartMetaUrl) : Promise.resolve(null),
       layoutUrl ? fetchJsonIfOkAuth(layoutUrl) : Promise.resolve({ overrides: {} }),
       svgUrl ? fetchTextIfOkAuth(svgUrl) : Promise.resolve(''),
-    ])
-      .then(([frameDetail, chartMeta, layoutData, svgText]) => {
-        const detail = frameDetail as FrameDetail
-        setSelectedFrameDetail(detail)
-        const templateMeta = detail.template_metadata_json
+      ])
+        .then(([frameDetail, chartMeta, layoutData, svgText]) => {
+          const detail = frameDetail as FrameDetail
+          setSelectedFrameDetail(detail)
+          const templateMeta = detail.template_metadata_json
         const metaData = (chartMeta as ChartMeta) || (templateMeta as ChartMeta)
         setMeta(metaData)
         const fit = {
@@ -421,11 +454,52 @@ function App() {
       setError('Login required to save changes.')
       return
     }
-    if (!meta || !selectedId) {
-      return
-    }
     if (!chartId) {
       setError('Chart ID is required to save changes.')
+      return
+    }
+    if (isChartOnly) {
+      const chartFitPayload = {
+        dx: round(chartFit.dx),
+        dy: round(chartFit.dy),
+        scale: round(chartFit.scale),
+        rotation_deg: round(chartFit.rotation_deg),
+      }
+      const layoutPayload = {
+        overrides: Object.fromEntries(
+          Object.entries(overrides).map(([key, value]) => [
+            key,
+            normalizeOverride(value),
+          ])
+        ),
+      }
+      const fitResponse = await apiFetch(`${apiBase}/api/charts/${chartId}/chart_fit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chartFitPayload),
+      })
+      if (!fitResponse.ok) {
+        const detail = await readApiError(fitResponse)
+        setError(detail ?? 'Failed to save chart-only fit.')
+        setStatus('')
+        return
+      }
+      const layoutResponse = await apiFetch(`${apiBase}/api/charts/${chartId}/layout`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(layoutPayload),
+      })
+      if (!layoutResponse.ok) {
+        const detail = await readApiError(layoutResponse)
+        setError(detail ?? 'Failed to save chart-only layout.')
+        setStatus('')
+        return
+      }
+      setError('')
+      setStatus('Saved chart-only layout.')
+      return
+    }
+    if (!meta || !selectedId) {
       return
     }
     const metaPayload = {
@@ -482,6 +556,10 @@ function App() {
       setError('Login required for auto-fix.')
       return
     }
+    if (isChartOnly) {
+      setError('Auto-fix requires a frame selection.')
+      return
+    }
     if (!selectedId) {
       setError('Select a frame before auto-fix.')
       return
@@ -495,7 +573,7 @@ function App() {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'labels', min_gap_px: 10, max_iter: 200 }),
+        body: JSON.stringify({ mode: 'labels', min_gap_px: 10, max_iter: 240 }),
       }
     )
     if (!response.ok) {
@@ -525,16 +603,13 @@ function App() {
       setError('Select a frame before creating a chart.')
       return
     }
-    if (!selectedPlace || !selectedPlace.place_id) {
-      setError('Select a birth place before creating a chart.')
-      return
-    }
     const payload = {
       name: chartName.trim() || undefined,
       birth_date: birthDate,
       birth_time: birthTime,
-      birth_place_id: selectedPlace.place_id,
-      default_frame_id: selectedId,
+      latitude,
+      longitude,
+      default_frame_id: selectedId === CHART_ONLY_ID ? undefined : selectedId,
     }
     const response = await apiFetch(`${apiBase}/api/charts`, {
       method: 'POST',
@@ -576,6 +651,14 @@ function App() {
       if (uploadTags.trim()) {
         formData.append('tags', uploadTags.trim())
       }
+      if (uploadGlobal && !user?.is_admin) {
+        setError('Admin required to publish globally.')
+        setStatus('')
+        return
+      }
+      if (uploadGlobal && user?.is_admin) {
+        formData.append('global_frame', 'true')
+      }
       const response = await apiFetch(`${apiBase}/api/frames`, {
         method: 'POST',
         body: formData,
@@ -591,6 +674,7 @@ function App() {
       setUploadFile(null)
       setUploadName('')
       setUploadTags('')
+      setUploadGlobal(false)
       loadFrames()
       setSelectedId(data.id)
     } finally {
@@ -611,7 +695,10 @@ function App() {
       setError(detail ?? 'Login failed.')
       return
     }
-    const data = (await response.json()) as { token: string; user: { id: string; email: string } }
+    const data = (await response.json()) as {
+      token: string
+      user: { id: string; email: string; is_admin?: boolean }
+    }
     setJwt(data.token)
     setUser(data.user)
     setStatus('Logged in.')
@@ -631,7 +718,10 @@ function App() {
       setError(detail ?? 'Registration failed.')
       return
     }
-    const data = (await response.json()) as { token: string; user: { id: string; email: string } }
+    const data = (await response.json()) as {
+      token: string
+      user: { id: string; email: string; is_admin?: boolean }
+    }
     setJwt(data.token)
     setUser(data.user)
     setStatus('Account created.')
@@ -645,35 +735,6 @@ function App() {
     setChartId('')
     localStorage.removeItem('zodiac_editor.chartId')
     setStatus('Logged out.')
-  }
-
-  const handlePlaceSearch = async () => {
-    if (!jwt) {
-      setError('Login required to search places.')
-      return
-    }
-    const query = placeQuery.trim()
-    if (query.length < 3) {
-      setError('Enter at least 3 characters to search.')
-      return
-    }
-    setError('')
-    const response = await apiFetch(
-      `${apiBase}/api/places/search?q=${encodeURIComponent(query)}`
-    )
-    if (!response.ok) {
-      const detail = await readApiError(response)
-      setError(detail ?? 'Failed to search places.')
-      return
-    }
-    const data = (await response.json()) as PlaceResult[]
-    setPlaceResults(data)
-  }
-
-  const handleSelectPlace = (place: PlaceResult) => {
-    setSelectedPlace(place)
-    setPlaceQuery(place.display_name)
-    setPlaceResults([])
   }
 
   const handleSelectChart = async (chartIdToLoad: string) => {
@@ -695,19 +756,9 @@ function App() {
     setLatitude(data.latitude)
     setLongitude(data.longitude)
     setChartName(data.name ?? '')
-    if (data.birth_place_text) {
-      setSelectedPlace({
-        place_id: data.birth_place_id ?? '',
-        display_name: data.birth_place_text,
-        lat: data.latitude,
-        lon: data.longitude,
-        timezone: data.timezone ?? null,
-      })
-      setPlaceQuery(data.birth_place_text)
-    } else {
-      setSelectedPlace(null)
-    }
-    if (data.default_frame_id) {
+    setLatitude(data.latitude)
+    setLongitude(data.longitude)
+    if (data.default_frame_id && selectedId !== CHART_ONLY_ID) {
       setSelectedId(data.default_frame_id)
     }
   }
@@ -724,9 +775,6 @@ function App() {
     setLongitude(-74.006)
     setChartId('')
     setChartName('')
-    setSelectedPlace(null)
-    setPlaceQuery('')
-    setPlaceResults([])
     setChartFit(defaultChartFit)
     setInitialFit(defaultChartFit)
     setOverrides({})
@@ -749,9 +797,6 @@ function App() {
     setLongitude(-74.006)
     setChartId('')
     setChartName('')
-    setSelectedPlace(null)
-    setPlaceQuery('')
-    setPlaceResults([])
     setChartFit(defaultChartFit)
     setInitialFit(defaultChartFit)
     setOverrides({})
@@ -844,47 +889,6 @@ function App() {
             />
           </label>
           <label className="field">
-            Birth place
-            <input
-              type="text"
-              value={placeQuery}
-              onChange={(event) => setPlaceQuery(event.target.value)}
-              placeholder="Search city, country"
-            />
-          </label>
-          <button className="secondary" onClick={handlePlaceSearch}>
-            Search places
-          </button>
-          {placeResults.length > 0 ? (
-            <div className="place-results">
-              {placeResults.map((place) => (
-                <button
-                  key={place.place_id}
-                  type="button"
-                  className="place-item"
-                  onClick={() => handleSelectPlace(place)}
-                >
-                  <div className="place-name">{place.display_name}</div>
-                  <div className="place-meta">
-                    {place.lat.toFixed(4)}, {place.lon.toFixed(4)}
-                    {place.timezone ? ` • ${place.timezone}` : ''}
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {selectedPlace ? (
-            <div className="place-selected">
-              <div className="place-name">{selectedPlace.display_name}</div>
-              <div className="place-meta">
-                {selectedPlace.lat.toFixed(4)}, {selectedPlace.lon.toFixed(4)}
-                {selectedPlace.timezone ? ` • ${selectedPlace.timezone}` : ''}
-              </div>
-            </div>
-          ) : (
-            <div className="hint">No birth place selected.</div>
-          )}
-          <label className="field">
             Birth date
             <input
               type="date"
@@ -900,6 +904,18 @@ function App() {
               onChange={(event) => setBirthTime(event.target.value)}
             />
           </label>
+          <NumberField
+            label="Latitude"
+            value={latitude}
+            step={0.0001}
+            onChange={setLatitude}
+          />
+          <NumberField
+            label="Longitude"
+            value={longitude}
+            step={0.0001}
+            onChange={setLongitude}
+          />
           <button className="secondary" onClick={handleCreateChart}>
             Create chart
           </button>
@@ -939,6 +955,14 @@ function App() {
             />
           </label>
           <div className="frame-grid">
+            <button
+              type="button"
+              className={`frame-card ${isChartOnly ? 'active' : ''} frame-card--chart-only`}
+              onClick={() => setSelectedId(CHART_ONLY_ID)}
+            >
+              <div className="frame-placeholder">Chart only</div>
+              <div className="frame-name">Chart only</div>
+            </button>
             {filteredFrames.map((frame) => (
               <button
                 key={frame.id}
@@ -1001,6 +1025,16 @@ function App() {
               onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
             />
           </label>
+          {user?.is_admin ? (
+            <label className="field checkbox">
+              Publish globally
+              <input
+                type="checkbox"
+                checked={uploadGlobal}
+                onChange={(event) => setUploadGlobal(event.target.checked)}
+              />
+            </label>
+          ) : null}
           <button className="secondary" onClick={handleUploadFrame} disabled={uploading}>
             {uploading ? 'Uploading...' : 'Upload frame'}
           </button>

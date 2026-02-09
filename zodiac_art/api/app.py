@@ -35,7 +35,10 @@ from zodiac_art.api.models import (
     ChartListItem,
 )
 from zodiac_art.api.rendering import (
+    chart_only_meta_payload,
     compute_auto_layout_overrides,
+    render_chart_only_png,
+    render_chart_only_svg,
     render_chart_png,
     render_chart_svg,
 )
@@ -48,7 +51,6 @@ from zodiac_art.api.frames_store import (
     validate_frame_image,
     write_template_metadata,
 )
-from zodiac_art.api.places_store import PlacesStore
 from zodiac_art.api.storage import FileStorage
 from zodiac_art.api.storage_async import AsyncFileStorage
 from zodiac_art.api.storage_postgres import PostgresStorage
@@ -56,29 +58,29 @@ from zodiac_art.config import (
     PROJECT_ROOT,
     STORAGE_ROOT,
     build_database_url,
+    get_admin_email,
     get_dev_mode,
     get_jwt_expires_seconds,
     get_jwt_secret,
 )
 from zodiac_art.frames.validation import validate_meta
-from zodiac_art.geo.geocoder import NominatimGeocoder
 from zodiac_art.geo.timezone import resolve_timezone, to_utc_iso
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global storage
     global frame_store
-    global places_store
-    global geocoder
     global db_pool
     global current_user
     global jwt_secret
     global jwt_expires_seconds
     global dev_mode
+    global admin_email
 
     dev_mode = get_dev_mode()
     jwt_expires_seconds = get_jwt_expires_seconds()
     jwt_secret = get_jwt_secret()
+    admin_email = get_admin_email()
     if not jwt_secret:
         if dev_mode:
             jwt_secret = secrets.token_urlsafe(32)
@@ -92,8 +94,6 @@ async def lifespan(app: FastAPI):
         db_pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
         storage = PostgresStorage(db_pool)
         frame_store = PostgresFrameStore(db_pool)
-        places_store = PlacesStore(db_pool)
-        geocoder = NominatimGeocoder()
         current_user = get_current_user_dependency(db_pool, jwt_secret, dev_mode)
     else:
         storage = AsyncFileStorage(FileStorage())
@@ -118,13 +118,12 @@ app.add_middleware(
 
 storage: Any = None
 frame_store: Any = None
-places_store: Any = None
-geocoder: Any = None
 db_pool = None
 current_user: Any = None
 jwt_secret: str | None = None
 jwt_expires_seconds = 604800
 dev_mode = False
+admin_email: str | None = None
 
 frames_path = PROJECT_ROOT / "zodiac_art" / "frames"
 data_path = PROJECT_ROOT / "data"
@@ -144,6 +143,55 @@ def _validate_chart_id(chart_id: str) -> None:
         UUID(chart_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid chart id") from exc
+
+
+def _validate_chart_fit_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Chart fit payload must be an object")
+    dx = payload.get("dx", 0.0)
+    dy = payload.get("dy", 0.0)
+    scale = payload.get("scale", 1.0)
+    rotation = payload.get("rotation_deg", 0.0)
+    if not isinstance(dx, (int, float)) or not isinstance(dy, (int, float)):
+        raise HTTPException(status_code=400, detail="Chart fit dx/dy must be numbers")
+    if not isinstance(scale, (int, float)) or scale <= 0:
+        raise HTTPException(status_code=400, detail="Chart fit scale must be positive")
+    if not isinstance(rotation, (int, float)):
+        raise HTTPException(status_code=400, detail="Chart fit rotation must be a number")
+    return {
+        "dx": float(dx),
+        "dy": float(dy),
+        "scale": float(scale),
+        "rotation_deg": float(rotation),
+    }
+
+
+def _validate_layout_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Layout payload must be an object")
+    overrides = payload.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise HTTPException(status_code=400, detail="Layout overrides must be an object")
+    for key, value in overrides.items():
+        if not isinstance(key, str) or not isinstance(value, dict):
+            raise HTTPException(status_code=400, detail="Invalid override format")
+        if "dx" in value or "dy" in value:
+            dx = value.get("dx", 0.0)
+            dy = value.get("dy", 0.0)
+            if not isinstance(dx, (int, float)) or not isinstance(dy, (int, float)):
+                raise HTTPException(status_code=400, detail="Override dx/dy must be numbers")
+        if "dr" in value or "dt" in value:
+            dr = value.get("dr", 0.0)
+            dt = value.get("dt", 0.0)
+            if not isinstance(dr, (int, float)) or not isinstance(dt, (int, float)):
+                raise HTTPException(status_code=400, detail="Override dr/dt must be numbers")
+    return {"overrides": overrides}
+
+
+def _is_admin(user: AuthUser) -> bool:
+    if not admin_email:
+        return False
+    return user.email.lower() == admin_email
 
 
 def _public_url(rel_path: str) -> str:
@@ -214,9 +262,12 @@ async def list_frames(
         if not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         owner_user_id = user.user_id
+    elif user:
+        owner_user_id = user.user_id
     records = await frame_store.list_frames(
         tag=tag_filter,
         owner_user_id=owner_user_id,
+        include_global=True,
         limit=safe_limit,
     )
     response: list[dict] = []
@@ -257,6 +308,7 @@ async def create_frame(
     name: str = Form(...),
     tags: str | None = Form(None),
     template_metadata_json: str | None = Form(None),
+    global_frame: bool = Form(False),
     user: AuthUser = Depends(_require_user),
 ) -> dict:
     if not isinstance(frame_store, PostgresFrameStore):
@@ -293,9 +345,14 @@ async def create_frame(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     write_template_metadata(frame_id, metadata)
+    owner_user_id = user.user_id
+    if global_frame:
+        if not _is_admin(user):
+            raise HTTPException(status_code=403, detail="Admin required")
+        owner_user_id = None
     record = await frame_store.create_frame(
         frame_id=frame_id,
-        owner_user_id=user.user_id,
+        owner_user_id=owner_user_id,
         name=name.strip(),
         tags=normalize_tags(tags or ""),
         width=width,
@@ -339,7 +396,10 @@ async def register(payload: dict) -> dict:
     password_hash = hash_password(password)
     user = await create_user(db_pool, email, password_hash)
     token = create_access_token(user, jwt_secret, jwt_expires_seconds)
-    return {"token": token, "user": {"id": user.user_id, "email": user.email}}
+    return {
+        "token": token,
+        "user": {"id": user.user_id, "email": user.email, "is_admin": _is_admin(user)},
+    }
 
 
 @app.post("/api/auth/login")
@@ -366,53 +426,17 @@ async def login(payload: dict) -> dict:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user = AuthUser(user_id=str(row["id"]), email=row["email"])
     token = create_access_token(user, jwt_secret, jwt_expires_seconds)
-    return {"token": token, "user": {"id": user.user_id, "email": user.email}}
+    return {
+        "token": token,
+        "user": {"id": user.user_id, "email": user.email, "is_admin": _is_admin(user)},
+    }
 
 
 @app.get("/api/auth/me")
 async def me(user: AuthUser = Depends(_require_user)) -> dict:
-    return {"id": user.user_id, "email": user.email}
+    return {"id": user.user_id, "email": user.email, "is_admin": _is_admin(user)}
 
 
-@app.get("/api/places/search")
-async def search_places(
-    q: str,
-    limit: int | None = 5,
-    user: AuthUser = Depends(_require_user),
-) -> list[dict]:
-    if not places_store or not geocoder:
-        raise HTTPException(status_code=500, detail="Places service unavailable")
-    query = q.strip()
-    if len(query) < 3:
-        raise HTTPException(status_code=400, detail="Query must be at least 3 characters")
-    safe_limit = max(1, min(limit or 5, 5))
-    try:
-        results = await geocoder.search(query, limit=safe_limit)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    response: list[dict] = []
-    for entry in results:
-        tz = resolve_timezone(entry.lat, entry.lon)
-        place = await places_store.upsert_place(
-            query_text=query,
-            provider=entry.provider,
-            provider_place_id=entry.provider_place_id,
-            display_name=entry.display_name,
-            lat=entry.lat,
-            lon=entry.lon,
-            timezone=tz,
-            raw=entry.raw,
-        )
-        response.append(
-            {
-                "place_id": place.place_id,
-                "display_name": place.display_name,
-                "lat": place.lat,
-                "lon": place.lon,
-                "timezone": place.timezone,
-            }
-        )
-    return response
 
 
 @app.post("/api/charts", response_model=ChartCreateResponse)
@@ -436,18 +460,9 @@ async def create_chart(
     longitude = payload.longitude
 
     if payload.birth_place_id:
-        if not places_store:
-            raise HTTPException(status_code=500, detail="Places service unavailable")
-        place = await places_store.get_place(payload.birth_place_id)
-        if not place:
-            raise HTTPException(status_code=400, detail="Unknown birth_place_id")
-        birth_place_id = place.place_id
-        birth_place_text = place.display_name
-        latitude = place.lat
-        longitude = place.lon
-        timezone_name = place.timezone or resolve_timezone(place.lat, place.lon)
+        raise HTTPException(status_code=400, detail="birth_place_id is not supported")
     if latitude is None or longitude is None:
-        raise HTTPException(status_code=400, detail="Latitude/longitude or birth_place_id required")
+        raise HTTPException(status_code=400, detail="Latitude and longitude are required")
     if timezone_name is None:
         timezone_name = resolve_timezone(latitude, longitude)
     if timezone_name:
@@ -573,27 +588,8 @@ async def save_layout(
     await _load_chart_for_user(chart_id, user.user_id)
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
-    overrides = payload.get("overrides", {})
-    if not isinstance(overrides, dict):
-        raise HTTPException(status_code=400, detail="Layout overrides must be an object")
-    for key, value in overrides.items():
-        if not isinstance(key, str) or not isinstance(value, dict):
-            raise HTTPException(status_code=400, detail="Invalid override format")
-        if "dx" in value or "dy" in value:
-            dx = value.get("dx", 0.0)
-            dy = value.get("dy", 0.0)
-            if not isinstance(dx, (int, float)) or not isinstance(dy, (int, float)):
-                raise HTTPException(
-                    status_code=400, detail="Override dx/dy must be numbers"
-                )
-        if "dr" in value or "dt" in value:
-            dr = value.get("dr", 0.0)
-            dt = value.get("dt", 0.0)
-            if not isinstance(dr, (int, float)) or not isinstance(dt, (int, float)):
-                raise HTTPException(
-                    status_code=400, detail="Override dr/dt must be numbers"
-                )
-    await storage.save_chart_layout(chart_id, frame_id, payload)
+    validated = _validate_layout_payload(payload)
+    await storage.save_chart_layout(chart_id, frame_id, validated)
     return {"status": "ok"}
 
 
@@ -608,6 +604,69 @@ async def load_layout(
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
     layout = await storage.load_chart_layout(chart_id, frame_id)
+    if layout is None:
+        raise HTTPException(status_code=404, detail="Layout not found")
+    return layout
+
+
+@app.get("/api/charts/{chart_id}/chart_only/meta")
+async def load_chart_only_meta(
+    chart_id: str,
+    user: AuthUser = Depends(_require_user),
+) -> dict:
+    _validate_chart_id(chart_id)
+    await _load_chart_for_user(chart_id, user.user_id)
+    chart_fit = await storage.load_chart_fit(chart_id)
+    return chart_only_meta_payload(chart_fit)
+
+
+@app.put("/api/charts/{chart_id}/chart_fit")
+async def save_chart_fit(
+    chart_id: str,
+    payload: dict = Body(...),
+    user: AuthUser = Depends(_require_user),
+) -> dict:
+    _validate_chart_id(chart_id)
+    await _load_chart_for_user(chart_id, user.user_id)
+    validated = _validate_chart_fit_payload(payload)
+    await storage.save_chart_fit(chart_id, validated)
+    return {"status": "ok"}
+
+
+@app.get("/api/charts/{chart_id}/chart_fit")
+async def load_chart_fit(
+    chart_id: str,
+    user: AuthUser = Depends(_require_user),
+) -> dict:
+    _validate_chart_id(chart_id)
+    await _load_chart_for_user(chart_id, user.user_id)
+    chart_fit = await storage.load_chart_fit(chart_id)
+    if chart_fit is None:
+        raise HTTPException(status_code=404, detail="Chart fit not found")
+    return chart_fit
+
+
+@app.put("/api/charts/{chart_id}/layout")
+async def save_chart_layout(
+    chart_id: str,
+    payload: dict = Body(...),
+    user: AuthUser = Depends(_require_user),
+) -> dict:
+    _validate_chart_id(chart_id)
+    await _load_chart_for_user(chart_id, user.user_id)
+    validated = _validate_layout_payload(payload)
+    await storage.save_chart_layout_base(chart_id, validated)
+    return {"status": "ok"}
+
+
+@app.get("/api/charts/{chart_id}/layout")
+async def load_chart_layout(
+    chart_id: str,
+    user: AuthUser = Depends(_require_user),
+) -> dict:
+    _validate_chart_id(chart_id)
+    await _load_chart_for_user(chart_id, user.user_id)
+    layout = await storage.load_chart_layout_base(chart_id)
     if layout is None:
         raise HTTPException(status_code=404, detail="Layout not found")
     return layout
@@ -659,6 +718,17 @@ async def render_svg(
     return Response(content=result.svg, media_type="image/svg+xml")
 
 
+@app.get("/api/charts/{chart_id}/render_chart.svg")
+async def render_chart_only_svg_endpoint(
+    chart_id: str,
+    user: AuthUser = Depends(_require_user),
+) -> Response:
+    _validate_chart_id(chart_id)
+    record = await _load_chart_for_user(chart_id, user.user_id)
+    result = await render_chart_only_svg(storage, record)
+    return Response(content=result.svg, media_type="image/svg+xml")
+
+
 @app.get("/api/charts/{chart_id}/render.png")
 async def render_png(
     chart_id: str,
@@ -680,6 +750,20 @@ async def render_png(
         raise HTTPException(status_code=400, detail="size must be positive")
     assert frame_id is not None
     png_bytes = await render_chart_png(storage, record, frame_id, max_size=size)
+    return Response(content=png_bytes, media_type="image/png")
+
+
+@app.get("/api/charts/{chart_id}/render_chart.png")
+async def render_chart_only_png_endpoint(
+    chart_id: str,
+    size: int | None = None,
+    user: AuthUser = Depends(_require_user),
+) -> Response:
+    _validate_chart_id(chart_id)
+    record = await _load_chart_for_user(chart_id, user.user_id)
+    if size is not None and size <= 0:
+        raise HTTPException(status_code=400, detail="size must be positive")
+    png_bytes = await render_chart_only_png(storage, record, max_size=size)
     return Response(content=png_bytes, media_type="image/png")
 
 

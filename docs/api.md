@@ -25,17 +25,12 @@ curl -X POST http://127.0.0.1:8000/api/charts \
     "name": "Chart 1",
     "birth_date": "1990-04-12",
     "birth_time": "08:45",
-    "birth_place_id": "<place_id>",
+    "latitude": 40.7128,
+    "longitude": -74.0060,
     "default_frame_id": "artnouveau_test"
   }'
 ```
 
-## Place search
-
-```bash
-curl "http://127.0.0.1:8000/api/places/search?q=New%20York&limit=5" \
-  -H "Authorization: Bearer <token>"
-```
 
 ## List charts
 

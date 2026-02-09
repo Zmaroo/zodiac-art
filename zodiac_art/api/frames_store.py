@@ -62,6 +62,7 @@ class PostgresFrameStore:
         self,
         tag: str | None = None,
         owner_user_id: str | None = None,
+        include_global: bool = True,
         limit: int = 200,
     ) -> list[FrameRecord]:
         query = (
@@ -74,8 +75,13 @@ class PostgresFrameStore:
             clauses.append("$1 = ANY(tags)")
             args.append(tag)
         if owner_user_id:
-            clauses.append(f"owner_user_id = ${len(args) + 1}")
+            if include_global:
+                clauses.append(f"(owner_user_id = ${len(args) + 1} OR owner_user_id IS NULL)")
+            else:
+                clauses.append(f"owner_user_id = ${len(args) + 1}")
             args.append(UUID(owner_user_id))
+        elif include_global:
+            clauses.append("owner_user_id IS NULL")
         if clauses:
             query = f"{query} WHERE {' AND '.join(clauses)}"
         query = f"{query} ORDER BY created_at DESC LIMIT ${len(args) + 1}"
@@ -229,6 +235,7 @@ class FileFrameStore:
         self,
         tag: str | None = None,
         owner_user_id: str | None = None,
+        include_global: bool = True,
         limit: int = 200,
     ) -> list[FrameRecord]:
         if not self.frames_dir.exists():

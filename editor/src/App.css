@@ -108,6 +108,18 @@
   display: block;
 }
 
+.frame-placeholder {
+  border-radius: 6px;
+  border: 1px dashed #c8bfae;
+  padding: 20px 10px;
+  text-align: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b6254;
+  background: #f3eee5;
+}
+
 .frame-card.active {
   outline: 2px solid #2f2a22;
   outline-offset: 1px;
@@ -203,38 +215,6 @@
   color: #6b6254;
 }
 
-.place-results {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.place-item {
-  border: 1px solid #d4cbbd;
-  background: #fffaf1;
-  border-radius: 8px;
-  padding: 8px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.place-selected {
-  padding: 8px;
-  border-radius: 8px;
-  background: #efe9de;
-  margin-bottom: 10px;
-}
-
-.place-name {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.place-meta {
-  font-size: 11px;
-  color: #6b6254;
-}
 
 .error {
   padding: 10px;

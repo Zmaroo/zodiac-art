@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone as utc_timezone
 from pathlib import Path
 from typing import Iterable
 from uuid import UUID, uuid4
@@ -84,6 +85,15 @@ class PostgresStorage:
         timezone: str | None = None,
         birth_datetime_utc: str | None = None,
     ) -> ChartRecord:
+        utc_value = None
+        if birth_datetime_utc:
+            try:
+                parsed = datetime.fromisoformat(birth_datetime_utc)
+            except ValueError as exc:
+                raise ValueError("Invalid birth_datetime_utc") from exc
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=utc_timezone.utc)
+            utc_value = parsed
         chart_id = uuid4()
         async with self.pool.acquire() as conn:
             await conn.execute(
@@ -104,7 +114,7 @@ class PostgresStorage:
                 birth_place_text,
                 UUID(birth_place_id) if birth_place_id else None,
                 timezone,
-                birth_datetime_utc,
+                utc_value,
             )
         return ChartRecord(
             chart_id=str(chart_id),
@@ -316,6 +326,40 @@ class PostgresStorage:
             return json.loads(row)
         return dict(row)
 
+    async def load_chart_fit(self, chart_id: str) -> dict | None:
+        chart_uuid = self._validate_uuid(chart_id)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                """
+                SELECT chart_fit_json
+                FROM charts
+                WHERE id = $1
+                """,
+                chart_uuid,
+            )
+        if row is None:
+            return None
+        if isinstance(row, str):
+            return json.loads(row)
+        return dict(row)
+
+    async def load_chart_layout_base(self, chart_id: str) -> dict | None:
+        chart_uuid = self._validate_uuid(chart_id)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                """
+                SELECT layout_json
+                FROM charts
+                WHERE id = $1
+                """,
+                chart_uuid,
+            )
+        if row is None:
+            return None
+        if isinstance(row, str):
+            return json.loads(row)
+        return dict(row)
+
     async def get_frame_metadata(self, chart_id: str, frame_id: str) -> dict:
         template_meta = await self.load_template_meta(frame_id)
         override_meta = await self.load_chart_meta(chart_id, frame_id)
@@ -370,6 +414,36 @@ class PostgresStorage:
             await conn.execute(
                 "UPDATE charts SET updated_at = NOW() WHERE id = $1",
                 chart_uuid,
+            )
+
+    async def save_chart_fit(self, chart_id: str, chart_fit: dict) -> None:
+        chart_uuid = self._validate_uuid(chart_id)
+        payload = json.dumps(chart_fit)
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE charts
+                SET chart_fit_json = $2::jsonb,
+                    updated_at = NOW()
+                WHERE id = $1
+                """,
+                chart_uuid,
+                payload,
+            )
+
+    async def save_chart_layout_base(self, chart_id: str, layout: dict) -> None:
+        chart_uuid = self._validate_uuid(chart_id)
+        payload = json.dumps(layout)
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE charts
+                SET layout_json = $2::jsonb,
+                    updated_at = NOW()
+                WHERE id = $1
+                """,
+                chart_uuid,
+                payload,
             )
 
     async def template_image_path(self, frame_id: str) -> Path:

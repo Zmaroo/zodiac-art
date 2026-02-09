@@ -87,3 +87,10 @@ def get_jwt_expires_seconds() -> int:
         return int(raw)
     except ValueError:
         return 604800
+
+
+def get_admin_email() -> str | None:
+    value = os.environ.get("ADMIN_EMAIL")
+    if not value:
+        return None
+    return value.strip().lower() or None
