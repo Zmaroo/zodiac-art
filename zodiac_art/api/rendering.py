@@ -55,7 +55,7 @@ def _merge_dicts(base: dict, override: dict | None) -> dict:
     return merged
 
 
-def _build_settings(meta) -> RenderSettings:
+def _build_settings(meta, font_scale: float = 1.0) -> RenderSettings:
     if meta.ring_outer <= 0:
         raise ValueError("Frame ring outer radius must be positive.")
     config = load_config()
@@ -71,12 +71,17 @@ def _build_settings(meta) -> RenderSettings:
         planet_ring_ratio=config.planet_ring_ratio,
         label_ring_ratio=config.label_ring_ratio,
         planet_label_offset_ratio=config.planet_label_offset_ratio,
+        font_scale=font_scale,
     )
 
 
 def _chart_only_radius() -> float:
     config = load_config()
     return min(config.canvas_width, config.canvas_height) * 0.4
+
+
+CHART_ONLY_MIN_CANVAS = 4096
+CHART_ONLY_FONT_BASE_RADIUS = 465.0
 
 
 def _chart_only_canvas_size(radius: float, scale: float) -> int:
@@ -87,7 +92,7 @@ def _chart_only_canvas_size(radius: float, scale: float) -> int:
     )
     padding_ratio = max(1.2, label_extent + 0.2)
     size = 2 * radius * padding_ratio * scale
-    return int(math.ceil(size))
+    return int(math.ceil(max(size, CHART_ONLY_MIN_CANVAS)))
 
 
 def _chart_only_meta(chart_fit: dict | None) -> FrameMeta:
@@ -233,7 +238,8 @@ async def render_chart_only_svg(
     chart_fit_payload = await storage.load_chart_fit(chart.chart_id)
     layout = await storage.load_chart_layout_base(chart.chart_id) or {"overrides": {}}
     meta = _chart_only_meta(chart_fit_payload)
-    settings = _build_settings(meta)
+    font_scale = max(0.1, meta.ring_outer / CHART_ONLY_FONT_BASE_RADIUS)
+    settings = _build_settings(meta, font_scale=font_scale)
     renderer = SvgChartRenderer(settings)
     overrides = _overrides_from_layout(layout)
     chart_fit = _chart_fit_from_payload(chart_fit_payload)

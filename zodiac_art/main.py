@@ -62,6 +62,7 @@ def _build_renderer_settings(frame_meta) -> RenderSettings:
         planet_ring_ratio=config.planet_ring_ratio,
         label_ring_ratio=config.label_ring_ratio,
         planet_label_offset_ratio=config.planet_label_offset_ratio,
+        font_scale=1.0,
     )
 
 

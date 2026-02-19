@@ -31,6 +31,7 @@ class RenderSettings:
     planet_ring_ratio: float
     label_ring_ratio: float
     planet_label_offset_ratio: float
+    font_scale: float
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ class SvgChartRenderer:
         planet_radius = self.settings.radius * self.settings.planet_ring_ratio
         label_radius = self.settings.radius * self.settings.label_ring_ratio
         label_offset = self.settings.radius * self.settings.planet_label_offset_ratio
+        font_scale = max(0.1, self.settings.font_scale)
 
         if overrides is None:
             overrides = {}
@@ -140,7 +142,7 @@ class SvgChartRenderer:
 
         sign_radius = label_radius * 0.98
         asc_radius = inner_radius * 0.90
-        asc_size = 56
+        asc_size = 56 * font_scale
         asc_angle = longitude_to_angle(chart.ascendant) + angle_offset
         asc_pos = polar_to_cartesian(center[0], center[1], asc_radius, asc_angle)
         asc_group = dwg.g(id="asc.marker")
@@ -190,7 +192,7 @@ class SvgChartRenderer:
                 dx, dy = _resolve_override(sign_override, mid_angle)
                 sign_group.translate(dx, dy)
             if glyph_mode == "path":
-                path_data = glyph_path_data(glyph, label_pos[0], label_pos[1], 56)
+                path_data = glyph_path_data(glyph, label_pos[0], label_pos[1], 56 * font_scale)
                 if path_data:
                     d, transform = path_data
                     sign_group.add(dwg.path(d=d, fill="#000", transform=transform))
@@ -201,7 +203,7 @@ class SvgChartRenderer:
                             insert=label_pos,
                             text_anchor="middle",
                             alignment_baseline="middle",
-                            font_size=56,
+                            font_size=56 * font_scale,
                             font_family="serif",
                         )
                     )
@@ -212,7 +214,7 @@ class SvgChartRenderer:
                         insert=label_pos,
                         text_anchor="middle",
                         alignment_baseline="middle",
-                        font_size=56,
+                        font_size=56 * font_scale,
                         font_family="serif",
                     )
                 )
@@ -248,7 +250,12 @@ class SvgChartRenderer:
                 dx, dy = _resolve_override(glyph_override, angle)
                 glyph_group.translate(dx, dy)
             if glyph_mode == "path":
-                path_data = glyph_path_data(planet_glyph, planet_pos[0], planet_pos[1], 60)
+                path_data = glyph_path_data(
+                    planet_glyph,
+                    planet_pos[0],
+                    planet_pos[1],
+                    60 * font_scale,
+                )
                 if path_data:
                     d, transform = path_data
                     glyph_group.add(dwg.path(d=d, fill="#000", transform=transform))
@@ -259,7 +266,7 @@ class SvgChartRenderer:
                             insert=planet_pos,
                             text_anchor="middle",
                             alignment_baseline="middle",
-                            font_size=60,
+                            font_size=60 * font_scale,
                             font_family="serif",
                         )
                     )
@@ -270,7 +277,7 @@ class SvgChartRenderer:
                         insert=planet_pos,
                         text_anchor="middle",
                         alignment_baseline="middle",
-                        font_size=60,
+                        font_size=60 * font_scale,
                         font_family="serif",
                     )
                 )
@@ -289,7 +296,7 @@ class SvgChartRenderer:
                     insert=label_pos,
                     text_anchor="middle",
                     alignment_baseline="middle",
-                    font_size=28,
+                    font_size=28 * font_scale,
                     font_family="serif",
                 )
             )
@@ -321,4 +328,5 @@ def default_render_settings(radius: float, center_x: float, center_y: float) -> 
         planet_ring_ratio=config.planet_ring_ratio,
         label_ring_ratio=config.label_ring_ratio,
         planet_label_offset_ratio=config.planet_label_offset_ratio,
+        font_scale=1.0,
     )
