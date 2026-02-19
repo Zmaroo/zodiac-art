@@ -69,7 +69,7 @@ class ChartListItem(BaseModel):
 class AutoLayoutRequest(BaseModel):
     """Request for auto layout."""
 
-    mode: str = "labels"
+    mode: str = "glyphs"
     min_gap_px: int = 10
     max_iter: int = 200
 

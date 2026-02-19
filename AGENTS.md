@@ -11,6 +11,13 @@ Keep changes small, focused, and aligned with existing conventions.
 - Config defaults: `zodiac_art/config.py` with env overrides.
 - Frames live in `frames/`; outputs written to `output/`.
 
+## Repo Layout
+- `zodiac_art/`: package source.
+- `zodiac_art/renderer/`: SVG chart rendering.
+- `zodiac_art/frames/`: frame assembly and compositing.
+- `frames/`: frame metadata (`.json`) and art (`.png`).
+- `output/`: generated SVG/PNG artifacts.
+
 ## Build / Run / Test Commands
 ### Environment Setup
 ```bash
@@ -93,6 +100,11 @@ python -m unittest path.to.module.TestClass.test_name
 - Use `list[...]`, `dict[...]`, and `tuple[...]` generics.
 - Dataclasses are used for structured data; prefer `@dataclass(frozen=True)`.
 - Use `Path` and `Path | None` for optional filesystem paths.
+
+### Documentation and Comments
+- Keep docstrings concise and action-oriented.
+- Add comments only for non-obvious logic or domain-specific math.
+- Prefer updating existing docstrings over adding inline comments.
 
 ### Naming Conventions
 - Modules: `snake_case.py`.

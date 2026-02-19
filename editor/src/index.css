@@ -28,3 +28,30 @@ input,
 select {
   font-family: inherit;
 }
+
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0.5rem;
+}
+
+.collapsible-header h2 {
+  margin: 0;
+}
+
+.arrow {
+  font-size: 0.8rem;
+  transition: transform 0.2s;
+  color: #666;
+}
+
+.arrow.open {
+  transform: rotate(0deg);
+}
+
+.arrow.closed {
+  transform: rotate(-90deg);
+}

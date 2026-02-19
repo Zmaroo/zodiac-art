@@ -18,7 +18,13 @@ from zodiac_art.frames.frame_loader import FrameAsset, FrameMeta
 from zodiac_art.frames.validation import validate_meta
 from zodiac_art.config import load_config
 from zodiac_art.renderer.geometry import longitude_to_angle, polar_offset_to_xy, polar_to_cartesian
-from zodiac_art.renderer.svg_chart import ChartFit, ElementOverride, RenderSettings, SvgChartRenderer
+from zodiac_art.renderer.svg_chart import (
+    ChartFit,
+    ElementOverride,
+    FrameCircle,
+    RenderSettings,
+    SvgChartRenderer,
+)
 
 from zodiac_art.api.storage import ChartRecord
 from zodiac_art.geo.timezone import to_utc_iso
@@ -145,8 +151,35 @@ def _overrides_from_layout(layout: dict | None) -> dict[str, ElementOverride]:
             dy=value.get("dy", 0.0),
             dr=value.get("dr"),
             dt=value.get("dt"),
+            color=value.get("color"),
         )
     return overrides
+
+
+def _frame_circle_from_layout(
+    layout: dict | None,
+    image_size: tuple[int, int],
+) -> FrameCircle | None:
+    if not layout:
+        return None
+    raw = layout.get("frame_circle")
+    if not isinstance(raw, dict):
+        return None
+    cx_norm = raw.get("cxNorm")
+    cy_norm = raw.get("cyNorm")
+    r_norm = raw.get("rNorm")
+    if not isinstance(cx_norm, (int, float)):
+        return None
+    if not isinstance(cy_norm, (int, float)):
+        return None
+    if not isinstance(r_norm, (int, float)):
+        return None
+    width, height = image_size
+    return FrameCircle(
+        cx=cx_norm * width,
+        cy=cy_norm * height,
+        r=r_norm * width,
+    )
 
 
 def _chart_fit_from_payload(chart_fit: dict | None) -> ChartFit:
@@ -207,6 +240,7 @@ async def render_chart_svg(
 
     layout = await storage.load_chart_layout(chart.chart_id, frame_id) or {"overrides": {}}
     overrides = _overrides_from_layout(layout)
+    frame_circle = _frame_circle_from_layout(layout, image_size)
 
     chart_fit = ChartFit(
         dx=meta.chart_fit_dx,
@@ -217,7 +251,12 @@ async def render_chart_svg(
 
     settings = _build_settings(meta)
     renderer = SvgChartRenderer(settings)
-    chart_svg = renderer.render(_build_chart(chart), global_transform=chart_fit, overrides=overrides)
+    chart_svg = renderer.render(
+        _build_chart(chart),
+        global_transform=chart_fit,
+        overrides=overrides,
+        frame_circle=frame_circle,
+    )
     metadata_path = await storage.template_meta_path(frame_id)
     frame_asset = FrameAsset(
         frame_id=frame_id,
@@ -287,34 +326,15 @@ async def compute_auto_layout_overrides(
     elements: list[AutoLayoutElement] = []
     for planet in chart_data.planets:
         angle = longitude_to_angle(planet.longitude)
-        label_pos = polar_to_cartesian(
-            meta.chart_center_x,
-            meta.chart_center_y,
-            settings.radius * settings.label_ring_ratio,
-            angle,
-        )
         glyph_pos = polar_to_cartesian(
             meta.chart_center_x,
             meta.chart_center_y,
             settings.radius * settings.planet_ring_ratio,
             angle,
         )
-        label_font = 28.0
         glyph_font = 60.0
-        label_width = label_font * 0.7 * max(1, len(planet.name))
-        label_height = label_font * 1.1
         glyph_width = glyph_font * 1.0
         glyph_height = glyph_font * 1.0
-        elements.append(
-            AutoLayoutElement(
-                element_id=f"planet.{planet.name}.label",
-                theta_deg=angle,
-                base_x=label_pos[0],
-                base_y=label_pos[1],
-                width=label_width,
-                height=label_height,
-            )
-        )
         elements.append(
             AutoLayoutElement(
                 element_id=f"planet.{planet.name}.glyph",

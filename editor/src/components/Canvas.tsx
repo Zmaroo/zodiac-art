@@ -1,0 +1,135 @@
+import type { PointerEvent, RefObject } from 'react'
+import type { ChartMeta, FrameCircle, FrameDetail } from '../types'
+
+type CanvasProps = {
+  meta: ChartMeta | null
+  selectedFrameDetail: FrameDetail | null
+  apiBase: string
+  chartSvg: string
+  chartId: string
+  chartBackgroundColor: string
+  showChartBackground: boolean
+  frameCircle: FrameCircle | null
+  showFrameCircleDebug: boolean
+  svgRef: RefObject<SVGSVGElement | null>
+  chartRootRef: RefObject<SVGGElement | null>
+  onPointerDown: (event: PointerEvent<SVGSVGElement>) => void
+  onPointerMove: (event: PointerEvent<SVGSVGElement>) => void
+  onPointerUp: (event: PointerEvent<SVGSVGElement>) => void
+}
+
+function Canvas({
+  meta,
+  selectedFrameDetail,
+  apiBase,
+  chartSvg,
+  chartId,
+  chartBackgroundColor,
+  showChartBackground,
+  frameCircle,
+  showFrameCircleDebug,
+  svgRef,
+  chartRootRef,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+}: CanvasProps) {
+  const debugCx = frameCircle ? frameCircle.cxNorm * (meta?.canvas.width ?? 0) : 0
+  const debugCy = frameCircle ? frameCircle.cyNorm * (meta?.canvas.height ?? 0) : 0
+  const debugR = frameCircle ? frameCircle.rNorm * (meta?.canvas.width ?? 0) : 0
+  return (
+    <main className="canvas">
+      {meta ? (
+        <svg
+          ref={svgRef}
+          width={meta.canvas.width}
+          height={meta.canvas.height}
+          viewBox={`0 0 ${meta.canvas.width} ${meta.canvas.height}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          {selectedFrameDetail ? (
+            <image
+              href={`${apiBase}${selectedFrameDetail.image_url}`}
+              x={0}
+              y={0}
+              width={meta.canvas.width}
+              height={meta.canvas.height}
+            />
+          ) : null}
+          <circle
+            cx={meta.chart.center.x}
+            cy={meta.chart.center.y}
+            r={meta.chart.ring_outer}
+            fill="none"
+            stroke="rgba(0,0,0,0.2)"
+            strokeWidth={2}
+          />
+          <circle
+            cx={meta.chart.center.x}
+            cy={meta.chart.center.y}
+            r={meta.chart.ring_inner}
+            fill="none"
+            stroke="rgba(0,0,0,0.2)"
+            strokeWidth={2}
+          />
+          <g ref={chartRootRef} id="chartRoot">
+            {showChartBackground ? (
+              <circle
+                id="chart.background"
+                data-fill-only="true"
+                cx={meta.chart.center.x}
+                cy={meta.chart.center.y}
+                r={meta.chart.ring_outer}
+                fill={chartBackgroundColor || 'none'}
+                stroke="none"
+              />
+            ) : null}
+            <g className="crosshair">
+              <line
+                x1={meta.chart.center.x - 20}
+                y1={meta.chart.center.y}
+                x2={meta.chart.center.x + 20}
+                y2={meta.chart.center.y}
+              />
+              <line
+                x1={meta.chart.center.x}
+                y1={meta.chart.center.y - 20}
+                x2={meta.chart.center.x}
+                y2={meta.chart.center.y + 20}
+              />
+            </g>
+            <g dangerouslySetInnerHTML={{ __html: chartSvg }} />
+          </g>
+          {showFrameCircleDebug && frameCircle ? (
+            <circle
+              cx={debugCx}
+              cy={debugCy}
+              r={debugR}
+              fill="none"
+              stroke="rgba(0, 120, 255, 0.7)"
+              strokeWidth={2}
+              pointerEvents="none"
+            />
+          ) : null}
+          {!chartId ? (
+            <text
+              x={meta.chart.center.x}
+              y={meta.chart.center.y}
+              textAnchor="middle"
+              fill="rgba(20, 20, 20, 0.6)"
+              fontSize={18}
+            >
+              Set chart ID to load overlay
+            </text>
+          ) : null}
+        </svg>
+      ) : (
+        <div className="placeholder">Select a frame to begin.</div>
+      )}
+    </main>
+  )
+}
+
+export default Canvas

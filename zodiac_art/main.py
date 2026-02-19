@@ -104,6 +104,7 @@ def run_pipeline(
             dy=value.get("dy", 0.0),
             dr=value.get("dr"),
             dt=value.get("dt"),
+            color=value.get("color"),
         )
     chart_svg = renderer.render(chart, global_transform=chart_fit, overrides=overrides)
     final_svg = compose_svg(chart_svg, frame_asset)

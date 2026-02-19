@@ -52,6 +52,16 @@ class ElementOverride:
     dy: float
     dr: float | None = None
     dt: float | None = None
+    color: str | None = None
+
+
+@dataclass(frozen=True)
+class FrameCircle:
+    """Frame inner-circle for clipping."""
+
+    cx: float
+    cy: float
+    r: float
 
 
 class SvgChartRenderer:
@@ -68,6 +78,7 @@ class SvgChartRenderer:
         chart: Chart,
         global_transform: ChartFit | None = None,
         overrides: dict[str, ElementOverride] | None = None,
+        frame_circle: FrameCircle | None = None,
     ) -> str:
         """Render the chart into an SVG string."""
 
@@ -85,7 +96,6 @@ class SvgChartRenderer:
         inner_radius = self.settings.radius * self.settings.sign_ring_inner_ratio
         planet_radius = self.settings.radius * self.settings.planet_ring_ratio
         label_radius = self.settings.radius * self.settings.label_ring_ratio
-        label_offset = self.settings.radius * self.settings.planet_label_offset_ratio
         font_scale = max(0.1, self.settings.font_scale)
 
         if overrides is None:
@@ -100,6 +110,24 @@ class SvgChartRenderer:
             f"translate({-center[0]:.3f} {-center[1]:.3f})"
         )
         chart_group = dwg.g(id="chartRoot", transform=chart_transform)
+        if frame_circle:
+            clip_id = "frameClip"
+            clip = dwg.clipPath(id=clip_id, clipPathUnits="userSpaceOnUse")
+            clip.add(dwg.circle(center=(frame_circle.cx, frame_circle.cy), r=frame_circle.r))
+            dwg.defs.add(clip)
+            chart_group.update({"clip-path": f"url(#{clip_id})"})
+
+        background_override = overrides.get("chart.background")
+        background_color = background_override.color if background_override else None
+        chart_group.add(
+            dwg.circle(
+                center=center,
+                r=outer_radius,
+                fill=background_color or "none",
+                stroke="none",
+                **{"data-fill-only": "true", "id": "chart.background"},
+            )
+        )
 
         angle_offset = 180.0 - longitude_to_angle(chart.ascendant)
 
@@ -148,6 +176,7 @@ class SvgChartRenderer:
         asc_group = dwg.g(id="asc.marker")
         asc_group.update({"data-theta": f"{asc_angle:.3f}"})
         asc_override = overrides.get("asc.marker")
+        asc_color = asc_override.color if asc_override else "#000"
         if asc_override:
             dx, dy = _resolve_override(asc_override, asc_angle)
             asc_group.translate(dx, dy)
@@ -155,7 +184,7 @@ class SvgChartRenderer:
             path_data = glyph_path_data("↑", asc_pos[0], asc_pos[1], asc_size)
             if path_data:
                 d, transform = path_data
-                asc_group.add(dwg.path(d=d, fill="#000", transform=transform))
+                asc_group.add(dwg.path(d=d, fill=asc_color, transform=transform))
             else:
                 asc_group.add(
                     dwg.text(
@@ -165,6 +194,7 @@ class SvgChartRenderer:
                         alignment_baseline="middle",
                         font_size=asc_size,
                         font_family="serif",
+                        fill=asc_color,
                     )
                 )
         else:
@@ -176,6 +206,7 @@ class SvgChartRenderer:
                     alignment_baseline="middle",
                     font_size=asc_size,
                     font_family="serif",
+                    fill=asc_color,
                 )
             )
         chart_group.add(asc_group)
@@ -188,6 +219,7 @@ class SvgChartRenderer:
             sign_override = overrides.get(sign_id)
             sign_group = dwg.g(id=sign_id)
             sign_group.update({"data-theta": f"{mid_angle:.3f}"})
+            sign_color = sign_override.color if sign_override else "#000"
             if sign_override:
                 dx, dy = _resolve_override(sign_override, mid_angle)
                 sign_group.translate(dx, dy)
@@ -195,7 +227,7 @@ class SvgChartRenderer:
                 path_data = glyph_path_data(glyph, label_pos[0], label_pos[1], 56 * font_scale)
                 if path_data:
                     d, transform = path_data
-                    sign_group.add(dwg.path(d=d, fill="#000", transform=transform))
+                    sign_group.add(dwg.path(d=d, fill=sign_color, transform=transform))
                 else:
                     sign_group.add(
                         dwg.text(
@@ -205,6 +237,7 @@ class SvgChartRenderer:
                             alignment_baseline="middle",
                             font_size=56 * font_scale,
                             font_family="serif",
+                            fill=sign_color,
                         )
                     )
             else:
@@ -216,6 +249,7 @@ class SvgChartRenderer:
                         alignment_baseline="middle",
                         font_size=56 * font_scale,
                         font_family="serif",
+                        fill=sign_color,
                     )
                 )
             chart_group.add(sign_group)
@@ -238,14 +272,12 @@ class SvgChartRenderer:
         for planet in chart.planets:
             angle = longitude_to_angle(planet.longitude) + angle_offset
             planet_pos = polar_to_cartesian(center[0], center[1], planet_radius, angle)
-            label_pos = polar_to_cartesian(
-                center[0], center[1], planet_radius + label_offset, angle
-            )
             planet_glyph = get_planet_glyph(planet.name)
             planet_glyph_id = f"planet.{planet.name}.glyph"
             glyph_override = overrides.get(planet_glyph_id)
             glyph_group = dwg.g(id=planet_glyph_id)
             glyph_group.update({"data-theta": f"{angle:.3f}"})
+            glyph_color = glyph_override.color if glyph_override else "#000"
             if glyph_override:
                 dx, dy = _resolve_override(glyph_override, angle)
                 glyph_group.translate(dx, dy)
@@ -258,7 +290,7 @@ class SvgChartRenderer:
                 )
                 if path_data:
                     d, transform = path_data
-                    glyph_group.add(dwg.path(d=d, fill="#000", transform=transform))
+                    glyph_group.add(dwg.path(d=d, fill=glyph_color, transform=transform))
                 else:
                     glyph_group.add(
                         dwg.text(
@@ -268,6 +300,7 @@ class SvgChartRenderer:
                             alignment_baseline="middle",
                             font_size=60 * font_scale,
                             font_family="serif",
+                            fill=glyph_color,
                         )
                     )
             else:
@@ -279,28 +312,10 @@ class SvgChartRenderer:
                         alignment_baseline="middle",
                         font_size=60 * font_scale,
                         font_family="serif",
+                        fill=glyph_color,
                     )
                 )
             chart_group.add(glyph_group)
-
-            planet_label_id = f"planet.{planet.name}.label"
-            label_override = overrides.get(planet_label_id)
-            label_group = dwg.g(id=planet_label_id)
-            label_group.update({"data-theta": f"{angle:.3f}"})
-            if label_override:
-                dx, dy = _resolve_override(label_override, angle)
-                label_group.translate(dx, dy)
-            label_group.add(
-                dwg.text(
-                    planet.name,
-                    insert=label_pos,
-                    text_anchor="middle",
-                    alignment_baseline="middle",
-                    font_size=28 * font_scale,
-                    font_family="serif",
-                )
-            )
-            chart_group.add(label_group)
 
         dwg.add(chart_group)
         return dwg.tostring()

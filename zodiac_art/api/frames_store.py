@@ -242,7 +242,7 @@ class FileFrameStore:
             return []
         records: list[FrameRecord] = []
         for child in sorted(self.frames_dir.iterdir(), key=lambda path: path.name):
-            if not child.is_dir():
+            if not child.is_dir() or child.name == "default":
                 continue
             meta_path = child / "metadata.json"
             if not meta_path.exists():

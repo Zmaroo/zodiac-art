@@ -185,7 +185,22 @@ def _validate_layout_payload(payload: dict) -> dict:
             dt = value.get("dt", 0.0)
             if not isinstance(dr, (int, float)) or not isinstance(dt, (int, float)):
                 raise HTTPException(status_code=400, detail="Override dr/dt must be numbers")
-    return {"overrides": overrides}
+        if "color" in value:
+            color = value.get("color")
+            if not isinstance(color, str):
+                raise HTTPException(status_code=400, detail="Override color must be a string")
+    frame_circle = payload.get("frame_circle")
+    if frame_circle is not None:
+        if not isinstance(frame_circle, dict):
+            raise HTTPException(status_code=400, detail="frame_circle must be an object")
+        for key in ("cxNorm", "cyNorm", "rNorm"):
+            value = frame_circle.get(key)
+            if not isinstance(value, (int, float)):
+                raise HTTPException(status_code=400, detail="frame_circle values must be numbers")
+    result = {"overrides": overrides}
+    if frame_circle is not None:
+        result["frame_circle"] = frame_circle
+    return result
 
 
 def _is_admin(user: AuthUser) -> bool:
@@ -686,7 +701,7 @@ async def auto_layout(
     record = await _load_chart_for_user(chart_id, user.user_id)
     if not await _frame_exists(frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
-    if payload.mode != "labels":
+    if payload.mode != "glyphs":
         raise HTTPException(status_code=400, detail="Unsupported auto layout mode")
     overrides = await compute_auto_layout_overrides(
         storage,
