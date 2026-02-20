@@ -29,6 +29,8 @@ class AppConfig:
     label_ring_ratio: float = 0.92
     planet_label_offset_ratio: float = 0.08
     sweph_path: str | None = None
+    embed_frame_data_uri: bool = True
+    render_cache_max: int = 32
 
 
 def load_config() -> AppConfig:
@@ -48,6 +50,8 @@ def load_config() -> AppConfig:
         "PLANET_LABEL_OFFSET_RATIO",
         config.planet_label_offset_ratio,
     )
+    embed_frame_data_uri = _env_bool("EMBED_FRAME_DATA_URI", config.embed_frame_data_uri)
+    render_cache_max = _env_int("RENDER_CACHE_MAX", config.render_cache_max)
     return AppConfig(
         glyph_mode=glyph_mode,
         frame_dir=frame_dir,
@@ -60,6 +64,8 @@ def load_config() -> AppConfig:
         label_ring_ratio=label_ring_ratio,
         planet_label_offset_ratio=planet_label_offset_ratio,
         sweph_path=sweph_path,
+        embed_frame_data_uri=embed_frame_data_uri,
+        render_cache_max=render_cache_max,
     )
 
 
@@ -134,3 +140,15 @@ def _env_float(key: str, default: float) -> float:
     except ValueError:
         return default
     return value
+
+
+def _env_bool(key: str, default: bool) -> bool:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return default

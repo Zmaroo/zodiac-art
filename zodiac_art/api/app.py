@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -131,6 +132,17 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"error": exc.errors()})
+
 
 frames_path = PROJECT_ROOT / "zodiac_art" / "frames"
 data_path = PROJECT_ROOT / "data"
@@ -281,6 +293,10 @@ def _get_jwt_expires_seconds() -> int:
     return app.state.jwt_expires_seconds
 
 
+def _render_cache_headers() -> dict[str, str]:
+    return {"Cache-Control": "private, max-age=60"}
+
+
 def _public_url(rel_path: str) -> str:
     storage_path = STORAGE_ROOT / rel_path
     if storage_path.exists():
@@ -349,16 +365,21 @@ async def list_frames(
     safe_limit = max(1, min(limit or 200, 500))
     safe_offset = max(0, offset or 0)
     owner_user_id = None
+    include_global = True
     if mine:
         if not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         owner_user_id = user.user_id
+        include_global = False
+    elif mine is False:
+        owner_user_id = None
+        include_global = True
     elif user:
         owner_user_id = user.user_id
     records = await _get_frame_store().list_frames(
         tag=tag_filter,
         owner_user_id=owner_user_id,
-        include_global=True,
+        include_global=include_global,
         limit=safe_limit,
         offset=safe_offset,
     )
@@ -826,7 +847,11 @@ async def render_svg(
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
     )
-    return Response(content=result.svg, media_type="image/svg+xml")
+    return Response(
+        content=result.svg,
+        media_type="image/svg+xml",
+        headers=_render_cache_headers(),
+    )
 
 
 @app.get("/api/charts/{chart_id}/render_chart.svg")
@@ -845,7 +870,11 @@ async def render_chart_only_svg_endpoint(
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
     )
-    return Response(content=result.svg, media_type="image/svg+xml")
+    return Response(
+        content=result.svg,
+        media_type="image/svg+xml",
+        headers=_render_cache_headers(),
+    )
 
 
 @app.get("/api/charts/{chart_id}/render.png")
@@ -879,7 +908,11 @@ async def render_png(
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
     )
-    return Response(content=png_bytes, media_type="image/png")
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers=_render_cache_headers(),
+    )
 
 
 @app.get("/api/charts/{chart_id}/render_chart.png")
@@ -902,7 +935,11 @@ async def render_chart_only_png_endpoint(
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
     )
-    return Response(content=png_bytes, media_type="image/png")
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers=_render_cache_headers(),
+    )
 
 
 @app.get("/api/health/db", response_model=None)

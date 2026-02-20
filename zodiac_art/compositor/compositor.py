@@ -38,15 +38,23 @@ def _strip_xml_declaration(svg_text: str) -> str:
     return svg_text
 
 
-def compose_svg(chart_svg: str, frame_asset: FrameAsset) -> str:
+def compose_svg(
+    chart_svg: str,
+    frame_asset: FrameAsset,
+    embed_frame_data_uri: bool = True,
+) -> str:
     """Compose frame PNG with chart SVG into a single SVG."""
     chart_body = _strip_xml_declaration(chart_svg)
-    frame_data_uri = _encode_image_to_data_uri(frame_asset.image_path)
+    frame_href = (
+        _encode_image_to_data_uri(frame_asset.image_path)
+        if embed_frame_data_uri
+        else frame_asset.image_path.as_posix()
+    )
     meta = frame_asset.meta
     return (
         f"<svg xmlns='http://www.w3.org/2000/svg' "
         f"width='{meta.canvas_width}' height='{meta.canvas_height}'>"
-        f"<image href='{frame_data_uri}' x='0' y='0' "
+        f"<image href='{frame_href}' x='0' y='0' "
         f"width='{meta.canvas_width}' height='{meta.canvas_height}' />"
         f"<g transform='rotate({meta.rotation_deg} {meta.chart_center_x} {meta.chart_center_y})'>"
         f"{chart_body}"

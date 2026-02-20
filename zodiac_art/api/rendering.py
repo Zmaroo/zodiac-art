@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 from dataclasses import dataclass
@@ -20,6 +22,7 @@ from zodiac_art.config import load_config
 from zodiac_art.frames.frame_loader import FrameAsset, FrameMeta
 from zodiac_art.frames.validation import validate_meta
 from zodiac_art.geo.timezone import to_utc_iso
+from zodiac_art.models.chart_models import Chart
 from zodiac_art.renderer.geometry import longitude_to_angle, polar_offset_to_xy, polar_to_cartesian
 from zodiac_art.renderer.svg_chart import (
     ChartFit,
@@ -49,6 +52,20 @@ class AutoLayoutElement:
     height: float
 
 
+@dataclass(frozen=True)
+class RenderContext:
+    chart: Chart
+    settings: RenderSettings
+    overrides: dict[str, ElementOverride]
+    chart_fit: ChartFit
+    frame_circle: FrameCircle | None
+    meta: FrameMeta
+    image_path: Path | None = None
+    frame_id: str | None = None
+    metadata_path: Path | None = None
+    cache_key: str = ""
+
+
 def _merge_dicts(base: dict, override: dict | None) -> dict:
     if override is None:
         return base
@@ -64,6 +81,10 @@ def _merge_dicts(base: dict, override: dict | None) -> dict:
 logger = logging.getLogger(__name__)
 
 _IMAGE_SIZE_CACHE: dict[str, tuple[float, tuple[int, int]]] = {}
+_SVG_CACHE: dict[str, RenderResult] = {}
+_PNG_CACHE: dict[str, bytes] = {}
+_CACHE_KEYS: list[str] = []
+_CACHE_MAX_ENTRIES = load_config().render_cache_max
 
 
 def _build_settings(meta, config, font_scale: float = 1.0) -> RenderSettings:
@@ -83,6 +104,147 @@ def _build_settings(meta, config, font_scale: float = 1.0) -> RenderSettings:
         planet_label_offset_ratio=config.planet_label_offset_ratio,
         font_scale=font_scale,
         glyph_mode=config.glyph_mode,
+    )
+
+
+def _cache_set(cache: dict, key: str, value) -> None:
+    if _CACHE_MAX_ENTRIES <= 0:
+        return
+    if key in cache:
+        cache[key] = value
+        return
+    cache[key] = value
+    _CACHE_KEYS.append(key)
+    if len(_CACHE_KEYS) > _CACHE_MAX_ENTRIES:
+        oldest = _CACHE_KEYS.pop(0)
+        _SVG_CACHE.pop(oldest, None)
+        _PNG_CACHE.pop(oldest, None)
+
+
+def _cache_key(*parts: object) -> str:
+    payload = json.dumps(parts, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _render_chart_svg_from_context(
+    context: RenderContext,
+    glyph_glow: bool,
+    glyph_outline_color: str | None,
+    embed_frame_data_uri: bool,
+) -> RenderResult:
+    renderer = SvgChartRenderer(context.settings)
+    chart_svg = renderer.render(
+        context.chart,
+        global_transform=context.chart_fit,
+        overrides=context.overrides,
+        frame_circle=context.frame_circle,
+        glyph_glow=glyph_glow,
+        glyph_outline_color=glyph_outline_color,
+    )
+    if context.image_path is None:
+        return RenderResult(
+            svg=chart_svg,
+            width=context.settings.width,
+            height=context.settings.height,
+        )
+    frame_id = context.frame_id or ""
+    metadata_path = context.metadata_path or Path("")
+    frame_asset = FrameAsset(
+        frame_id=frame_id,
+        frame_dir=context.image_path.parent,
+        image_path=context.image_path,
+        metadata_path=metadata_path,
+        meta=context.meta,
+        image=None,
+    )
+    final_svg = compose_svg(chart_svg, frame_asset, embed_frame_data_uri=embed_frame_data_uri)
+    return RenderResult(
+        svg=final_svg, width=context.meta.canvas_width, height=context.meta.canvas_height
+    )
+
+
+def _chart_record_payload(chart: ChartRecord) -> dict:
+    if hasattr(chart, "to_dict"):
+        return chart.to_dict()
+    return chart.__dict__
+
+
+async def _build_frame_render_context(
+    storage: StorageProtocol,
+    chart: ChartRecord,
+    frame_id: str,
+    config,
+) -> RenderContext:
+    template_meta = await storage.load_template_meta(frame_id)
+    override_meta = await storage.load_chart_meta(chart.chart_id, frame_id)
+    merged_meta = _merge_dicts(template_meta, override_meta)
+
+    image_path = await storage.template_image_path(frame_id)
+    image_size = _get_image_size(image_path)
+    meta = validate_meta(merged_meta, image_size)
+
+    layout = await storage.load_chart_layout(chart.chart_id, frame_id) or {"overrides": {}}
+    overrides = _overrides_from_layout(layout)
+    frame_circle = _frame_circle_from_layout(layout, image_size)
+
+    chart_fit = ChartFit(
+        dx=meta.chart_fit_dx,
+        dy=meta.chart_fit_dy,
+        scale=meta.chart_fit_scale,
+        rotation_deg=meta.chart_fit_rotation_deg,
+    )
+    settings = _build_settings(meta, config)
+    metadata_path = await storage.template_meta_path(frame_id)
+    cache_key = _cache_key(
+        "frame",
+        chart.chart_id,
+        frame_id,
+        _chart_record_payload(chart),
+        merged_meta,
+        layout,
+    )
+    return RenderContext(
+        chart=_build_chart(chart),
+        settings=settings,
+        overrides=overrides,
+        chart_fit=chart_fit,
+        frame_circle=frame_circle,
+        meta=meta,
+        image_path=image_path,
+        frame_id=frame_id,
+        metadata_path=metadata_path,
+        cache_key=cache_key,
+    )
+
+
+async def _build_chart_only_context(
+    storage: StorageProtocol,
+    chart: ChartRecord,
+    config,
+) -> RenderContext:
+    chart_fit_payload = await storage.load_chart_fit(chart.chart_id)
+    layout = await storage.load_chart_layout_base(chart.chart_id) or {"overrides": {}}
+    meta = _chart_only_meta(chart_fit_payload)
+    font_scale = max(0.1, meta.ring_outer / CHART_ONLY_FONT_BASE_RADIUS)
+    settings = _build_settings(meta, config, font_scale=font_scale)
+    overrides = _overrides_from_layout(layout)
+    chart_fit = _chart_fit_from_payload(chart_fit_payload)
+    cache_key = _cache_key(
+        "chart_only",
+        chart.chart_id,
+        _chart_record_payload(chart),
+        chart_fit_payload,
+        layout,
+    )
+    return RenderContext(
+        chart=_build_chart(chart),
+        settings=settings,
+        overrides=overrides,
+        chart_fit=chart_fit,
+        frame_circle=None,
+        meta=meta,
+        image_path=None,
+        cache_key=cache_key,
     )
 
 
@@ -271,46 +433,25 @@ async def render_chart_svg(
     glyph_outline_color: str | None = None,
 ) -> RenderResult:
     config = load_config()
-    template_meta = await storage.load_template_meta(frame_id)
-    override_meta = await storage.load_chart_meta(chart.chart_id, frame_id)
-    merged_meta = _merge_dicts(template_meta, override_meta)
-
-    image_path = await storage.template_image_path(frame_id)
-    image_size = _get_image_size(image_path)
-    meta = validate_meta(merged_meta, image_size)
-
-    layout = await storage.load_chart_layout(chart.chart_id, frame_id) or {"overrides": {}}
-    overrides = _overrides_from_layout(layout)
-    frame_circle = _frame_circle_from_layout(layout, image_size)
-
-    chart_fit = ChartFit(
-        dx=meta.chart_fit_dx,
-        dy=meta.chart_fit_dy,
-        scale=meta.chart_fit_scale,
-        rotation_deg=meta.chart_fit_rotation_deg,
+    context = await _build_frame_render_context(storage, chart, frame_id, config)
+    cache_key = _cache_key(
+        "svg",
+        context.cache_key,
+        glyph_glow,
+        glyph_outline_color,
+        config.embed_frame_data_uri,
     )
-
-    settings = _build_settings(meta, config)
-    renderer = SvgChartRenderer(settings)
-    chart_svg = renderer.render(
-        _build_chart(chart),
-        global_transform=chart_fit,
-        overrides=overrides,
-        frame_circle=frame_circle,
+    cached = _SVG_CACHE.get(cache_key)
+    if cached:
+        return cached
+    result = _render_chart_svg_from_context(
+        context,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        embed_frame_data_uri=config.embed_frame_data_uri,
     )
-    metadata_path = await storage.template_meta_path(frame_id)
-    frame_asset = FrameAsset(
-        frame_id=frame_id,
-        frame_dir=image_path.parent,
-        image_path=image_path,
-        metadata_path=metadata_path,
-        meta=meta,
-        image=None,
-    )
-    final_svg = compose_svg(chart_svg, frame_asset)
-    return RenderResult(svg=final_svg, width=meta.canvas_width, height=meta.canvas_height)
+    _cache_set(_SVG_CACHE, cache_key, result)
+    return result
 
 
 async def render_chart_only_svg(
@@ -320,22 +461,19 @@ async def render_chart_only_svg(
     glyph_outline_color: str | None = None,
 ) -> RenderResult:
     config = load_config()
-    chart_fit_payload = await storage.load_chart_fit(chart.chart_id)
-    layout = await storage.load_chart_layout_base(chart.chart_id) or {"overrides": {}}
-    meta = _chart_only_meta(chart_fit_payload)
-    font_scale = max(0.1, meta.ring_outer / CHART_ONLY_FONT_BASE_RADIUS)
-    settings = _build_settings(meta, config, font_scale=font_scale)
-    renderer = SvgChartRenderer(settings)
-    overrides = _overrides_from_layout(layout)
-    chart_fit = _chart_fit_from_payload(chart_fit_payload)
-    chart_svg = renderer.render(
-        _build_chart(chart),
-        global_transform=chart_fit,
-        overrides=overrides,
+    context = await _build_chart_only_context(storage, chart, config)
+    cache_key = _cache_key("svg", context.cache_key, glyph_glow, glyph_outline_color)
+    cached = _SVG_CACHE.get(cache_key)
+    if cached:
+        return cached
+    result = _render_chart_svg_from_context(
+        context,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        embed_frame_data_uri=config.embed_frame_data_uri,
     )
-    return RenderResult(svg=chart_svg, width=meta.canvas_width, height=meta.canvas_height)
+    _cache_set(_SVG_CACHE, cache_key, result)
+    return result
 
 
 def _position_for_element(element: AutoLayoutElement, dr: float, dt: float) -> tuple[float, float]:
@@ -460,12 +598,24 @@ async def render_chart_png(
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
 ) -> bytes:
-    result = await render_chart_svg(
-        storage,
-        chart,
-        frame_id,
+    config = load_config()
+    context = await _build_frame_render_context(storage, chart, frame_id, config)
+    cache_key = _cache_key(
+        "png",
+        context.cache_key,
+        max_size,
+        glyph_glow,
+        glyph_outline_color,
+        config.embed_frame_data_uri,
+    )
+    cached = _PNG_CACHE.get(cache_key)
+    if cached:
+        return cached
+    result = _render_chart_svg_from_context(
+        context,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        embed_frame_data_uri=config.embed_frame_data_uri,
     )
     output_width = None
     output_height = None
@@ -483,6 +633,7 @@ async def render_chart_png(
     )
     if png_bytes is None:
         raise RuntimeError("Failed to render PNG output.")
+    _cache_set(_PNG_CACHE, cache_key, png_bytes)
     return png_bytes
 
 
@@ -493,11 +644,23 @@ async def render_chart_only_png(
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
 ) -> bytes:
-    result = await render_chart_only_svg(
-        storage,
-        chart,
+    config = load_config()
+    context = await _build_chart_only_context(storage, chart, config)
+    cache_key = _cache_key(
+        "png",
+        context.cache_key,
+        max_size,
+        glyph_glow,
+        glyph_outline_color,
+    )
+    cached = _PNG_CACHE.get(cache_key)
+    if cached:
+        return cached
+    result = _render_chart_svg_from_context(
+        context,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        embed_frame_data_uri=config.embed_frame_data_uri,
     )
     output_width = None
     output_height = None
@@ -515,6 +678,7 @@ async def render_chart_only_png(
     )
     if png_bytes is None:
         raise RuntimeError("Failed to render PNG output.")
+    _cache_set(_PNG_CACHE, cache_key, png_bytes)
     return png_bytes
 
 
