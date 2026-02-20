@@ -12,7 +12,6 @@ import jwt
 from fastapi import HTTPException, Request
 from passlib.context import CryptContext
 
-
 _PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 

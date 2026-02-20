@@ -92,11 +92,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> None:
     args = _parse_args(argv)
     config = load_config()
-    output_path = (
-        Path(args.out)
-        if args.out
-        else config.output_dir / f"{args.frame}_debug.png"
-    )
+    output_path = Path(args.out) if args.out else config.output_dir / f"{args.frame}_debug.png"
     result = generate_debug_overlay(
         frame_id=args.frame,
         output_path=output_path,

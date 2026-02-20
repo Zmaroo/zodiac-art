@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
@@ -57,9 +57,7 @@ def _find_frame_image(frame_dir: Path) -> Path:
         )
     if len(existing) > 1:
         names = ", ".join(path.name for path in existing)
-        raise ValueError(
-            f"Multiple frame images found in {frame_dir}. Keep only one: {names}"
-        )
+        raise ValueError(f"Multiple frame images found in {frame_dir}. Keep only one: {names}")
     return existing[0]
 
 
@@ -74,9 +72,7 @@ def load_frame(frame_id: str) -> FrameAsset:
 
     frame_dir = _frames_root() / frame_id
     if not frame_dir.exists():
-        raise FileNotFoundError(
-            f"Frame '{frame_id}' not found. Expected folder: {frame_dir}"
-        )
+        raise FileNotFoundError(f"Frame '{frame_id}' not found. Expected folder: {frame_dir}")
     if not frame_dir.is_dir():
         raise NotADirectoryError(f"Frame path is not a directory: {frame_dir}")
 
@@ -86,8 +82,7 @@ def load_frame(frame_id: str) -> FrameAsset:
         data = load_json(metadata_path)
     except json.JSONDecodeError as exc:
         raise ValueError(
-            f"Invalid JSON in frame metadata: {metadata_path}. "
-            "Ensure metadata.json is valid JSON."
+            f"Invalid JSON in frame metadata: {metadata_path}. Ensure metadata.json is valid JSON."
         ) from exc
 
     image = _load_image(image_path)

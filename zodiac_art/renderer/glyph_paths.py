@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from pathlib import Path
 from typing import Any, Final, cast
 from xml.sax.saxutils import escape
 
@@ -134,9 +133,7 @@ def glyph_path_data(
     cx = (xmin + xmax) / 2
     cy = (ymin + ymax) / 2
     transform = (
-        f"translate({x:.3f} {y:.3f}) "
-        f"scale({scale:.6f} {-scale:.6f}) "
-        f"translate({-cx:.3f} {-cy:.3f})"
+        f"translate({x:.3f} {y:.3f}) scale({scale:.6f} {-scale:.6f}) translate({-cx:.3f} {-cy:.3f})"
     )
     return glyph.d, transform
 
@@ -153,15 +150,12 @@ def glyph_path_element(
     data = glyph_path_data(char, x, y, size_px)
     if data:
         d, transform = data
-        return (
-            f"<path d=\"{d}\" transform=\"{transform}\" "
-            f"fill=\"{fill}\" />"
-        )
+        return f'<path d="{d}" transform="{transform}" fill="{fill}" />'
 
     fallback = escape(char)
     return (
-        f"<text x=\"{x:.3f}\" y=\"{y:.3f}\" "
-        f"text-anchor=\"middle\" alignment-baseline=\"middle\" "
-        f"font-size=\"{size_px:.2f}\" fill=\"{fill}\">"
+        f'<text x="{x:.3f}" y="{y:.3f}" '
+        f'text-anchor="middle" alignment-baseline="middle" '
+        f'font-size="{size_px:.2f}" fill="{fill}">'
         f"{fallback}</text>"
     )

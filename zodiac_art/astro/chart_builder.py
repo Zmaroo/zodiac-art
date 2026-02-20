@@ -5,7 +5,6 @@ from __future__ import annotations
 from zodiac_art.models.chart_models import Chart, House, PlanetPlacement
 from zodiac_art.utils.math_utils import normalize_degrees
 
-
 SIGNS = [
     "Aries",
     "Taurus",

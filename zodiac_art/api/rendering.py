@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import math
 from pathlib import Path
 from typing import Protocol
 
 import cairosvg
 from PIL import Image
 
+from zodiac_art.api.storage import ChartRecord
 from zodiac_art.astro.chart_builder import build_chart
 from zodiac_art.astro.ephemeris import calculate_ephemeris
 from zodiac_art.compositor.compositor import compose_svg
+from zodiac_art.config import load_config
 from zodiac_art.frames.frame_loader import FrameAsset, FrameMeta
 from zodiac_art.frames.validation import validate_meta
-from zodiac_art.config import load_config
+from zodiac_art.geo.timezone import to_utc_iso
 from zodiac_art.renderer.geometry import longitude_to_angle, polar_offset_to_xy, polar_to_cartesian
 from zodiac_art.renderer.svg_chart import (
     ChartFit,
@@ -25,9 +27,6 @@ from zodiac_art.renderer.svg_chart import (
     RenderSettings,
     SvgChartRenderer,
 )
-
-from zodiac_art.api.storage import ChartRecord
-from zodiac_art.geo.timezone import to_utc_iso
 
 
 @dataclass(frozen=True)
@@ -197,7 +196,12 @@ def _chart_fit_from_payload(chart_fit: dict | None) -> ChartFit:
         scale = 1.0
     if not isinstance(rotation, (int, float)):
         rotation = 0.0
-    return ChartFit(dx=float(dx), dy=float(dy), scale=float(scale), rotation_deg=float(rotation))
+    return ChartFit(
+        dx=float(dx),
+        dy=float(dy),
+        scale=float(scale),
+        rotation_deg=float(rotation),
+    )
 
 
 def _build_chart(record: ChartRecord):
@@ -282,7 +286,11 @@ async def render_chart_only_svg(
     renderer = SvgChartRenderer(settings)
     overrides = _overrides_from_layout(layout)
     chart_fit = _chart_fit_from_payload(chart_fit_payload)
-    chart_svg = renderer.render(_build_chart(chart), global_transform=chart_fit, overrides=overrides)
+    chart_svg = renderer.render(
+        _build_chart(chart),
+        global_transform=chart_fit,
+        overrides=overrides,
+    )
     return RenderResult(svg=chart_svg, width=meta.canvas_width, height=meta.canvas_height)
 
 

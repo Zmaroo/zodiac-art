@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+
 from zodiac_art.utils.math_utils import normalize_degrees
 
 

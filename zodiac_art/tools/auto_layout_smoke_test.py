@@ -30,14 +30,25 @@ def _bbox(element: _Element, dr: float, dt: float) -> tuple[float, float, float,
     dx, dy = polar_offset_to_xy(dr, dt, element.theta_deg)
     x = element.base_x + dx
     y = element.base_y + dy
-    return (x - element.width / 2, y - element.height / 2, x + element.width / 2, y + element.height / 2)
+    return (
+        x - element.width / 2,
+        y - element.height / 2,
+        x + element.width / 2,
+        y + element.height / 2,
+    )
 
 
 def _overlaps(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
     return not (a[2] <= b[0] or a[0] >= b[2] or a[3] <= b[1] or a[1] >= b[3])
 
 
-def _build_elements(chart, center_x: float, center_y: float, planet_radius: float, label_radius: float) -> list[_Element]:
+def _build_elements(
+    chart,
+    center_x: float,
+    center_y: float,
+    planet_radius: float,
+    label_radius: float,
+) -> list[_Element]:
     elements: list[_Element] = []
     for planet in chart.planets:
         angle = longitude_to_angle(planet.longitude)
@@ -133,12 +144,18 @@ async def _run() -> None:
         dt = float(override.get("dt", 0.0))
         left, top, right, bottom = _bbox(element, dr, dt)
         rects.append(
-            f"<rect x='{left:.1f}' y='{top:.1f}' width='{right-left:.1f}' height='{bottom-top:.1f}' "
-            "fill='none' stroke='rgba(255,0,0,0.6)' stroke-width='1' />"
+            (
+                f"<rect x='{left:.1f}' y='{top:.1f}' "
+                f"width='{right - left:.1f}' height='{bottom - top:.1f}' "
+                "fill='none' stroke='rgba(255,0,0,0.6)' stroke-width='1' />"
+            )
         )
     svg = (
-        f"<svg xmlns='http://www.w3.org/2000/svg' width='{meta.canvas_width}' height='{meta.canvas_height}'>"
-        "<rect width='100%' height='100%' fill='white' />"
+        (
+            f"<svg xmlns='http://www.w3.org/2000/svg' "
+            f"width='{meta.canvas_width}' height='{meta.canvas_height}'>"
+        )
+        + "<rect width='100%' height='100%' fill='white' />"
         + "".join(rects)
         + "</svg>"
     )

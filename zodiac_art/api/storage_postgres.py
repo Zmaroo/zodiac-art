@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone as utc_timezone
+from datetime import datetime
+from datetime import timezone as utc_timezone
 from pathlib import Path
 from typing import Iterable
 from uuid import UUID, uuid4

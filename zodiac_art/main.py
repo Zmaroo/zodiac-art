@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 import asyncio
-from pathlib import Path
 import sys
+from datetime import datetime
 
+from zodiac_art.api.rendering import render_chart_svg
+from zodiac_art.api.storage import FileStorage
+from zodiac_art.api.storage_async import AsyncFileStorage
 from zodiac_art.astro.chart_builder import build_chart
 from zodiac_art.astro.ephemeris import calculate_ephemeris
 from zodiac_art.compositor.compositor import compose_svg, export_artwork
@@ -16,10 +18,12 @@ from zodiac_art.frames.debug_overlay import generate_debug_overlay
 from zodiac_art.frames.frame_loader import load_frame
 from zodiac_art.frames.layout import load_layout
 from zodiac_art.frames.registry import list_frames
-from zodiac_art.renderer.svg_chart import ChartFit, ElementOverride, RenderSettings, SvgChartRenderer
-from zodiac_art.api.rendering import render_chart_svg
-from zodiac_art.api.storage import FileStorage
-from zodiac_art.api.storage_async import AsyncFileStorage
+from zodiac_art.renderer.svg_chart import (
+    ChartFit,
+    ElementOverride,
+    RenderSettings,
+    SvgChartRenderer,
+)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -30,7 +34,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--longitude", type=float, help="Longitude")
     parser.add_argument("--frame", type=str, default="default", help="Frame name")
     parser.add_argument("--chart-id", type=str, help="Chart id to load")
-    parser.add_argument("--output-name", type=str, default="zodiac_art", help="Output file base name")
+    parser.add_argument(
+        "--output-name",
+        type=str,
+        default="zodiac_art",
+        help="Output file base name",
+    )
     parser.add_argument("--list-frames", action="store_true", help="List available frames")
     parser.add_argument(
         "--debug-frame",

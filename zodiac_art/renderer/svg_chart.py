@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 import svgwrite
 
 from zodiac_art.config import load_config
@@ -166,7 +167,6 @@ class SvgChartRenderer:
                     stroke_width=3,
                 )
             )
-            
 
         sign_radius = label_radius * 0.98
         asc_radius = inner_radius * 0.90

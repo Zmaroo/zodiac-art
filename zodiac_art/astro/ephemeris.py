@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+
 import swisseph as swe
 
 from zodiac_art.config import load_config
 from zodiac_art.utils.math_utils import normalize_degrees, validate_lat_lon
-
 
 PLANET_IDS: dict[str, int] = {
     "Sun": swe.SUN,

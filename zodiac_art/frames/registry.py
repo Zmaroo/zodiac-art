@@ -49,9 +49,7 @@ def _parse_index(data: object) -> list[FrameRegistryEntry]:
             raise ValueError("Frame index entries require a non-empty 'id'.")
         thumbnail = _resolve_thumbnail(item.get("thumbnail"))
         tags_raw = item.get("tags", [])
-        if not isinstance(tags_raw, list) or not all(
-            isinstance(tag, str) for tag in tags_raw
-        ):
+        if not isinstance(tags_raw, list) or not all(isinstance(tag, str) for tag in tags_raw):
             raise ValueError("Frame index 'tags' must be a list of strings.")
         entries.append(
             FrameRegistryEntry(

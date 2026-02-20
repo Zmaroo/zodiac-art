@@ -5,7 +5,8 @@ Keep changes small, focused, and aligned with existing conventions.
 
 ## Quick Facts
 - Primary language: Python 3.11 (conda environment).
-- No explicit lint/test tooling is configured yet.
+- Conda env is defined in `environment.yml`.
+- Linting: ruff. Tests: pytest.
 - CLI entry point: `zodiac_art/main.py` (runs an example when no args).
 - API entry point: `zodiac_art/api/app.py` (FastAPI).
 - Config defaults: `zodiac_art/config.py` with env overrides.
@@ -13,10 +14,12 @@ Keep changes small, focused, and aligned with existing conventions.
 
 ## Repo Layout
 - `zodiac_art/`: package source.
+- `zodiac_art/api/`: API entry and routes.
 - `zodiac_art/renderer/`: SVG chart rendering.
 - `zodiac_art/frames/`: frame assembly and compositing.
 - `frames/`: frame metadata (`.json`) and art (`.png`).
 - `output/`: generated SVG/PNG artifacts.
+- `environment.yml`: conda environment definition.
 
 ## Build / Run / Test Commands
 ### Environment Setup
@@ -34,13 +37,11 @@ python test_env.py
 
 ### Run the CLI
 Example run (uses defaults if no args):
-
 ```bash
 python -m zodiac_art.main
 ```
 
 Custom run:
-
 ```bash
 python -m zodiac_art.main \
   --birth-date 1990-04-12 \
@@ -58,27 +59,19 @@ python -m zodiac_art.api.app
 
 ### Build Artifacts
 This repo does not have a separate build step. Running the CLI produces:
-
 - SVG output in `output/`
 - PNG output in `output/`
 
 ### Linting
-No lint configuration is present (no ruff/flake8/black). If you add one,
-update this file with the exact command.
-
-### Tests
-No test framework is configured (no pytest/unittest discovery). If you
-introduce pytest, document commands here. Suggested patterns:
-
 ```bash
-pytest
-pytest path/to/test_file.py::test_name
+ruff check .
+ruff format .
 ```
 
-If you add a different runner, include a single-test command, e.g.:
-
+### Tests
 ```bash
-python -m unittest path.to.module.TestClass.test_name
+pytest
+pytest tests/test_config.py::test_build_database_url_from_pg_env
 ```
 
 ## Code Style Guidelines
@@ -86,6 +79,7 @@ python -m unittest path.to.module.TestClass.test_name
 - Use absolute imports within the package, e.g. `from zodiac_art.utils...`.
 - Standard library imports first, then third-party, then local modules.
 - Keep import groups separated by a single blank line.
+- Avoid unused imports; prefer local imports only to avoid heavy deps.
 
 ### Formatting
 - Use 4-space indentation.
@@ -93,6 +87,7 @@ python -m unittest path.to.module.TestClass.test_name
 - Use f-strings for string interpolation.
 - Use double quotes for user-facing messages and f-strings.
 - Keep docstrings concise and one-line when possible.
+- Avoid reformatting unrelated code.
 
 ### Typing
 - Use `from __future__ import annotations` in modules.
@@ -100,23 +95,27 @@ python -m unittest path.to.module.TestClass.test_name
 - Use `list[...]`, `dict[...]`, and `tuple[...]` generics.
 - Dataclasses are used for structured data; prefer `@dataclass(frozen=True)`.
 - Use `Path` and `Path | None` for optional filesystem paths.
-
-### Documentation and Comments
-- Keep docstrings concise and action-oriented.
-- Add comments only for non-obvious logic or domain-specific math.
-- Prefer updating existing docstrings over adding inline comments.
+- Favor small, typed helper functions over complex inline logic.
 
 ### Naming Conventions
 - Modules: `snake_case.py`.
 - Classes: `PascalCase` (e.g., `SvgChartRenderer`).
 - Functions and variables: `snake_case`.
 - Constants: `UPPER_SNAKE_CASE`.
+- CLI options: kebab-case flags mapped to snake_case vars.
 
 ### Error Handling
 - Validate inputs early and raise `ValueError` for invalid user input.
 - Wrap external library failures with a clear `RuntimeError` and `from exc`.
 - Let exceptions propagate to `main`, which prints a single-line error.
 - Prefer clear, user-facing error text for CLI usage.
+- Avoid swallowing exceptions unless retrying or adding context.
+
+### Documentation and Comments
+- Keep docstrings concise and action-oriented.
+- Add comments only for non-obvious logic or domain-specific math.
+- Prefer updating existing docstrings over adding inline comments.
+- Keep README-style docs out of code; update this file instead.
 
 ### Data and Paths
 - Use `pathlib.Path` for filesystem paths.

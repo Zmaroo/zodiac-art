@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchJsonAuth, fetchJsonIfOkAuth, fetchTextIfOkAuth } from '../api/client'
 import { extractChartInner, stripOverrideTransforms } from '../utils/svg'
 import type { ChartFit, ChartMeta, FrameCircle, FrameDetail, LayoutFile, Offset } from '../types'
@@ -34,10 +34,15 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
   const [chartSvgBase, setChartSvgBase] = useState('')
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const onLayoutLoadedRef = useRef(onLayoutLoaded)
 
   const fetchJsonAuthWith = (url: string) => fetchJsonAuth(url, jwt)
   const fetchJsonIfOkAuthWith = (url: string) => fetchJsonIfOkAuth(url, jwt)
   const fetchTextIfOkAuthWith = (url: string) => fetchTextIfOkAuth(url, jwt)
+
+  useEffect(() => {
+    onLayoutLoadedRef.current = onLayoutLoaded
+  }, [onLayoutLoaded])
 
   useEffect(() => {
     if (!selectedId) {
@@ -75,7 +80,7 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           }
           const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
           const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
-          onLayoutLoaded({ fit, overrides: nextOverrides, frameCircle })
+          onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle })
           const inner = svgText ? extractChartInner(svgText as string) : ''
           setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
         })
@@ -114,12 +119,12 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         }
         const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
         const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
-        onLayoutLoaded({ fit, overrides: nextOverrides, frameCircle })
+        onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle })
         const inner = svgText ? extractChartInner(svgText as string) : ''
         setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
       })
       .catch((err) => setError(String(err)))
-  }, [apiBase, chartId, isChartOnly, jwt, onLayoutLoaded, selectedId])
+  }, [apiBase, chartId, isChartOnly, jwt, selectedId])
 
   const clearStatus = () => {
     setStatus('')

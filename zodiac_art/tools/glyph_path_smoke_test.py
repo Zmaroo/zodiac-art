@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from zodiac_art.config import ASSETS_DIR
 from zodiac_art.renderer.glyph_paths import glyph_path_element
 
@@ -23,8 +21,8 @@ def main() -> None:
         x += size * 0.9
 
     svg = (
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1400\" height=\"200\">"
-        "<rect width=\"100%\" height=\"100%\" fill=\"white\" />"
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="200">'
+        '<rect width="100%" height="100%" fill="white" />'
         f"{''.join(elements)}"
         "</svg>"
     )

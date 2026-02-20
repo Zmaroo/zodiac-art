@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import secrets
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from contextlib import asynccontextmanager
-
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -25,13 +24,22 @@ from zodiac_art.api.auth import (
     hash_password,
     verify_password,
 )
+from zodiac_art.api.frames_store import (
+    FileFrameStore,
+    PostgresFrameStore,
+    default_template_metadata,
+    normalize_tags,
+    prepare_frame_files,
+    validate_frame_image,
+    write_template_metadata,
+)
 from zodiac_art.api.models import (
     AutoLayoutRequest,
     AutoLayoutResponse,
     ChartCreateRequest,
     ChartCreateResponse,
-    ChartInfoResponse,
     ChartFrameStatus,
+    ChartInfoResponse,
     ChartListItem,
 )
 from zodiac_art.api.rendering import (
@@ -41,15 +49,6 @@ from zodiac_art.api.rendering import (
     render_chart_only_svg,
     render_chart_png,
     render_chart_svg,
-)
-from zodiac_art.api.frames_store import (
-    FileFrameStore,
-    PostgresFrameStore,
-    default_template_metadata,
-    normalize_tags,
-    prepare_frame_files,
-    validate_frame_image,
-    write_template_metadata,
 )
 from zodiac_art.api.storage import FileStorage
 from zodiac_art.api.storage_async import AsyncFileStorage
@@ -65,6 +64,7 @@ from zodiac_art.config import (
 )
 from zodiac_art.frames.validation import validate_meta
 from zodiac_art.geo.timezone import resolve_timezone, to_utc_iso
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -109,12 +109,23 @@ load_dotenv(override=False)
 
 app = FastAPI(title="Zodiac Art API", version="0.1.0", lifespan=lifespan)
 
+ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_static_cors_headers(request: Request, call_next) -> Response:
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
 
 storage: Any = None
 frame_store: Any = None
@@ -132,8 +143,6 @@ storage_path.mkdir(parents=True, exist_ok=True)
 app.mount("/static/frames", StaticFiles(directory=frames_path), name="frames")
 app.mount("/static/data", StaticFiles(directory=data_path), name="data")
 app.mount("/static/storage", StaticFiles(directory=storage_path), name="storage")
-
-
 
 
 def _validate_chart_id(chart_id: str) -> None:
@@ -342,6 +351,7 @@ async def create_frame(
         raise HTTPException(status_code=400, detail="Empty upload")
 
     from io import BytesIO
+
     from PIL import Image
 
     try:
@@ -450,8 +460,6 @@ async def login(payload: dict) -> dict:
 @app.get("/api/auth/me")
 async def me(user: AuthUser = Depends(_require_user)) -> dict:
     return {"id": user.user_id, "email": user.email, "is_admin": _is_admin(user)}
-
-
 
 
 @app.post("/api/charts", response_model=ChartCreateResponse)

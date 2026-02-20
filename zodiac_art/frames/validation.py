@@ -92,8 +92,7 @@ def validate_meta(meta: dict, image_size: tuple[int, int]) -> "FrameMeta":
 
     if center_x - ring_outer < 0 or center_x + ring_outer > canvas_width:
         raise ValueError(
-            "Frame metadata chart.ring_outer exceeds canvas width bounds "
-            "for the provided center.x."
+            "Frame metadata chart.ring_outer exceeds canvas width bounds for the provided center.x."
         )
     if center_y - ring_outer < 0 or center_y + ring_outer > canvas_height:
         raise ValueError(

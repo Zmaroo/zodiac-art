@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from PIL import Image, ImageDraw, ImageFont
 
 from zodiac_art.config import ASSETS_DIR, GLYPH_FONT_PATH
@@ -17,15 +15,11 @@ def main() -> None:
     try:
         primary_font = ImageFont.truetype(str(GLYPH_FONT_PATH), size=64)
     except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(
-            f"Failed to load glyph font at {GLYPH_FONT_PATH}."
-        ) from exc
+        raise RuntimeError(f"Failed to load glyph font at {GLYPH_FONT_PATH}.") from exc
 
     fallback_path = ASSETS_DIR / "fonts" / "NotoSansSymbols2-Regular.ttf"
     fallback_font = (
-        ImageFont.truetype(str(fallback_path), size=64)
-        if fallback_path.exists()
-        else None
+        ImageFont.truetype(str(fallback_path), size=64) if fallback_path.exists() else None
     )
 
     def mask_bytes(font: ImageFont.FreeTypeFont, text: str) -> bytes:

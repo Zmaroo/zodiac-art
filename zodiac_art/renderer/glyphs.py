@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from zodiac_art.config import load_config
 
-
 ZODIAC_GLYPHS_UNICODE: dict[str, str] = {
     "Aries": "♈",
     "Taurus": "♉",
