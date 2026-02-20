@@ -219,7 +219,12 @@ class PostgresStorage:
             )
         return row is not None
 
-    async def list_charts(self, user_id: str, limit: int = 20) -> list[ChartRecord]:
+    async def list_charts(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[ChartRecord]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -230,9 +235,11 @@ class PostgresStorage:
                 WHERE user_id = $1
                 ORDER BY updated_at DESC, created_at DESC
                 LIMIT $2
+                OFFSET $3
                 """,
                 UUID(user_id),
                 limit,
+                max(0, offset),
             )
         return [
             ChartRecord(

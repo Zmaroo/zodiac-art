@@ -78,3 +78,25 @@ class AutoLayoutResponse(BaseModel):
     """Auto layout response."""
 
     overrides: dict[str, dict[str, float]]
+
+
+class AuthRequest(BaseModel):
+    """Auth request payload."""
+
+    email: str
+    password: str
+
+
+class AuthUserInfo(BaseModel):
+    """Authenticated user info."""
+
+    id: str
+    email: str
+    is_admin: bool
+
+
+class AuthResponse(BaseModel):
+    """Auth response payload."""
+
+    token: str
+    user: AuthUserInfo

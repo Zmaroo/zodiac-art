@@ -6,10 +6,11 @@ type UseChartTransformParams = {
   meta: ChartMeta | null
   chartSvg: string
   chartRootRef: React.RefObject<SVGGElement | null>
+  chartBackgroundRef?: React.RefObject<SVGGElement | null>
 }
 
 export function useChartTransform(params: UseChartTransformParams) {
-  const { chartFit, meta, chartSvg, chartRootRef } = params
+  const { chartFit, meta, chartSvg, chartRootRef, chartBackgroundRef } = params
 
   useEffect(() => {
     if (!chartRootRef.current || !meta) {
@@ -24,5 +25,8 @@ export function useChartTransform(params: UseChartTransformParams) {
       `translate(${-x.toFixed(3)} ${-y.toFixed(3)})`,
     ].join(' ')
     chartRootRef.current.setAttribute('transform', transform)
-  }, [chartFit, chartRootRef, chartSvg, meta])
+    if (chartBackgroundRef?.current) {
+      chartBackgroundRef.current.setAttribute('transform', transform)
+    }
+  }, [chartFit, chartRootRef, chartBackgroundRef, chartSvg, meta])
 }

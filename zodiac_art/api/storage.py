@@ -170,7 +170,12 @@ class FileStorage:
             updated_at=data.get("updated_at"),
         )
 
-    def list_charts(self, user_id: str | None = None, limit: int = 20) -> list[ChartRecord]:
+    def list_charts(
+        self,
+        user_id: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[ChartRecord]:
         charts_dir = self.base_dir / "charts"
         if not charts_dir.exists():
             return []
@@ -185,9 +190,9 @@ class FileStorage:
             if user_id and record.user_id != user_id:
                 continue
             records.append(record)
-            if len(records) >= limit:
-                break
-        return records
+        if offset:
+            records = records[offset:]
+        return records[:limit]
 
     def chart_exists(self, chart_id: str) -> bool:
         return self._chart_file(chart_id).exists()

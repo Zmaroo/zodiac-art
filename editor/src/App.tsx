@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import './App.css'
 import Canvas from './components/Canvas'
 import Sidebar from './components/Sidebar'
-import { applyOverrides } from './utils/svg'
+import { applyOverrides, stripElementById } from './utils/svg'
 import { useChartBackground } from './hooks/useChartBackground'
 import { useAuth } from './hooks/useAuth'
 import { useFrames } from './hooks/useFrames'
@@ -87,6 +87,19 @@ function App() {
   const { chartFit, userAdjustedFit, overrides, selectedElement } = editorState
   const [chartSvg, setChartSvg] = useState('')
   const [showFrameCircleDebug, setShowFrameCircleDebug] = useState(false)
+  const [glyphGlow, setGlyphGlow] = useState(
+    () => localStorage.getItem('zodiac_editor.glyphGlow') === '1'
+  )
+  const [glyphOutlineEnabled, setGlyphOutlineEnabled] = useState(
+    () => localStorage.getItem('zodiac_editor.glyphOutlineEnabled') === '1'
+  )
+  const [glyphOutlineColor, setGlyphOutlineColor] = useState(
+    () => localStorage.getItem('zodiac_editor.glyphOutlineColor') || '#ffffff'
+  )
+  const [frameMaskCutoff, setFrameMaskCutoff] = useState(() => {
+    const raw = localStorage.getItem('zodiac_editor.frameMaskCutoff')
+    return raw ? Number(raw) : 252
+  })
   const { error: editorError, status: editorStatus, setError, setStatus } = useEditorMessages()
   const {
     uploadName,
@@ -110,6 +123,7 @@ function App() {
   })
 
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const chartBackgroundRef = useRef<SVGGElement | null>(null)
   const chartRootRef = useRef<SVGGElement | null>(null)
   const highlightElementsRef = useRef<Element[]>([])
   const highlightTimeoutRef = useRef<number | null>(null)
@@ -125,6 +139,7 @@ function App() {
     meta,
     selectedFrameDetail,
     chartSvgBase,
+    hasSavedFit,
     error: chartSvgError,
   } = useChartSvg({
     apiBase,
@@ -132,6 +147,9 @@ function App() {
     chartId,
     selectedId,
     isChartOnly,
+    glyphGlow,
+    glyphOutlineEnabled,
+    glyphOutlineColor,
     onLayoutLoaded: handleLayoutLoaded,
   })
 
@@ -183,7 +201,7 @@ function App() {
   }
 
 
-  const { chartBackgroundColor, hasChartBackground } = useChartBackground({
+  const { chartBackgroundColor } = useChartBackground({
     chartSvgBase,
     overrides,
     chartBackgroundId,
@@ -198,7 +216,7 @@ function App() {
     highlightTimeoutRef,
   })
 
-  useChartTransform({ chartFit, meta, chartSvg, chartRootRef })
+  useChartTransform({ chartFit, meta, chartSvg, chartRootRef, chartBackgroundRef })
   useAutoFit({ isChartOnly, meta, frameCircle, userAdjustedFit, dispatch })
 
   const { onPointerDown, onPointerMove, onPointerUp } = useChartInteraction({
@@ -243,8 +261,11 @@ function App() {
       setChartSvg('')
       return
     }
-    setChartSvg(applyOverrides(chartSvgBase, overrides))
-  }, [chartSvgBase, overrides])
+    const base = chartBackgroundColor
+      ? stripElementById(chartSvgBase, chartBackgroundId)
+      : chartSvgBase
+    setChartSvg(applyOverrides(base, overrides))
+  }, [chartSvgBase, chartBackgroundColor, chartBackgroundId, overrides])
 
   useEffect(() => {
     if (isChartOnly && !chartId) {
@@ -254,11 +275,24 @@ function App() {
   }, [chartId, isChartOnly])
 
   useEffect(() => {
-    if (!meta) {
-      return
-    }
-    dispatch({ type: 'SET_USER_ADJUSTED', value: Boolean(meta.chart_fit) })
-  }, [meta])
+    dispatch({ type: 'SET_USER_ADJUSTED', value: hasSavedFit })
+  }, [hasSavedFit])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.glyphGlow', glyphGlow ? '1' : '0')
+  }, [glyphGlow])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.glyphOutlineEnabled', glyphOutlineEnabled ? '1' : '0')
+  }, [glyphOutlineEnabled])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.glyphOutlineColor', glyphOutlineColor)
+  }, [glyphOutlineColor])
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.frameMaskCutoff', String(frameMaskCutoff))
+  }, [frameMaskCutoff])
 
 
   const handleAutoFit = () => {
@@ -564,6 +598,14 @@ function App() {
         selectionEnabled={selectionEnabled}
         onColorChange={(color) => applySelectionColor(color)}
         onClearColor={() => applySelectionColor(null)}
+        glyphGlow={glyphGlow}
+        onGlyphGlowChange={setGlyphGlow}
+        glyphOutlineEnabled={glyphOutlineEnabled}
+        onGlyphOutlineEnabledChange={setGlyphOutlineEnabled}
+        glyphOutlineColor={glyphOutlineColor}
+        onGlyphOutlineColorChange={setGlyphOutlineColor}
+        frameMaskCutoff={frameMaskCutoff}
+        onFrameMaskCutoffChange={setFrameMaskCutoff}
         showFrameCircleDebug={showFrameCircleDebug}
         onShowFrameCircleDebugChange={setShowFrameCircleDebug}
         autoFitEnabled={!isChartOnly && Boolean(meta && frameCircle)}
@@ -583,10 +625,12 @@ function App() {
         chartSvg={chartSvg}
         chartId={chartId}
         chartBackgroundColor={chartBackgroundColor}
-        showChartBackground={!hasChartBackground}
+        showChartBackground={Boolean(chartBackgroundColor)}
+        frameMaskCutoff={frameMaskCutoff}
         frameCircle={frameCircle}
         showFrameCircleDebug={showFrameCircleDebug && import.meta.env.DEV}
         svgRef={svgRef}
+        chartBackgroundRef={chartBackgroundRef}
         chartRootRef={chartRootRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

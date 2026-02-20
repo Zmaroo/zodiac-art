@@ -63,6 +63,7 @@ class PostgresFrameStore:
         owner_user_id: str | None = None,
         include_global: bool = True,
         limit: int = 200,
+        offset: int = 0,
     ) -> list[FrameRecord]:
         query = (
             "SELECT id, owner_user_id, name, tags, width, height, image_path, thumb_path, "
@@ -83,8 +84,9 @@ class PostgresFrameStore:
             clauses.append("owner_user_id IS NULL")
         if clauses:
             query = f"{query} WHERE {' AND '.join(clauses)}"
-        query = f"{query} ORDER BY created_at DESC LIMIT ${len(args) + 1}"
+        query = f"{query} ORDER BY created_at DESC LIMIT ${len(args) + 1} OFFSET ${len(args) + 2}"
         args.append(limit)
+        args.append(max(0, offset))
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *args)
         return [_row_to_frame(row) for row in rows]
@@ -236,6 +238,7 @@ class FileFrameStore:
         owner_user_id: str | None = None,
         include_global: bool = True,
         limit: int = 200,
+        offset: int = 0,
     ) -> list[FrameRecord]:
         if not self.frames_dir.exists():
             return []
@@ -263,6 +266,8 @@ class FileFrameStore:
                     template_metadata_json=template_meta,
                 )
             )
+        if offset:
+            records = records[offset:]
         return records[:limit]
 
     async def get_frame(self, frame_id: str) -> FrameRecord | None:

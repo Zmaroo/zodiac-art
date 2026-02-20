@@ -6,7 +6,9 @@ export function extractChartInner(svgText: string): string {
   const doc = parser.parseFromString(svgText, 'image/svg+xml')
   const chartRoot = doc.querySelector('#chartRoot')
   if (chartRoot) {
-    return chartRoot.innerHTML
+    const defs = doc.querySelector('defs')
+    const defsMarkup = defs ? defs.outerHTML : ''
+    return `${defsMarkup}${chartRoot.innerHTML}`
   }
   return doc.documentElement.innerHTML
 }
@@ -67,6 +69,21 @@ export function applyOverrides(
   return doc.documentElement.innerHTML
 }
 
+export function stripElementById(svgInner: string, id: string): string {
+  if (!svgInner) {
+    return svgInner
+  }
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${svgInner}</svg>`,
+    'image/svg+xml'
+  )
+  doc.querySelectorAll(`[id="${CSS.escape(id)}"]`).forEach((node) => {
+    node.remove()
+  })
+  return doc.documentElement.innerHTML
+}
+
 function applyColor(node: Element, color: string) {
   const fillOnly = node.getAttribute('data-fill-only') === 'true'
   node.setAttribute('fill', color)
@@ -74,8 +91,9 @@ function applyColor(node: Element, color: string) {
     node.setAttribute('stroke', color)
   }
   node.querySelectorAll('*').forEach((child) => {
+    const childFillOnly = child.getAttribute('data-fill-only') === 'true'
     child.setAttribute('fill', color)
-    if (!fillOnly) {
+    if (!childFillOnly) {
       child.setAttribute('stroke', color)
     }
   })

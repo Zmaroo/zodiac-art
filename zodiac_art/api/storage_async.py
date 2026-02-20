@@ -59,8 +59,13 @@ class AsyncFileStorage:
             return None
         return record
 
-    async def list_charts(self, user_id: str, limit: int = 20) -> list[ChartRecord]:
-        return await asyncio.to_thread(self._storage.list_charts, user_id, limit)
+    async def list_charts(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[ChartRecord]:
+        return await asyncio.to_thread(self._storage.list_charts, user_id, limit, offset)
 
     async def chart_exists(self, chart_id: str) -> bool:
         return await asyncio.to_thread(self._storage.chart_exists, chart_id)

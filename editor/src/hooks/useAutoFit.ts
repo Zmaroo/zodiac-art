@@ -17,7 +17,7 @@ export function useAutoFit(params: UseAutoFitParams) {
     if (isChartOnly || !meta || !frameCircle) {
       return
     }
-    if (userAdjustedFit || meta.chart_fit) {
+    if (userAdjustedFit) {
       return
     }
     const cx = frameCircle.cxNorm * meta.canvas.width

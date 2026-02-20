@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -60,10 +61,14 @@ def _merge_dicts(base: dict, override: dict | None) -> dict:
     return merged
 
 
-def _build_settings(meta, font_scale: float = 1.0) -> RenderSettings:
+logger = logging.getLogger(__name__)
+
+_IMAGE_SIZE_CACHE: dict[str, tuple[float, tuple[int, int]]] = {}
+
+
+def _build_settings(meta, config, font_scale: float = 1.0) -> RenderSettings:
     if meta.ring_outer <= 0:
         raise ValueError("Frame ring outer radius must be positive.")
-    config = load_config()
     inner_ratio = meta.ring_inner / meta.ring_outer
     return RenderSettings(
         width=meta.canvas_width,
@@ -77,6 +82,7 @@ def _build_settings(meta, font_scale: float = 1.0) -> RenderSettings:
         label_ring_ratio=config.label_ring_ratio,
         planet_label_offset_ratio=config.planet_label_offset_ratio,
         font_scale=font_scale,
+        glyph_mode=config.glyph_mode,
     )
 
 
@@ -144,15 +150,44 @@ def _overrides_from_layout(layout: dict | None) -> dict[str, ElementOverride]:
         return overrides
     for key, value in layout.get("overrides", {}).items():
         if not isinstance(value, dict):
+            logger.warning("Ignoring override for %s: expected object", key)
             continue
+        dx = value.get("dx", 0.0)
+        dy = value.get("dy", 0.0)
+        dr = value.get("dr")
+        dt = value.get("dt")
+        if not isinstance(dx, (int, float)) or not isinstance(dy, (int, float)):
+            logger.warning("Invalid override dx/dy for %s", key)
+            continue
+        if dr is not None and not isinstance(dr, (int, float)):
+            logger.warning("Invalid override dr for %s", key)
+            dr = None
+        if dt is not None and not isinstance(dt, (int, float)):
+            logger.warning("Invalid override dt for %s", key)
+            dt = None
         overrides[key] = ElementOverride(
-            dx=value.get("dx", 0.0),
-            dy=value.get("dy", 0.0),
-            dr=value.get("dr"),
-            dt=value.get("dt"),
+            dx=float(dx),
+            dy=float(dy),
+            dr=float(dr) if dr is not None else None,
+            dt=float(dt) if dt is not None else None,
             color=value.get("color"),
         )
     return overrides
+
+
+def _get_image_size(image_path: Path) -> tuple[int, int]:
+    try:
+        mtime = image_path.stat().st_mtime
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Frame image not found: {image_path}") from exc
+    cache_key = str(image_path)
+    cached = _IMAGE_SIZE_CACHE.get(cache_key)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    with Image.open(image_path) as image:
+        image_size = image.size
+    _IMAGE_SIZE_CACHE[cache_key] = (mtime, image_size)
+    return image_size
 
 
 def _frame_circle_from_layout(
@@ -232,14 +267,16 @@ async def render_chart_svg(
     storage: StorageProtocol,
     chart: ChartRecord,
     frame_id: str,
+    glyph_glow: bool = False,
+    glyph_outline_color: str | None = None,
 ) -> RenderResult:
+    config = load_config()
     template_meta = await storage.load_template_meta(frame_id)
     override_meta = await storage.load_chart_meta(chart.chart_id, frame_id)
     merged_meta = _merge_dicts(template_meta, override_meta)
 
     image_path = await storage.template_image_path(frame_id)
-    with Image.open(image_path) as image:
-        image_size = image.size
+    image_size = _get_image_size(image_path)
     meta = validate_meta(merged_meta, image_size)
 
     layout = await storage.load_chart_layout(chart.chart_id, frame_id) or {"overrides": {}}
@@ -253,13 +290,15 @@ async def render_chart_svg(
         rotation_deg=meta.chart_fit_rotation_deg,
     )
 
-    settings = _build_settings(meta)
+    settings = _build_settings(meta, config)
     renderer = SvgChartRenderer(settings)
     chart_svg = renderer.render(
         _build_chart(chart),
         global_transform=chart_fit,
         overrides=overrides,
         frame_circle=frame_circle,
+        glyph_glow=glyph_glow,
+        glyph_outline_color=glyph_outline_color,
     )
     metadata_path = await storage.template_meta_path(frame_id)
     frame_asset = FrameAsset(
@@ -277,12 +316,15 @@ async def render_chart_svg(
 async def render_chart_only_svg(
     storage: StorageProtocol,
     chart: ChartRecord,
+    glyph_glow: bool = False,
+    glyph_outline_color: str | None = None,
 ) -> RenderResult:
+    config = load_config()
     chart_fit_payload = await storage.load_chart_fit(chart.chart_id)
     layout = await storage.load_chart_layout_base(chart.chart_id) or {"overrides": {}}
     meta = _chart_only_meta(chart_fit_payload)
     font_scale = max(0.1, meta.ring_outer / CHART_ONLY_FONT_BASE_RADIUS)
-    settings = _build_settings(meta, font_scale=font_scale)
+    settings = _build_settings(meta, config, font_scale=font_scale)
     renderer = SvgChartRenderer(settings)
     overrides = _overrides_from_layout(layout)
     chart_fit = _chart_fit_from_payload(chart_fit_payload)
@@ -290,45 +332,50 @@ async def render_chart_only_svg(
         _build_chart(chart),
         global_transform=chart_fit,
         overrides=overrides,
+        glyph_glow=glyph_glow,
+        glyph_outline_color=glyph_outline_color,
     )
     return RenderResult(svg=chart_svg, width=meta.canvas_width, height=meta.canvas_height)
 
 
-def _bbox_for_element(
+def _position_for_element(element: AutoLayoutElement, dr: float, dt: float) -> tuple[float, float]:
+    dx, dy = polar_offset_to_xy(dr, dt, element.theta_deg)
+    return element.base_x + dx, element.base_y + dy
+
+
+def _overlaps_by_distance(
     element: AutoLayoutElement,
     dr: float,
-    dt: float,
+    other: AutoLayoutElement,
+    other_dr: float,
     min_gap_px: float,
-) -> tuple[float, float, float, float]:
-    dx, dy = polar_offset_to_xy(dr, dt, element.theta_deg)
-    x = element.base_x + dx
-    y = element.base_y + dy
-    half_w = element.width / 2 + min_gap_px / 2
-    half_h = element.height / 2 + min_gap_px / 2
-    return (x - half_w, y - half_h, x + half_w, y + half_h)
-
-
-def _overlaps(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
-    return not (a[2] <= b[0] or a[0] >= b[2] or a[3] <= b[1] or a[1] >= b[3])
+    radius_scale: float,
+) -> bool:
+    x, y = _position_for_element(element, dr, 0.0)
+    ox, oy = _position_for_element(other, other_dr, 0.0)
+    radius = max(element.width, element.height) / 2 * radius_scale
+    other_radius = max(other.width, other.height) / 2 * radius_scale
+    min_distance = radius + other_radius + min_gap_px
+    return math.hypot(x - ox, y - oy) < min_distance
 
 
 async def compute_auto_layout_overrides(
     storage: StorageProtocol,
     chart: ChartRecord,
     frame_id: str,
-    min_gap_px: int = 10,
+    min_gap_px: int = 0,
     max_iter: int = 200,
 ) -> dict[str, dict[str, float]]:
+    config = load_config()
     template_meta = await storage.load_template_meta(frame_id)
     override_meta = await storage.load_chart_meta(chart.chart_id, frame_id)
     merged_meta = _merge_dicts(template_meta, override_meta)
 
     image_path = await storage.template_image_path(frame_id)
-    with Image.open(image_path) as image:
-        image_size = image.size
+    image_size = _get_image_size(image_path)
     meta = validate_meta(merged_meta, image_size)
 
-    settings = _build_settings(meta)
+    settings = _build_settings(meta, config)
     chart_data = _build_chart(chart)
 
     elements: list[AutoLayoutElement] = []
@@ -340,9 +387,9 @@ async def compute_auto_layout_overrides(
             settings.radius * settings.planet_ring_ratio,
             angle,
         )
-        glyph_font = 60.0
-        glyph_width = glyph_font * 1.0
-        glyph_height = glyph_font * 1.0
+        glyph_font = 60.0 * settings.font_scale
+        glyph_width = glyph_font * 0.75
+        glyph_height = glyph_font * 0.75
         elements.append(
             AutoLayoutElement(
                 element_id=f"planet.{planet.name}.glyph",
@@ -356,48 +403,51 @@ async def compute_auto_layout_overrides(
 
     elements = sorted(elements, key=lambda item: (item.theta_deg, item.element_id))
 
-    accepted: list[tuple[float, float, float, float]] = []
+    accepted: list[tuple[AutoLayoutElement, float]] = []
     overrides: dict[str, dict[str, float]] = {}
-    dt_step = 5.0
-    dt_max = 90.0
     dr_step = 6.0
-    dr_min = -40.0
-    dr_max = 40.0
+    dr_min = -60.0
+    strict_radius_scale = 0.42
+    placement_radius_scale = 0.62
 
     for element in elements:
         dr = 0.0
-        dt = 0.0
         attempts = 0
-        t_index = 0
         placed = False
-        dr_direction = -1.0
+        dr_index = 0
+        if not any(
+            _overlaps_by_distance(element, dr, other, other_dr, 0, strict_radius_scale)
+            for other, other_dr in accepted
+        ):
+            accepted.append((element, dr))
+            continue
         while attempts < max_iter:
-            bbox = _bbox_for_element(element, dr, dt, min_gap_px)
-            if not any(_overlaps(bbox, other) for other in accepted):
-                accepted.append(bbox)
-                if dr != 0.0 or dt != 0.0:
-                    overrides[element.element_id] = {"dr": dr, "dt": dt}
+            if not any(
+                _overlaps_by_distance(
+                    element,
+                    dr,
+                    other,
+                    other_dr,
+                    min_gap_px,
+                    placement_radius_scale,
+                )
+                for other, other_dr in accepted
+            ):
+                accepted.append((element, dr))
+                if dr != 0.0:
+                    overrides[element.element_id] = {"dr": dr, "dt": 0.0}
                 placed = True
                 break
             attempts += 1
-            t_index += 1
-            direction = 1 if t_index % 2 == 1 else -1
-            multiplier = (t_index + 1) // 2
-            dt = direction * multiplier * dt_step
-            if abs(dt) > dt_max:
-                dt = 0.0
-                t_index = 0
-                dr += dr_direction * dr_step
-                if dr_direction < 0 and dr <= dr_min:
-                    dr_direction = 1.0
-                    dr = dr_step
-                elif dr_direction > 0 and dr >= dr_max:
-                    break
+            dr_index += 1
+            multiplier = (dr_index + 1) // 2
+            dr = -multiplier * dr_step
+            if dr <= dr_min:
+                break
         if not placed:
-            bbox = _bbox_for_element(element, dr, dt, min_gap_px)
-            accepted.append(bbox)
-            if dr != 0.0 or dt != 0.0:
-                overrides[element.element_id] = {"dr": dr, "dt": dt}
+            accepted.append((element, dr))
+            if dr != 0.0:
+                overrides[element.element_id] = {"dr": dr, "dt": 0.0}
 
     return overrides
 
@@ -407,8 +457,16 @@ async def render_chart_png(
     chart: ChartRecord,
     frame_id: str,
     max_size: int | None = None,
+    glyph_glow: bool = False,
+    glyph_outline_color: str | None = None,
 ) -> bytes:
-    result = await render_chart_svg(storage, chart, frame_id)
+    result = await render_chart_svg(
+        storage,
+        chart,
+        frame_id,
+        glyph_glow=glyph_glow,
+        glyph_outline_color=glyph_outline_color,
+    )
     output_width = None
     output_height = None
     if max_size:
@@ -432,8 +490,15 @@ async def render_chart_only_png(
     storage: StorageProtocol,
     chart: ChartRecord,
     max_size: int | None = None,
+    glyph_glow: bool = False,
+    glyph_outline_color: str | None = None,
 ) -> bytes:
-    result = await render_chart_only_svg(storage, chart)
+    result = await render_chart_only_svg(
+        storage,
+        chart,
+        glyph_glow=glyph_glow,
+        glyph_outline_color=glyph_outline_color,
+    )
     output_width = None
     output_height = None
     if max_size:

@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import svgwrite
+from svgwrite.base import BaseElement
+from svgwrite.container import Group
+from svgwrite.filters import Filter
 
 from zodiac_art.config import load_config
 from zodiac_art.models.chart_models import Chart
@@ -33,6 +36,7 @@ class RenderSettings:
     label_ring_ratio: float
     planet_label_offset_ratio: float
     font_scale: float
+    glyph_mode: str
 
 
 @dataclass(frozen=True)
@@ -80,6 +84,8 @@ class SvgChartRenderer:
         global_transform: ChartFit | None = None,
         overrides: dict[str, ElementOverride] | None = None,
         frame_circle: FrameCircle | None = None,
+        glyph_glow: bool = False,
+        glyph_outline_color: str | None = None,
     ) -> str:
         """Render the chart into an SVG string."""
 
@@ -90,7 +96,22 @@ class SvgChartRenderer:
         )
         dwg.viewbox(0, 0, self.settings.width, self.settings.height)
 
-        glyph_mode = load_config().glyph_mode
+        glyph_mode = self.settings.glyph_mode
+        glow_filter = None
+        if glyph_glow:
+            glow_filter = Filter(id="glyphGlow", x="-50%", y="-50%", width="200%", height="200%")
+            glow_filter.feGaussianBlur(in_="SourceGraphic", stdDeviation=3, result="blur")
+            glow_filter.feMerge(["blur", "SourceGraphic"])
+            dwg.defs.add(glow_filter)
+
+        def apply_glyph_effects(group: Group) -> None:
+            if glow_filter is not None:
+                group.update({"filter": "url(#glyphGlow)"})
+
+        def apply_outline(element: BaseElement) -> None:
+            if outline_attrs:
+                element.update(outline_attrs)
+                element.update({"data-fill-only": "true"})
 
         center = (self.settings.center_x, self.settings.center_y)
         outer_radius = self.settings.radius * self.settings.sign_ring_outer_ratio
@@ -98,6 +119,17 @@ class SvgChartRenderer:
         planet_radius = self.settings.radius * self.settings.planet_ring_ratio
         label_radius = self.settings.radius * self.settings.label_ring_ratio
         font_scale = max(0.1, self.settings.font_scale)
+        outline_width = max(1.2, 2.0 * font_scale)
+        outline_attrs = {}
+        if glyph_outline_color:
+            outline_attrs = {
+                "stroke": glyph_outline_color,
+                "stroke-width": outline_width,
+                "stroke-linejoin": "round",
+                "stroke-linecap": "round",
+                "paint-order": "stroke fill",
+                "vector-effect": "non-scaling-stroke",
+            }
 
         if overrides is None:
             overrides = {}
@@ -174,20 +206,22 @@ class SvgChartRenderer:
         asc_angle = longitude_to_angle(chart.ascendant) + angle_offset
         asc_pos = polar_to_cartesian(center[0], center[1], asc_radius, asc_angle)
         asc_group = dwg.g(id="asc.marker")
+        apply_glyph_effects(asc_group)
         asc_group.update({"data-theta": f"{asc_angle:.3f}"})
         asc_override = overrides.get("asc.marker")
         asc_color = asc_override.color if asc_override else "#000"
         if asc_override:
             dx, dy = _resolve_override(asc_override, asc_angle)
             asc_group.translate(dx, dy)
-        if glyph_mode == "path":
-            path_data = glyph_path_data("↑", asc_pos[0], asc_pos[1], asc_size)
-            if path_data:
-                d, transform = path_data
-                asc_group.add(dwg.path(d=d, fill=asc_color, transform=transform))
-            else:
-                asc_group.add(
-                    dwg.text(
+            if glyph_mode == "path":
+                path_data = glyph_path_data("↑", asc_pos[0], asc_pos[1], asc_size)
+                if path_data:
+                    d, transform = path_data
+                    asc_path = dwg.path(d=d, fill=asc_color, transform=transform)
+                    apply_outline(asc_path)
+                    asc_group.add(asc_path)
+                else:
+                    asc_text = dwg.text(
                         "↑",
                         insert=asc_pos,
                         text_anchor="middle",
@@ -196,10 +230,10 @@ class SvgChartRenderer:
                         font_family="serif",
                         fill=asc_color,
                     )
-                )
-        else:
-            asc_group.add(
-                dwg.text(
+                    apply_outline(asc_text)
+                    asc_group.add(asc_text)
+            else:
+                asc_text = dwg.text(
                     "↑",
                     insert=asc_pos,
                     text_anchor="middle",
@@ -208,7 +242,8 @@ class SvgChartRenderer:
                     font_family="serif",
                     fill=asc_color,
                 )
-            )
+                apply_outline(asc_text)
+                asc_group.add(asc_text)
         chart_group.add(asc_group)
         for index, sign in enumerate(zodiac_signs):
             longitude = index * 30 + 15
@@ -218,6 +253,7 @@ class SvgChartRenderer:
             sign_id = f"sign.{sign}"
             sign_override = overrides.get(sign_id)
             sign_group = dwg.g(id=sign_id)
+            apply_glyph_effects(sign_group)
             sign_group.update({"data-theta": f"{mid_angle:.3f}"})
             sign_color = sign_override.color if sign_override else "#000"
             if sign_override:
@@ -227,22 +263,11 @@ class SvgChartRenderer:
                 path_data = glyph_path_data(glyph, label_pos[0], label_pos[1], 56 * font_scale)
                 if path_data:
                     d, transform = path_data
-                    sign_group.add(dwg.path(d=d, fill=sign_color, transform=transform))
+                    sign_path = dwg.path(d=d, fill=sign_color, transform=transform)
+                    apply_outline(sign_path)
+                    sign_group.add(sign_path)
                 else:
-                    sign_group.add(
-                        dwg.text(
-                            glyph,
-                            insert=label_pos,
-                            text_anchor="middle",
-                            alignment_baseline="middle",
-                            font_size=56 * font_scale,
-                            font_family="serif",
-                            fill=sign_color,
-                        )
-                    )
-            else:
-                sign_group.add(
-                    dwg.text(
+                    sign_text = dwg.text(
                         glyph,
                         insert=label_pos,
                         text_anchor="middle",
@@ -251,7 +276,20 @@ class SvgChartRenderer:
                         font_family="serif",
                         fill=sign_color,
                     )
+                    apply_outline(sign_text)
+                    sign_group.add(sign_text)
+            else:
+                sign_text = dwg.text(
+                    glyph,
+                    insert=label_pos,
+                    text_anchor="middle",
+                    alignment_baseline="middle",
+                    font_size=56 * font_scale,
+                    font_family="serif",
+                    fill=sign_color,
                 )
+                apply_outline(sign_text)
+                sign_group.add(sign_text)
             chart_group.add(sign_group)
 
         for index, house in enumerate(chart.houses):
@@ -276,6 +314,7 @@ class SvgChartRenderer:
             planet_glyph_id = f"planet.{planet.name}.glyph"
             glyph_override = overrides.get(planet_glyph_id)
             glyph_group = dwg.g(id=planet_glyph_id)
+            apply_glyph_effects(glyph_group)
             glyph_group.update({"data-theta": f"{angle:.3f}"})
             glyph_color = glyph_override.color if glyph_override else "#000"
             if glyph_override:
@@ -290,22 +329,11 @@ class SvgChartRenderer:
                 )
                 if path_data:
                     d, transform = path_data
-                    glyph_group.add(dwg.path(d=d, fill=glyph_color, transform=transform))
+                    glyph_path = dwg.path(d=d, fill=glyph_color, transform=transform)
+                    apply_outline(glyph_path)
+                    glyph_group.add(glyph_path)
                 else:
-                    glyph_group.add(
-                        dwg.text(
-                            planet_glyph,
-                            insert=planet_pos,
-                            text_anchor="middle",
-                            alignment_baseline="middle",
-                            font_size=60 * font_scale,
-                            font_family="serif",
-                            fill=glyph_color,
-                        )
-                    )
-            else:
-                glyph_group.add(
-                    dwg.text(
+                    glyph_text = dwg.text(
                         planet_glyph,
                         insert=planet_pos,
                         text_anchor="middle",
@@ -314,7 +342,20 @@ class SvgChartRenderer:
                         font_family="serif",
                         fill=glyph_color,
                     )
+                    apply_outline(glyph_text)
+                    glyph_group.add(glyph_text)
+            else:
+                glyph_text = dwg.text(
+                    planet_glyph,
+                    insert=planet_pos,
+                    text_anchor="middle",
+                    alignment_baseline="middle",
+                    font_size=60 * font_scale,
+                    font_family="serif",
+                    fill=glyph_color,
                 )
+                apply_outline(glyph_text)
+                glyph_group.add(glyph_text)
             chart_group.add(glyph_group)
 
         dwg.add(chart_group)
@@ -344,4 +385,5 @@ def default_render_settings(radius: float, center_x: float, center_y: float) -> 
         label_ring_ratio=config.label_ring_ratio,
         planet_label_offset_ratio=config.planet_label_offset_ratio,
         font_scale=1.0,
+        glyph_mode=config.glyph_mode,
     )

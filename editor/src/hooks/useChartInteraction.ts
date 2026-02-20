@@ -30,6 +30,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     const target = event.target as Element | null
     const labelElement = target?.closest('[id]') as Element | null
     const chartElement = target?.closest('#chartRoot') as Element | null
+    const chartBackgroundElement = target?.closest('#chartBackgroundRoot') as Element | null
 
     const point = labelElement && chartRootRef.current
       ? toNodePoint(event, chartRootRef.current)
@@ -51,7 +52,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       }
     }
 
-    if (chartElement) {
+    if (chartElement || chartBackgroundElement) {
       const mode = event.shiftKey
         ? 'chart-scale'
         : event.altKey

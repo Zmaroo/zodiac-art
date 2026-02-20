@@ -35,21 +35,32 @@ def load_config() -> AppConfig:
     """Load configuration, applying environment overrides."""
     config = AppConfig()
     sweph_path = os.environ.get("SWEPH_PATH")
-    if sweph_path:
-        return AppConfig(
-            glyph_mode=config.glyph_mode,
-            frame_dir=config.frame_dir,
-            output_dir=config.output_dir,
-            canvas_width=config.canvas_width,
-            canvas_height=config.canvas_height,
-            sign_ring_outer_ratio=config.sign_ring_outer_ratio,
-            sign_ring_inner_ratio=config.sign_ring_inner_ratio,
-            planet_ring_ratio=config.planet_ring_ratio,
-            label_ring_ratio=config.label_ring_ratio,
-            planet_label_offset_ratio=config.planet_label_offset_ratio,
-            sweph_path=sweph_path,
-        )
-    return config
+    glyph_mode = os.environ.get("GLYPH_MODE", config.glyph_mode)
+    frame_dir = Path(os.environ.get("FRAME_DIR", str(config.frame_dir)))
+    output_dir = Path(os.environ.get("OUTPUT_DIR", str(config.output_dir)))
+    canvas_width = _env_int("CANVAS_WIDTH", config.canvas_width)
+    canvas_height = _env_int("CANVAS_HEIGHT", config.canvas_height)
+    sign_ring_outer_ratio = _env_float("SIGN_RING_OUTER_RATIO", config.sign_ring_outer_ratio)
+    sign_ring_inner_ratio = _env_float("SIGN_RING_INNER_RATIO", config.sign_ring_inner_ratio)
+    planet_ring_ratio = _env_float("PLANET_RING_RATIO", config.planet_ring_ratio)
+    label_ring_ratio = _env_float("LABEL_RING_RATIO", config.label_ring_ratio)
+    planet_label_offset_ratio = _env_float(
+        "PLANET_LABEL_OFFSET_RATIO",
+        config.planet_label_offset_ratio,
+    )
+    return AppConfig(
+        glyph_mode=glyph_mode,
+        frame_dir=frame_dir,
+        output_dir=output_dir,
+        canvas_width=canvas_width,
+        canvas_height=canvas_height,
+        sign_ring_outer_ratio=sign_ring_outer_ratio,
+        sign_ring_inner_ratio=sign_ring_inner_ratio,
+        planet_ring_ratio=planet_ring_ratio,
+        label_ring_ratio=label_ring_ratio,
+        planet_label_offset_ratio=planet_label_offset_ratio,
+        sweph_path=sweph_path,
+    )
 
 
 def build_database_url() -> str | None:
@@ -94,3 +105,32 @@ def get_admin_email() -> str | None:
     if not value:
         return None
     return value.strip().lower() or None
+
+
+def get_cors_origins() -> list[str]:
+    raw = os.environ.get("CORS_ORIGINS")
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def _env_int(key: str, default: int) -> int:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value
+
+
+def _env_float(key: str, default: float) -> float:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value

@@ -75,6 +75,14 @@ type SidebarProps = {
   selectionEnabled: boolean
   onColorChange: (color: string) => void
   onClearColor: () => void
+  glyphGlow: boolean
+  onGlyphGlowChange: (value: boolean) => void
+  glyphOutlineEnabled: boolean
+  onGlyphOutlineEnabledChange: (value: boolean) => void
+  glyphOutlineColor: string
+  onGlyphOutlineColorChange: (value: string) => void
+  frameMaskCutoff: number
+  onFrameMaskCutoffChange: (value: number) => void
   showFrameCircleDebug: boolean
   onShowFrameCircleDebugChange: (value: boolean) => void
   autoFitEnabled: boolean
@@ -154,6 +162,14 @@ function Sidebar({
   selectionEnabled,
   onColorChange,
   onClearColor,
+  glyphGlow,
+  onGlyphGlowChange,
+  glyphOutlineEnabled,
+  onGlyphOutlineEnabledChange,
+  glyphOutlineColor,
+  onGlyphOutlineColorChange,
+  frameMaskCutoff,
+  onFrameMaskCutoffChange,
   showFrameCircleDebug,
   onShowFrameCircleDebugChange,
   autoFitEnabled,
@@ -243,6 +259,14 @@ function Sidebar({
         selectionEnabled={selectionEnabled}
         onColorChange={onColorChange}
         onClearColor={onClearColor}
+        glyphGlow={glyphGlow}
+        onGlyphGlowChange={onGlyphGlowChange}
+        glyphOutlineEnabled={glyphOutlineEnabled}
+        onGlyphOutlineEnabledChange={onGlyphOutlineEnabledChange}
+        glyphOutlineColor={glyphOutlineColor}
+        onGlyphOutlineColorChange={onGlyphOutlineColorChange}
+        frameMaskCutoff={frameMaskCutoff}
+        onFrameMaskCutoffChange={onFrameMaskCutoffChange}
       />
       {import.meta.env.DEV ? (
         <DebugSection

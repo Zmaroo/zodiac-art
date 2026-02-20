@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import traceback
 from datetime import datetime
 
 from zodiac_art.api.rendering import render_chart_svg
@@ -46,6 +47,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=str,
         help="Generate debug overlay for a frame id",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show full error traceback",
+    )
     return parser.parse_args(argv)
 
 
@@ -72,6 +78,7 @@ def _build_renderer_settings(frame_meta) -> RenderSettings:
         label_ring_ratio=config.label_ring_ratio,
         planet_label_offset_ratio=config.planet_label_offset_ratio,
         font_scale=1.0,
+        glyph_mode=config.glyph_mode,
     )
 
 
@@ -108,12 +115,17 @@ def run_pipeline(
     )
     overrides: dict[str, ElementOverride] = {}
     for key, value in layout.overrides.items():
+        dx = value.get("dx", 0.0)
+        dy = value.get("dy", 0.0)
+        dr = value.get("dr")
+        dt = value.get("dt")
+        color = value.get("color")
         overrides[key] = ElementOverride(
-            dx=value.get("dx", 0.0),
-            dy=value.get("dy", 0.0),
-            dr=value.get("dr"),
-            dt=value.get("dt"),
-            color=value.get("color"),
+            dx=float(dx) if isinstance(dx, (int, float)) else 0.0,
+            dy=float(dy) if isinstance(dy, (int, float)) else 0.0,
+            dr=float(dr) if isinstance(dr, (int, float)) else None,
+            dt=float(dt) if isinstance(dt, (int, float)) else None,
+            color=color if isinstance(color, str) else None,
         )
     chart_svg = renderer.render(chart, global_transform=chart_fit, overrides=overrides)
     final_svg = compose_svg(chart_svg, frame_asset)
@@ -184,7 +196,10 @@ def main(argv: list[str]) -> None:
             output_name=args.output_name,
         )
     except Exception as exc:
-        print(f"Error: {exc}")
+        if args.verbose:
+            traceback.print_exc()
+        else:
+            print(f"Error: {exc}")
         sys.exit(1)
 
 

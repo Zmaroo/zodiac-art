@@ -1,4 +1,5 @@
 import type { PointerEvent, RefObject } from 'react'
+import { useMaskedFrame } from '../hooks/useMaskedFrame'
 import type { ChartMeta, FrameCircle, FrameDetail } from '../types'
 
 type CanvasProps = {
@@ -8,10 +9,12 @@ type CanvasProps = {
   chartSvg: string
   chartId: string
   chartBackgroundColor: string
+  frameMaskCutoff: number
   showChartBackground: boolean
   frameCircle: FrameCircle | null
   showFrameCircleDebug: boolean
   svgRef: RefObject<SVGSVGElement | null>
+  chartBackgroundRef: RefObject<SVGGElement | null>
   chartRootRef: RefObject<SVGGElement | null>
   onPointerDown: (event: PointerEvent<SVGSVGElement>) => void
   onPointerMove: (event: PointerEvent<SVGSVGElement>) => void
@@ -25,10 +28,12 @@ function Canvas({
   chartSvg,
   chartId,
   chartBackgroundColor,
+  frameMaskCutoff,
   showChartBackground,
   frameCircle,
   showFrameCircleDebug,
   svgRef,
+  chartBackgroundRef,
   chartRootRef,
   onPointerDown,
   onPointerMove,
@@ -37,6 +42,26 @@ function Canvas({
   const debugCx = frameCircle ? frameCircle.cxNorm * (meta?.canvas.width ?? 0) : 0
   const debugCy = frameCircle ? frameCircle.cyNorm * (meta?.canvas.height ?? 0) : 0
   const debugR = frameCircle ? frameCircle.rNorm * (meta?.canvas.width ?? 0) : 0
+  const frameUrl = selectedFrameDetail ? `${apiBase}${selectedFrameDetail.image_url}` : ''
+  const showMaskedFrame = Boolean(selectedFrameDetail && showChartBackground)
+  const showCircleBackground = showChartBackground
+  const maskCenter = frameCircle
+    ? {
+        x: frameCircle.cxNorm * (meta?.canvas.width ?? 0),
+        y: frameCircle.cyNorm * (meta?.canvas.height ?? 0),
+      }
+    : (meta?.chart.center ?? { x: 0, y: 0 })
+  const maskRadius = frameCircle
+    ? frameCircle.rNorm * (meta?.canvas.width ?? 0)
+    : (meta?.chart.ring_outer ?? 0)
+  const maskedFrameUrl = useMaskedFrame(
+    frameUrl,
+    showMaskedFrame,
+    maskCenter,
+    maskRadius,
+    frameMaskCutoff
+  )
+  const frameHref = showMaskedFrame ? maskedFrameUrl || frameUrl : frameUrl
   return (
     <main className="canvas">
       {meta ? (
@@ -49,9 +74,22 @@ function Canvas({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
+          {showCircleBackground ? (
+            <g ref={chartBackgroundRef} id="chartBackgroundRoot">
+              <circle
+                id="chart.background"
+                data-fill-only="true"
+                cx={meta.chart.center.x}
+                cy={meta.chart.center.y}
+                r={meta.chart.ring_outer}
+                fill={chartBackgroundColor || 'none'}
+                stroke="none"
+              />
+            </g>
+          ) : null}
           {selectedFrameDetail ? (
             <image
-              href={`${apiBase}${selectedFrameDetail.image_url}`}
+              href={frameHref}
               x={0}
               y={0}
               width={meta.canvas.width}
@@ -75,17 +113,6 @@ function Canvas({
             strokeWidth={2}
           />
           <g ref={chartRootRef} id="chartRoot">
-            {showChartBackground ? (
-              <circle
-                id="chart.background"
-                data-fill-only="true"
-                cx={meta.chart.center.x}
-                cy={meta.chart.center.y}
-                r={meta.chart.ring_outer}
-                fill={chartBackgroundColor || 'none'}
-                stroke="none"
-              />
-            ) : null}
             <g className="crosshair">
               <line
                 x1={meta.chart.center.x - 20}
