@@ -9,6 +9,9 @@ type SelectionSectionProps = {
   selectionEnabled: boolean
   onColorChange: (color: string) => void
   onClearColor: () => void
+  chartLinesColor: string
+  onChartLinesColorChange: (color: string) => void
+  onClearChartLinesColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
   glyphGlow: boolean
@@ -30,6 +33,9 @@ function SelectionSection({
   selectionEnabled,
   onColorChange,
   onClearColor,
+  chartLinesColor,
+  onChartLinesColorChange,
+  onClearChartLinesColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
   glyphGlow,
@@ -87,7 +93,21 @@ function SelectionSection({
         ))}
       </div>
       <label className="field">
-        Color
+        Chart lines color
+        <div className="color-row">
+          <input
+            type="color"
+            value={chartLinesColor || '#000000'}
+            onChange={(event) => onChartLinesColorChange(event.target.value)}
+          />
+          <button type="button" className="secondary" onClick={onClearChartLinesColor}>
+            Reset
+          </button>
+        </div>
+        <div className="hint">Applies to inner/outer rings + cusp lines.</div>
+      </label>
+      <label className="field">
+        Selected element color
         <div className="color-row">
           <input
             type="color"

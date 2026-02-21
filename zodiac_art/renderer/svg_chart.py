@@ -179,26 +179,45 @@ class SvgChartRenderer:
             "Pisces",
         ]
 
+        lines_group = dwg.g(id="chart.lines")
         for index, house in enumerate(chart.houses):
             start_angle = longitude_to_angle(house.cusp_longitude) + angle_offset
             end_longitude = chart.houses[(index + 1) % 12].cusp_longitude
             end_angle = longitude_to_angle(end_longitude) + angle_offset
-            chart_group.add(
+            lines_group.add(
                 dwg.path(
                     d=arc_path(center[0], center[1], outer_radius, start_angle, end_angle),
                     fill="none",
                     stroke="#1f1f1f",
                     stroke_width=3,
+                    **{"data-stroke-only": "true"},
                 )
             )
-            chart_group.add(
+            lines_group.add(
                 dwg.path(
                     d=arc_path(center[0], center[1], inner_radius, start_angle, end_angle),
                     fill="none",
                     stroke="#1f1f1f",
                     stroke_width=3,
+                    **{"data-stroke-only": "true"},
                 )
             )
+        for index, house in enumerate(chart.houses):
+            angle = longitude_to_angle(house.cusp_longitude) + angle_offset
+            line_end = polar_to_cartesian(center[0], center[1], inner_radius, angle)
+            house_id = f"house.{index + 1}.line"
+            line_group = dwg.g(id=house_id)
+            line_group.add(
+                dwg.line(
+                    start=center,
+                    end=line_end,
+                    stroke="#3a3a3a",
+                    stroke_width=2,
+                    **{"data-stroke-only": "true"},
+                )
+            )
+            lines_group.add(line_group)
+        chart_group.add(lines_group)
 
         sign_radius = label_radius * 0.98
         asc_radius = inner_radius * 0.90
@@ -291,21 +310,6 @@ class SvgChartRenderer:
                 apply_outline(sign_text)
                 sign_group.add(sign_text)
             chart_group.add(sign_group)
-
-        for index, house in enumerate(chart.houses):
-            angle = longitude_to_angle(house.cusp_longitude) + angle_offset
-            line_end = polar_to_cartesian(center[0], center[1], inner_radius, angle)
-            house_id = f"house.{index + 1}.line"
-            line_group = dwg.g(id=house_id)
-            line_group.add(
-                dwg.line(
-                    start=center,
-                    end=line_end,
-                    stroke="#3a3a3a",
-                    stroke_width=2,
-                )
-            )
-            chart_group.add(line_group)
 
         for planet in chart.planets:
             angle = longitude_to_angle(planet.longitude) + angle_offset

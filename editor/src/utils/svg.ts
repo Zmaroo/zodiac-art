@@ -85,14 +85,20 @@ export function stripElementById(svgInner: string, id: string): string {
 }
 
 function applyColor(node: Element, color: string) {
+  const strokeOnly = node.getAttribute('data-stroke-only') === 'true'
   const fillOnly = node.getAttribute('data-fill-only') === 'true'
-  node.setAttribute('fill', color)
+  if (!strokeOnly) {
+    node.setAttribute('fill', color)
+  }
   if (!fillOnly) {
     node.setAttribute('stroke', color)
   }
   node.querySelectorAll('*').forEach((child) => {
+    const childStrokeOnly = child.getAttribute('data-stroke-only') === 'true'
     const childFillOnly = child.getAttribute('data-fill-only') === 'true'
-    child.setAttribute('fill', color)
+    if (!childStrokeOnly) {
+      child.setAttribute('fill', color)
+    }
     if (!childFillOnly) {
       child.setAttribute('stroke', color)
     }

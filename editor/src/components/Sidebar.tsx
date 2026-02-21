@@ -75,6 +75,9 @@ type SidebarProps = {
   selectionEnabled: boolean
   onColorChange: (color: string) => void
   onClearColor: () => void
+  chartLinesColor: string
+  onChartLinesColorChange: (value: string) => void
+  onClearChartLinesColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
   glyphGlow: boolean
@@ -169,6 +172,9 @@ function Sidebar({
   selectionEnabled,
   onColorChange,
   onClearColor,
+  chartLinesColor,
+  onChartLinesColorChange,
+  onClearChartLinesColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
   glyphGlow,
@@ -273,6 +279,9 @@ function Sidebar({
         selectionEnabled={selectionEnabled}
         onColorChange={onColorChange}
         onClearColor={onClearColor}
+        chartLinesColor={chartLinesColor}
+        onChartLinesColorChange={onChartLinesColorChange}
+        onClearChartLinesColor={onClearChartLinesColor}
         radialMoveEnabled={radialMoveEnabled}
         onRadialMoveEnabledChange={onRadialMoveEnabledChange}
         glyphGlow={glyphGlow}

@@ -89,6 +89,7 @@ function App() {
     createInitialEditorState(defaultChartFit)
   )
   const { chartFit, userAdjustedFit, overrides, selectedElement } = editorState
+  const chartLinesColor = overrides['chart.lines']?.color ?? ''
   const [chartSvg, setChartSvg] = useState('')
   const [showFrameCircleDebug, setShowFrameCircleDebug] = useState(false)
   const [glyphGlow, setGlyphGlow] = usePersistedState(
@@ -507,6 +508,14 @@ function App() {
     clearUploadMessages()
   }
 
+  const handleChartLinesColorChange = (value: string) => {
+    dispatch({ type: 'APPLY_COLOR', targets: ['chart.lines'], color: value })
+  }
+
+  const handleChartLinesColorClear = () => {
+    dispatch({ type: 'APPLY_COLOR', targets: ['chart.lines'], color: null })
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -587,6 +596,9 @@ function App() {
         selectionEnabled={selectionEnabled}
         onColorChange={(color) => applySelectionColor(color)}
         onClearColor={() => applySelectionColor(null)}
+        chartLinesColor={chartLinesColor}
+        onChartLinesColorChange={handleChartLinesColorChange}
+        onClearChartLinesColor={handleChartLinesColorClear}
         radialMoveEnabled={radialMoveEnabled}
         onRadialMoveEnabledChange={setRadialMoveEnabled}
         glyphGlow={glyphGlow}
