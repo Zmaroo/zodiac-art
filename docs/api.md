@@ -60,6 +60,33 @@ curl http://127.0.0.1:8000/api/charts/<chart_id>/render.png?frame_id=artnouveau_
   -o /tmp/zodiac_art.png
 ```
 
+## Render export (saved)
+
+Use these endpoints for longer-lived, "final" assets. They return private cache
+headers with a longer max-age and support ETag revalidation.
+
+```bash
+curl http://127.0.0.1:8000/api/charts/<chart_id>/render_export.svg?frame_id=artnouveau_test \
+  -o /tmp/zodiac_art_export.svg
+```
+
+```bash
+curl http://127.0.0.1:8000/api/charts/<chart_id>/render_export.png?frame_id=artnouveau_test\&size=2048 \
+  -o /tmp/zodiac_art_export.png
+```
+
+## Render export (chart only)
+
+```bash
+curl http://127.0.0.1:8000/api/charts/<chart_id>/render_export_chart.svg \
+  -o /tmp/zodiac_art_export_chart.svg
+```
+
+```bash
+curl http://127.0.0.1:8000/api/charts/<chart_id>/render_export_chart.png?size=2048 \
+  -o /tmp/zodiac_art_export_chart.png
+```
+
 ## Save metadata
 
 ```bash

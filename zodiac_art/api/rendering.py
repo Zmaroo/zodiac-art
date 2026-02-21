@@ -18,7 +18,7 @@ from zodiac_art.api.storage import ChartRecord
 from zodiac_art.astro.chart_builder import build_chart
 from zodiac_art.astro.ephemeris import calculate_ephemeris
 from zodiac_art.compositor.compositor import compose_svg
-from zodiac_art.config import load_config
+from zodiac_art.config import AppConfig, load_config
 from zodiac_art.frames.frame_loader import FrameAsset, FrameMeta
 from zodiac_art.frames.validation import validate_meta
 from zodiac_art.geo.timezone import to_utc_iso
@@ -497,6 +497,85 @@ def _overlaps_by_distance(
     return math.hypot(x - ox, y - oy) < min_distance
 
 
+def _compute_auto_layout_overrides_from_meta(
+    meta: FrameMeta,
+    chart: ChartRecord,
+    config: AppConfig,
+    min_gap_px: int,
+    max_iter: int,
+) -> dict[str, dict[str, float]]:
+    settings = _build_settings(meta, config)
+    chart_data = _build_chart(chart)
+
+    elements: list[AutoLayoutElement] = []
+    for planet in chart_data.planets:
+        angle = longitude_to_angle(planet.longitude)
+        glyph_pos = polar_to_cartesian(
+            meta.chart_center_x,
+            meta.chart_center_y,
+            settings.radius * settings.planet_ring_ratio,
+            angle,
+        )
+        glyph_font = 60.0 * settings.font_scale
+        glyph_width = glyph_font * 0.95
+        glyph_height = glyph_font * 0.95
+        elements.append(
+            AutoLayoutElement(
+                element_id=f"planet.{planet.name}.glyph",
+                theta_deg=angle,
+                base_x=glyph_pos[0],
+                base_y=glyph_pos[1],
+                width=glyph_width,
+                height=glyph_height,
+            )
+        )
+
+    elements = sorted(elements, key=lambda item: (item.theta_deg, item.element_id))
+
+    overrides: dict[str, dict[str, float]] = {}
+    dr_step = 6.0
+    dr_min = -120.0
+    radius_scale = 1.0
+    max_passes = 8
+
+    dr_values = {element.element_id: 0.0 for element in elements}
+
+    def overlaps_any(current: AutoLayoutElement, dr: float) -> bool:
+        return any(
+            _overlaps_by_distance(
+                current,
+                dr,
+                other,
+                dr_values[other.element_id],
+                min_gap_px,
+                radius_scale,
+            )
+            for other in elements
+            if other.element_id != current.element_id
+        )
+
+    for _ in range(max_passes):
+        changed = False
+        for element in elements:
+            attempts = 0
+            while attempts < max_iter and overlaps_any(element, dr_values[element.element_id]):
+                next_dr = dr_values[element.element_id] - dr_step
+                if next_dr < dr_min:
+                    break
+                dr_values[element.element_id] = next_dr
+                changed = True
+                attempts += 1
+        if not changed:
+            break
+
+    for element in elements:
+        dr = dr_values[element.element_id]
+        if dr != 0.0:
+            overrides[element.element_id] = {"dr": dr, "dt": 0.0}
+
+    return overrides
+
+
 async def compute_auto_layout_overrides(
     storage: StorageProtocol,
     chart: ChartRecord,
@@ -513,81 +592,31 @@ async def compute_auto_layout_overrides(
     image_size = _get_image_size(image_path)
     meta = validate_meta(merged_meta, image_size)
 
-    settings = _build_settings(meta, config)
-    chart_data = _build_chart(chart)
+    return _compute_auto_layout_overrides_from_meta(
+        meta,
+        chart,
+        config,
+        min_gap_px,
+        max_iter,
+    )
 
-    elements: list[AutoLayoutElement] = []
-    for planet in chart_data.planets:
-        angle = longitude_to_angle(planet.longitude)
-        glyph_pos = polar_to_cartesian(
-            meta.chart_center_x,
-            meta.chart_center_y,
-            settings.radius * settings.planet_ring_ratio,
-            angle,
-        )
-        glyph_font = 60.0 * settings.font_scale
-        glyph_width = glyph_font * 0.75
-        glyph_height = glyph_font * 0.75
-        elements.append(
-            AutoLayoutElement(
-                element_id=f"planet.{planet.name}.glyph",
-                theta_deg=angle,
-                base_x=glyph_pos[0],
-                base_y=glyph_pos[1],
-                width=glyph_width,
-                height=glyph_height,
-            )
-        )
 
-    elements = sorted(elements, key=lambda item: (item.theta_deg, item.element_id))
-
-    accepted: list[tuple[AutoLayoutElement, float]] = []
-    overrides: dict[str, dict[str, float]] = {}
-    dr_step = 6.0
-    dr_min = -60.0
-    strict_radius_scale = 0.42
-    placement_radius_scale = 0.62
-
-    for element in elements:
-        dr = 0.0
-        attempts = 0
-        placed = False
-        dr_index = 0
-        if not any(
-            _overlaps_by_distance(element, dr, other, other_dr, 0, strict_radius_scale)
-            for other, other_dr in accepted
-        ):
-            accepted.append((element, dr))
-            continue
-        while attempts < max_iter:
-            if not any(
-                _overlaps_by_distance(
-                    element,
-                    dr,
-                    other,
-                    other_dr,
-                    min_gap_px,
-                    placement_radius_scale,
-                )
-                for other, other_dr in accepted
-            ):
-                accepted.append((element, dr))
-                if dr != 0.0:
-                    overrides[element.element_id] = {"dr": dr, "dt": 0.0}
-                placed = True
-                break
-            attempts += 1
-            dr_index += 1
-            multiplier = (dr_index + 1) // 2
-            dr = -multiplier * dr_step
-            if dr <= dr_min:
-                break
-        if not placed:
-            accepted.append((element, dr))
-            if dr != 0.0:
-                overrides[element.element_id] = {"dr": dr, "dt": 0.0}
-
-    return overrides
+async def compute_auto_layout_overrides_chart_only(
+    storage: StorageProtocol,
+    chart: ChartRecord,
+    min_gap_px: int = 0,
+    max_iter: int = 200,
+) -> dict[str, dict[str, float]]:
+    config = load_config()
+    chart_fit = await storage.load_chart_fit(chart.chart_id)
+    meta = _chart_only_meta(chart_fit)
+    return _compute_auto_layout_overrides_from_meta(
+        meta,
+        chart,
+        config,
+        min_gap_px,
+        max_iter,
+    )
 
 
 async def render_chart_png(

@@ -134,8 +134,10 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
     setLatitude(data.latitude)
     setLongitude(data.longitude)
     setChartName(data.name ?? '')
-    if (data.default_frame_id && selectedId !== '__chart_only__') {
+    if (data.default_frame_id) {
       setSelectedId(data.default_frame_id)
+    } else {
+      setSelectedId('__chart_only__')
     }
   }
 

@@ -8,6 +8,7 @@ type CanvasProps = {
   apiBase: string
   chartSvg: string
   chartId: string
+  isChartOnly: boolean
   chartBackgroundColor: string
   frameMaskCutoff: number
   showChartBackground: boolean
@@ -27,6 +28,7 @@ function Canvas({
   apiBase,
   chartSvg,
   chartId,
+  isChartOnly,
   chartBackgroundColor,
   frameMaskCutoff,
   showChartBackground,
@@ -153,7 +155,9 @@ function Canvas({
           ) : null}
         </svg>
       ) : (
-        <div className="placeholder">Select a frame to begin.</div>
+        <div className="placeholder">
+          {isChartOnly ? 'Select a chart to begin.' : 'Select a frame to begin.'}
+        </div>
       )}
     </main>
   )

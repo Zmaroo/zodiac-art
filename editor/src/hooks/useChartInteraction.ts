@@ -11,6 +11,7 @@ type UseChartInteractionParams = {
   svgRef: React.RefObject<SVGSVGElement | null>
   chartRootRef: React.RefObject<SVGGElement | null>
   dispatch: (action: EditorAction) => void
+  radialMoveEnabled: boolean
 }
 
 type UseChartInteractionResult = {
@@ -20,7 +21,7 @@ type UseChartInteractionResult = {
 }
 
 export function useChartInteraction(params: UseChartInteractionParams): UseChartInteractionResult {
-  const { chartFit, overrides, svgRef, chartRootRef, dispatch } = params
+  const { chartFit, overrides, svgRef, chartRootRef, dispatch, radialMoveEnabled } = params
   const [drag, setDrag] = useState<DragState | null>(null)
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
@@ -38,6 +39,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     if (labelElement) {
       const id = labelElement.getAttribute('id') || ''
       if (isDraggableElement(id)) {
+        const theta = Number(labelElement.getAttribute('data-theta'))
         const current = overrides[id] || { dx: 0, dy: 0 }
         dispatch({ type: 'SET_SELECTED_ELEMENT', id })
         setDrag({
@@ -46,6 +48,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
           startFit: chartFit,
           labelId: id,
           startOffset: current,
+          labelTheta: Number.isFinite(theta) ? theta : undefined,
         })
         svgRef.current.setPointerCapture(event.pointerId)
         return
@@ -108,13 +111,37 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       return
     }
     if (drag.mode === 'label' && drag.labelId && drag.startOffset) {
+      const baseOffset = drag.startOffset
+      const color = baseOffset.color
+      if (radialMoveEnabled && Number.isFinite(drag.labelTheta)) {
+        const theta = drag.labelTheta ?? 0
+        const angle = (Math.PI / 180) * theta
+        const drBase =
+          baseOffset.dr ?? (baseOffset.dx ?? 0) * Math.cos(angle) + (baseOffset.dy ?? 0) * Math.sin(angle)
+        const dtBase =
+          baseOffset.dt ?? -(baseOffset.dx ?? 0) * Math.sin(angle) + (baseOffset.dy ?? 0) * Math.cos(angle)
+        const drDelta = dx * Math.cos(angle) + dy * Math.sin(angle)
+        dispatch({
+          type: 'SET_OVERRIDES',
+          overrides: {
+            ...overrides,
+            [drag.labelId as string]: {
+              dr: drBase + drDelta,
+              dt: dtBase,
+              color,
+            },
+          },
+        })
+        return
+      }
       dispatch({
         type: 'SET_OVERRIDES',
         overrides: {
           ...overrides,
           [drag.labelId as string]: {
-            dx: (drag.startOffset?.dx ?? 0) + dx,
-            dy: (drag.startOffset?.dy ?? 0) + dy,
+            dx: (baseOffset.dx ?? 0) + dx,
+            dy: (baseOffset.dy ?? 0) + dy,
+            color,
           },
         },
       })

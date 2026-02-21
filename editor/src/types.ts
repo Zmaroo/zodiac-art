@@ -71,6 +71,7 @@ export type DragState = {
   startFit: ChartFit
   labelId?: string
   startOffset?: Offset
+  labelTheta?: number
 }
 
 export type User = { id: string; email: string; is_admin?: boolean }

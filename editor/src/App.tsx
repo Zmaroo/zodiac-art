@@ -19,8 +19,12 @@ import { useAutoFit } from './hooks/useAutoFit'
 import { useChartInteraction } from './hooks/useChartInteraction'
 import { useLayoutActions } from './hooks/useLayoutActions'
 import { useFrameUploads } from './hooks/useFrameUploads'
+import { usePersistedState } from './hooks/usePersistedState'
+import { useExport } from './hooks/useExport'
+import { useEditorDerived } from './hooks/useEditorDerived'
+import { useEditorActions } from './hooks/useEditorActions'
 import { createInitialEditorState, editorReducer } from './state/editorReducer'
-import type { ChartFit, ChartMeta, FrameCircle, Offset } from './types'
+import type { ChartFit, FrameCircle, Offset } from './types'
 
 const defaultChartFit: ChartFit = { dx: 0, dy: 0, scale: 1, rotation_deg: 0 }
 const CHART_ONLY_ID = '__chart_only__'
@@ -87,19 +91,37 @@ function App() {
   const { chartFit, userAdjustedFit, overrides, selectedElement } = editorState
   const [chartSvg, setChartSvg] = useState('')
   const [showFrameCircleDebug, setShowFrameCircleDebug] = useState(false)
-  const [glyphGlow, setGlyphGlow] = useState(
-    () => localStorage.getItem('zodiac_editor.glyphGlow') === '1'
+  const [glyphGlow, setGlyphGlow] = usePersistedState(
+    'zodiac_editor.glyphGlow',
+    false,
+    (raw) => raw === '1',
+    (value) => (value ? '1' : '0')
   )
-  const [glyphOutlineEnabled, setGlyphOutlineEnabled] = useState(
-    () => localStorage.getItem('zodiac_editor.glyphOutlineEnabled') === '1'
+  const [glyphOutlineEnabled, setGlyphOutlineEnabled] = usePersistedState(
+    'zodiac_editor.glyphOutlineEnabled',
+    false,
+    (raw) => raw === '1',
+    (value) => (value ? '1' : '0')
   )
-  const [glyphOutlineColor, setGlyphOutlineColor] = useState(
-    () => localStorage.getItem('zodiac_editor.glyphOutlineColor') || '#ffffff'
+  const [glyphOutlineColor, setGlyphOutlineColor] = usePersistedState(
+    'zodiac_editor.glyphOutlineColor',
+    '#ffffff'
   )
-  const [frameMaskCutoff, setFrameMaskCutoff] = useState(() => {
-    const raw = localStorage.getItem('zodiac_editor.frameMaskCutoff')
-    return raw ? Number(raw) : 252
-  })
+  const [frameMaskCutoff, setFrameMaskCutoff] = usePersistedState(
+    'zodiac_editor.frameMaskCutoff',
+    252,
+    (raw) => {
+      const parsed = Number(raw)
+      return Number.isFinite(parsed) ? parsed : 252
+    },
+    (value) => String(value)
+  )
+  const [radialMoveEnabled, setRadialMoveEnabled] = usePersistedState(
+    'zodiac_editor.radialMoveEnabled',
+    true,
+    (raw) => raw === '1',
+    (value) => (value ? '1' : '0')
+  )
   const { error: editorError, status: editorStatus, setError, setStatus } = useEditorMessages()
   const {
     uploadName,
@@ -187,18 +209,7 @@ function App() {
     dispatch,
   })
 
-  const computeFitFromCircle = (metaData: ChartMeta, circle: FrameCircle) => {
-    const cx = circle.cxNorm * metaData.canvas.width
-    const cy = circle.cyNorm * metaData.canvas.height
-    const r = circle.rNorm * metaData.canvas.width
-    const scale = r / metaData.chart.ring_outer
-    return {
-      dx: cx - metaData.chart.center.x,
-      dy: cy - metaData.chart.center.y,
-      scale,
-      rotation_deg: metaData.chart_fit?.rotation_deg ?? 0,
-    }
-  }
+  const { computeFitFromCircle, resetToSavedEnabled } = useEditorDerived({ meta })
 
 
   const { chartBackgroundColor } = useChartBackground({
@@ -225,6 +236,7 @@ function App() {
     svgRef,
     chartRootRef,
     dispatch,
+    radialMoveEnabled,
   })
 
   const { saveAll, autoFix } = useLayoutActions({
@@ -278,46 +290,6 @@ function App() {
     dispatch({ type: 'SET_USER_ADJUSTED', value: hasSavedFit })
   }, [hasSavedFit])
 
-  useEffect(() => {
-    localStorage.setItem('zodiac_editor.glyphGlow', glyphGlow ? '1' : '0')
-  }, [glyphGlow])
-
-  useEffect(() => {
-    localStorage.setItem('zodiac_editor.glyphOutlineEnabled', glyphOutlineEnabled ? '1' : '0')
-  }, [glyphOutlineEnabled])
-
-  useEffect(() => {
-    localStorage.setItem('zodiac_editor.glyphOutlineColor', glyphOutlineColor)
-  }, [glyphOutlineColor])
-
-  useEffect(() => {
-    localStorage.setItem('zodiac_editor.frameMaskCutoff', String(frameMaskCutoff))
-  }, [frameMaskCutoff])
-
-
-  const handleAutoFit = () => {
-    clearActionsMessages()
-    if (isChartOnly) {
-      setError('Auto-fit requires a frame selection.')
-      return
-    }
-    if (!meta || !frameCircle) {
-      setError('Frame circle not available yet.')
-      return
-    }
-    const fit = computeFitFromCircle(meta, frameCircle)
-    dispatch({ type: 'AUTO_FIT_APPLIED', fit })
-    setError('')
-    setStatus('Auto-fit applied.')
-  }
-
-  const handleResetToSavedFit = () => {
-    clearActionsMessages()
-    dispatch({ type: 'RESET_TO_SAVED' })
-    setError('')
-    setStatus('Reverted to saved fit.')
-  }
-
   const handleCreateChart = async () => {
     clearChartsMessages()
     await createChart({ birthDate, birthTime, latitude, longitude })
@@ -338,21 +310,10 @@ function App() {
     await uploadFrame()
   }
 
-  const handleAutoFixClick = async () => {
-    clearActionsMessages()
-    await autoFix()
+  const clearActionsMessages = () => {
+    setError('')
+    setStatus('')
   }
-
-  const handleSaveAllClick = async () => {
-    clearActionsMessages()
-    await saveAll()
-  }
-
-  const handleResetView = () => {
-    clearActionsMessages()
-    dispatch({ type: 'RESET_TO_INITIAL' })
-  }
-
 
   const handleLogout = () => {
     clearAuthMessages()
@@ -401,8 +362,42 @@ function App() {
     setError('')
   }
 
+  const { exportFormat, setExportFormat, exportEnabled, exportDisabledTitle, handleExport } = useExport({
+    apiBase,
+    jwt,
+    chartId,
+    chartName,
+    selectedId,
+    isChartOnly,
+    glyphGlow,
+    glyphOutlineEnabled,
+    glyphOutlineColor,
+    selectedFrameDetail,
+    setError,
+    setStatus,
+    clearActionsMessages,
+  })
+
+  const {
+    handleAutoFit,
+    handleResetToSavedFit,
+    handleSaveAllClick,
+    handleAutoFixClick,
+    handleResetView,
+  } = useEditorActions({
+    isChartOnly,
+    meta,
+    frameCircle,
+    computeFitFromCircle,
+    dispatch,
+    setError,
+    setStatus,
+    clearActionsMessages,
+    saveAll,
+    autoFix,
+  })
+
   // error/status aggregated for debug panel
-  const resetToSavedEnabled = Boolean(meta?.chart_fit)
   const debugItems = [
     { label: 'Auth error', value: authError },
     { label: 'Auth status', value: authStatus },
@@ -512,12 +507,6 @@ function App() {
     clearUploadMessages()
   }
 
-  const clearActionsMessages = () => {
-    setError('')
-    setStatus('')
-  }
-
-
   return (
     <div className="app">
       <Sidebar
@@ -598,6 +587,8 @@ function App() {
         selectionEnabled={selectionEnabled}
         onColorChange={(color) => applySelectionColor(color)}
         onClearColor={() => applySelectionColor(null)}
+        radialMoveEnabled={radialMoveEnabled}
+        onRadialMoveEnabledChange={setRadialMoveEnabled}
         glyphGlow={glyphGlow}
         onGlyphGlowChange={setGlyphGlow}
         glyphOutlineEnabled={glyphOutlineEnabled}
@@ -617,6 +608,11 @@ function App() {
         debugItems={debugItems}
         onSaveAll={handleSaveAllClick}
         onAutoFix={handleAutoFixClick}
+        onExport={handleExport}
+        exportFormat={exportFormat}
+        onExportFormatChange={setExportFormat}
+        exportEnabled={exportEnabled}
+        exportDisabledTitle={exportDisabledTitle}
       />
       <Canvas
         meta={meta}
@@ -624,6 +620,7 @@ function App() {
         apiBase={apiBase}
         chartSvg={chartSvg}
         chartId={chartId}
+        isChartOnly={isChartOnly}
         chartBackgroundColor={chartBackgroundColor}
         showChartBackground={Boolean(chartBackgroundColor)}
         frameMaskCutoff={frameMaskCutoff}

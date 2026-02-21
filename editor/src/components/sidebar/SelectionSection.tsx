@@ -9,6 +9,8 @@ type SelectionSectionProps = {
   selectionEnabled: boolean
   onColorChange: (color: string) => void
   onClearColor: () => void
+  radialMoveEnabled: boolean
+  onRadialMoveEnabledChange: (value: boolean) => void
   glyphGlow: boolean
   onGlyphGlowChange: (value: boolean) => void
   glyphOutlineEnabled: boolean
@@ -28,6 +30,8 @@ function SelectionSection({
   selectionEnabled,
   onColorChange,
   onClearColor,
+  radialMoveEnabled,
+  onRadialMoveEnabledChange,
   glyphGlow,
   onGlyphGlowChange,
   glyphOutlineEnabled,
@@ -96,6 +100,15 @@ function SelectionSection({
           </button>
         </div>
         {selectionColorMixed ? <div className="hint">Mixed colors</div> : null}
+      </label>
+      <label className="field checkbox">
+        Constrain drag to radial
+        <input
+          type="checkbox"
+          checked={radialMoveEnabled}
+          onChange={(event) => onRadialMoveEnabledChange(event.target.checked)}
+          disabled={!selectionEnabled}
+        />
       </label>
       <label className="field checkbox">
         Glow glyphs

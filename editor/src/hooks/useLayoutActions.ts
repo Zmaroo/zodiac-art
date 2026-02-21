@@ -146,20 +146,19 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
       setError('Login required for auto-fix.')
       return
     }
-    if (isChartOnly) {
-      setError('Auto-fix requires a frame selection.')
-      return
-    }
-    if (!selectedId) {
-      setError('Select a frame before auto-fix.')
-      return
-    }
     if (!chartId) {
       setError('Chart ID is required for auto-fix.')
       return
     }
+    if (!isChartOnly && !selectedId) {
+      setError('Select a frame before auto-fix.')
+      return
+    }
+    const endpoint = isChartOnly
+      ? `${apiBase}/api/charts/${chartId}/auto_layout`
+      : `${apiBase}/api/charts/${chartId}/frames/${selectedId}/auto_layout`
     const response = await apiFetchWithAuth(
-      `${apiBase}/api/charts/${chartId}/frames/${selectedId}/auto_layout`,
+      endpoint,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -75,6 +75,8 @@ type SidebarProps = {
   selectionEnabled: boolean
   onColorChange: (color: string) => void
   onClearColor: () => void
+  radialMoveEnabled: boolean
+  onRadialMoveEnabledChange: (value: boolean) => void
   glyphGlow: boolean
   onGlyphGlowChange: (value: boolean) => void
   glyphOutlineEnabled: boolean
@@ -92,6 +94,11 @@ type SidebarProps = {
   debugItems: { label: string; value: string }[]
   onSaveAll: () => void
   onAutoFix: () => void
+  onExport: () => void
+  exportFormat: 'png' | 'svg'
+  onExportFormatChange: (value: 'png' | 'svg') => void
+  exportEnabled: boolean
+  exportDisabledTitle: string
 }
 
 function Sidebar({
@@ -162,6 +169,8 @@ function Sidebar({
   selectionEnabled,
   onColorChange,
   onClearColor,
+  radialMoveEnabled,
+  onRadialMoveEnabledChange,
   glyphGlow,
   onGlyphGlowChange,
   glyphOutlineEnabled,
@@ -179,6 +188,11 @@ function Sidebar({
   debugItems,
   onSaveAll,
   onAutoFix,
+  onExport,
+  exportFormat,
+  onExportFormatChange,
+  exportEnabled,
+  exportDisabledTitle,
 }: SidebarProps) {
   return (
     <aside className="sidebar">
@@ -259,6 +273,8 @@ function Sidebar({
         selectionEnabled={selectionEnabled}
         onColorChange={onColorChange}
         onClearColor={onClearColor}
+        radialMoveEnabled={radialMoveEnabled}
+        onRadialMoveEnabledChange={onRadialMoveEnabledChange}
         glyphGlow={glyphGlow}
         onGlyphGlowChange={onGlyphGlowChange}
         glyphOutlineEnabled={glyphOutlineEnabled}
@@ -289,7 +305,31 @@ function Sidebar({
         >
           Reset to saved fit
         </button>
-        <button onClick={onSaveAll}>Save all</button>
+        <button
+          onClick={onSaveAll}
+          title="Saves layout + metadata (or chart-only fit) to the server."
+        >
+          Save changes
+        </button>
+        <div className="export-row">
+          <select
+            value={exportFormat}
+            onChange={(event) => onExportFormatChange(event.target.value as 'png' | 'svg')}
+            disabled={!exportEnabled}
+            aria-label="Export format"
+          >
+            <option value="png">Download PNG</option>
+            <option value="svg">Download SVG</option>
+          </select>
+          <button
+            className="secondary"
+            onClick={onExport}
+            disabled={!exportEnabled}
+            title={exportDisabledTitle}
+          >
+            Download
+          </button>
+        </div>
         <button onClick={onAutoFix}>Auto-fix overlaps</button>
       </div>
     </aside>
