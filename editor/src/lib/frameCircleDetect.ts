@@ -27,9 +27,10 @@ export async function detectInnerCircleFromImage(frameUrl: string): Promise<Fram
   }
   context.drawImage(image, 0, 0)
   const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height)
-  const cx = width / 2
-  const cy = height / 2
-  const maxRadius = Math.min(width, height) / 2
+  const center = findEmptyCenter(data, width, height)
+  const cx = center.cx
+  const cy = center.cy
+  const maxRadius = Math.max(0, Math.min(cx, cy, width - cx, height - cy))
   const boundaryRadii: number[] = []
 
   for (let angleDeg = 0; angleDeg < 360; angleDeg += ANGLE_STEP_DEG) {
@@ -64,6 +65,29 @@ export async function detectInnerCircleFromImage(frameUrl: string): Promise<Fram
   circleCache.set(frameUrl, circle)
   writeStoredCircle(frameUrl, circle)
   return circle
+}
+
+function findEmptyCenter(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): { cx: number; cy: number } {
+  let sumX = 0
+  let sumY = 0
+  let count = 0
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (isEmptyPixel(data, width, x, y)) {
+        sumX += x
+        sumY += y
+        count += 1
+      }
+    }
+  }
+  if (count < width * height * 0.01) {
+    return { cx: width / 2, cy: height / 2 }
+  }
+  return { cx: sumX / count, cy: sumY / count }
 }
 
 function isEmptyPixel(data: Uint8ClampedArray, width: number, x: number, y: number): boolean {

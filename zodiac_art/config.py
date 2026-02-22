@@ -120,6 +120,21 @@ def get_cors_origins() -> list[str]:
     return ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
+def get_redis_url() -> str | None:
+    value = os.environ.get("REDIS_URL")
+    if not value:
+        return None
+    return value.strip() or None
+
+
+def get_session_ttl_seconds() -> int:
+    raw = os.environ.get("CHART_SESSION_TTL_SECONDS", "604800")
+    try:
+        return max(60, int(raw))
+    except ValueError:
+        return 604800
+
+
 def _env_int(key: str, default: int) -> int:
     raw = os.environ.get(key)
     if raw is None:

@@ -16,10 +16,11 @@ from starlette.types import Scope
 
 from zodiac_art.api.auth import get_current_user_dependency
 from zodiac_art.api.frames_store import FileFrameStore, PostgresFrameStore
-from zodiac_art.api.routes import auth, charts, frames, health, renders
+from zodiac_art.api.routes import auth, chart_sessions, charts, frames, health, renders
 from zodiac_art.api.storage import FileStorage
 from zodiac_art.api.storage_async import AsyncFileStorage
 from zodiac_art.api.storage_postgres import PostgresStorage
+from zodiac_art.api.session_storage import RedisSessionStore
 from zodiac_art.config import (
     PROJECT_ROOT,
     STORAGE_ROOT,
@@ -29,6 +30,8 @@ from zodiac_art.config import (
     get_dev_mode,
     get_jwt_expires_seconds,
     get_jwt_secret,
+    get_redis_url,
+    get_session_ttl_seconds,
 )
 
 
@@ -45,6 +48,9 @@ async def lifespan(app: FastAPI):
         else:
             raise RuntimeError("JWT_SECRET is required when DEV_MODE is false.")
     database_url = build_database_url()
+    redis_url = get_redis_url()
+    session_ttl_seconds = get_session_ttl_seconds()
+    session_store = None
     if database_url:
         import asyncpg
 
@@ -57,9 +63,15 @@ async def lifespan(app: FastAPI):
         storage = AsyncFileStorage(FileStorage())
         frame_store = FileFrameStore()
         current_user = None
+    if redis_url:
+        import redis.asyncio as redis
+
+        redis_client = redis.from_url(redis_url, decode_responses=True)
+        session_store = RedisSessionStore(redis_client, ttl_seconds=session_ttl_seconds)
     app.state.storage = storage
     app.state.frame_store = frame_store
     app.state.db_pool = db_pool
+    app.state.session_store = session_store
     app.state.current_user = current_user
     app.state.jwt_secret = jwt_secret
     app.state.jwt_expires_seconds = jwt_expires_seconds
@@ -70,6 +82,8 @@ async def lifespan(app: FastAPI):
     finally:
         if app.state.db_pool:
             await app.state.db_pool.close()
+        if app.state.session_store:
+            await app.state.session_store.close()
 
 
 class StaticFilesWithCors(StaticFiles):
@@ -110,6 +124,7 @@ def create_app() -> FastAPI:
     app.mount("/static/storage", StaticFilesWithCors(directory=storage_path), name="storage")
 
     app.include_router(auth.router)
+    app.include_router(chart_sessions.router)
     app.include_router(charts.router)
     app.include_router(frames.router)
     app.include_router(renders.router)

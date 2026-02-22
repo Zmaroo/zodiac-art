@@ -36,6 +36,18 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
       setFrameCircle(null)
       return
     }
+    const meta = selectedFrameDetail.template_metadata_json
+    if (meta?.canvas?.width && meta?.canvas?.height && meta?.chart?.ring_outer) {
+      const cx = meta.chart.center?.x ?? meta.canvas.width / 2
+      const cy = meta.chart.center?.y ?? meta.canvas.height / 2
+      const circle: FrameCircle = {
+        cxNorm: cx / meta.canvas.width,
+        cyNorm: cy / meta.canvas.height,
+        rNorm: meta.chart.ring_outer / meta.canvas.width,
+      }
+      setFrameCircle(circle)
+      return
+    }
     const frameUrl = `${apiBase}${selectedFrameDetail.image_url}`
     let cancelled = false
     detectInnerCircleFromImage(frameUrl)

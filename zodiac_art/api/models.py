@@ -23,6 +23,25 @@ class ChartCreateResponse(BaseModel):
     chart_id: str
 
 
+class ChartSaveRequest(BaseModel):
+    """Request to save a chart or session."""
+
+    session_id: str | None = None
+    name: str | None = None
+    birth_date: str | None = None
+    birth_time: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    birth_place_id: str | None = None
+    default_frame_id: str | None = None
+
+
+class ChartSessionCreateResponse(BaseModel):
+    """Response containing the new session id."""
+
+    session_id: str
+
+
 class FrameListItem(BaseModel):
     """Frame entry returned by the API."""
 
@@ -43,6 +62,24 @@ class ChartInfoResponse(BaseModel):
     """Chart info response."""
 
     chart_id: str
+    name: str | None = None
+    birth_date: str
+    birth_time: str
+    latitude: float
+    longitude: float
+    default_frame_id: str | None
+    created_at: str | None = None
+    birth_place_text: str | None = None
+    birth_place_id: str | None = None
+    timezone: str | None = None
+    birth_datetime_utc: str | None = None
+    frames: list[ChartFrameStatus]
+
+
+class ChartSessionInfoResponse(BaseModel):
+    """Chart session info response."""
+
+    session_id: str
     name: str | None = None
     birth_date: str
     birth_time: str

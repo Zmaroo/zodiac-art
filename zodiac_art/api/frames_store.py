@@ -12,6 +12,7 @@ from PIL import Image
 
 from zodiac_art.config import PROJECT_ROOT, STORAGE_ROOT
 from zodiac_art.frames.frame_loader import SUPPORTED_IMAGE_EXTENSIONS
+from zodiac_art.frames.opening_detector import detect_opening_circle
 from zodiac_art.utils.file_utils import load_json
 
 
@@ -318,6 +319,22 @@ def default_template_metadata(width: int, height: int) -> dict:
             "center": {"x": center_x, "y": center_y},
             "ring_outer": int(width * 0.45),
             "ring_inner": int(width * 0.34),
+            "rotation_deg": 0,
+        },
+    }
+
+
+def template_metadata_from_opening(image: Image.Image, ring_inner_ratio: float) -> dict:
+    width, height = image.size
+    center_x, center_y, radius = detect_opening_circle(image)
+    ring_outer = float(radius)
+    ring_inner = float(radius) * float(ring_inner_ratio)
+    return {
+        "canvas": {"width": width, "height": height},
+        "chart": {
+            "center": {"x": center_x, "y": center_y},
+            "ring_outer": ring_outer,
+            "ring_inner": ring_inner,
             "rotation_deg": 0,
         },
     }

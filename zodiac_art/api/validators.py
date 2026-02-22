@@ -19,6 +19,15 @@ def validate_chart_id(chart_id: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid chart id") from exc
 
 
+def validate_session_id(session_id: str) -> None:
+    from uuid import UUID
+
+    try:
+        UUID(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid session id") from exc
+
+
 def validate_chart_fit_payload(payload: dict) -> dict:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Chart fit payload must be an object")

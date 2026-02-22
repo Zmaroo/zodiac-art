@@ -21,6 +21,13 @@ def get_db_pool(request: Request) -> Any:
     return request.app.state.db_pool
 
 
+def get_session_store(request: Request) -> Any:
+    store = getattr(request.app.state, "session_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Session storage not available")
+    return store
+
+
 def get_jwt_secret(request: Request) -> str | None:
     return request.app.state.jwt_secret
 

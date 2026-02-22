@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from zodiac_art.config import build_database_url, get_dev_mode, load_config
+from zodiac_art.config import (
+    build_database_url,
+    get_dev_mode,
+    get_redis_url,
+    get_session_ttl_seconds,
+    load_config,
+)
 
 
 def test_load_config_defaults_without_sweph_path(monkeypatch):
@@ -31,3 +37,15 @@ def test_get_dev_mode_true_values(monkeypatch):
     monkeypatch.setenv("DEV_MODE", "true")
 
     assert get_dev_mode() is True
+
+
+def test_get_redis_url(monkeypatch):
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+
+    assert get_redis_url() == "redis://localhost:6379/0"
+
+
+def test_get_session_ttl_seconds(monkeypatch):
+    monkeypatch.setenv("CHART_SESSION_TTL_SECONDS", "120")
+
+    assert get_session_ttl_seconds() == 120

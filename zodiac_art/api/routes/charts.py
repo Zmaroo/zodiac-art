@@ -2,40 +2,41 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from zodiac_art.api.auth import AuthUser
 from zodiac_art.api.deps import (
     frame_exists,
     get_frame_store,
+    get_session_store,
     get_storage,
     load_chart_for_user,
     require_user,
 )
+from zodiac_art.api.chart_inputs import build_chart_payload, normalize_chart_name
 from zodiac_art.api.models import (
     AutoLayoutRequest,
     AutoLayoutResponse,
-    ChartCreateRequest,
     ChartCreateResponse,
     ChartFrameStatus,
     ChartInfoResponse,
     ChartListItem,
+    ChartSaveRequest,
 )
 from zodiac_art.api.rendering import (
     chart_only_meta_payload,
     compute_auto_layout_overrides,
     compute_auto_layout_overrides_chart_only,
 )
+from zodiac_art.api.session_storage import ChartSession, session_to_chart_record
 from zodiac_art.api.validators import (
     ensure_layout_version,
     validate_chart_fit_payload,
     validate_chart_id,
     validate_layout_payload,
+    validate_session_id,
 )
 from zodiac_art.frames.validation import validate_meta
-from zodiac_art.geo.timezone import resolve_timezone, to_utc_iso
 
 router = APIRouter()
 
@@ -43,50 +44,60 @@ router = APIRouter()
 @router.post("/api/charts", response_model=ChartCreateResponse)
 async def create_chart(
     request: Request,
-    payload: ChartCreateRequest,
+    payload: ChartSaveRequest,
     user: AuthUser = Depends(require_user),
 ) -> ChartCreateResponse:
     storage = get_storage(request)
-    if payload.default_frame_id:
-        frame = await get_frame_store(request).get_frame(payload.default_frame_id)
-        if not frame and payload.default_frame_id not in await storage.list_frames():
-            raise HTTPException(status_code=400, detail="Unknown frame_id")
-    name = payload.name.strip() if payload.name else None
-    if not name:
-        now = datetime.now(timezone.utc)
-        name = f"Chart {now.strftime('%Y-%m-%d %H:%M')}"
-    birth_place_text = None
-    birth_place_id = None
-    timezone_name = None
-    birth_datetime_utc = None
-    latitude = payload.latitude
-    longitude = payload.longitude
-
-    if payload.birth_place_id:
-        raise HTTPException(status_code=400, detail="birth_place_id is not supported")
-    if latitude is None or longitude is None:
-        raise HTTPException(status_code=400, detail="Latitude and longitude are required")
-    if timezone_name is None:
-        timezone_name = resolve_timezone(latitude, longitude)
-    if timezone_name:
-        try:
-            birth_datetime_utc = to_utc_iso(payload.birth_date, payload.birth_time, timezone_name)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    record = await storage.create_chart(
-        user_id=user.user_id,
-        name=name,
-        birth_date=payload.birth_date,
-        birth_time=payload.birth_time,
-        latitude=latitude,
-        longitude=longitude,
-        default_frame_id=payload.default_frame_id,
-        birth_place_text=birth_place_text,
-        birth_place_id=birth_place_id,
-        timezone=timezone_name,
-        birth_datetime_utc=birth_datetime_utc,
-    )
+    if payload.session_id:
+        validate_session_id(payload.session_id)
+        session_store = get_session_store(request)
+        session = await session_store.load_session(payload.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Chart session not found")
+        session_user = session.payload.get("user_id")
+        if session_user and session_user != user.user_id:
+            raise HTTPException(status_code=404, detail="Chart session not found")
+        chart_record = session_to_chart_record(ChartSession(payload.session_id, session.payload))
+        name = normalize_chart_name(payload.name or chart_record.name)
+        default_frame_id = payload.default_frame_id or chart_record.default_frame_id
+        if default_frame_id:
+            frame = await get_frame_store(request).get_frame(default_frame_id)
+            if not frame and default_frame_id not in await storage.list_frames():
+                raise HTTPException(status_code=400, detail="Unknown frame_id")
+        record = await storage.create_chart(
+            user_id=user.user_id,
+            name=name,
+            birth_date=chart_record.birth_date,
+            birth_time=chart_record.birth_time,
+            latitude=chart_record.latitude,
+            longitude=chart_record.longitude,
+            default_frame_id=default_frame_id,
+            birth_place_text=chart_record.birth_place_text,
+            birth_place_id=chart_record.birth_place_id,
+            timezone=chart_record.timezone,
+            birth_datetime_utc=chart_record.birth_datetime_utc,
+        )
+    else:
+        if payload.birth_date is None or payload.birth_time is None:
+            raise HTTPException(status_code=400, detail="Birth date and time are required")
+        if payload.default_frame_id:
+            frame = await get_frame_store(request).get_frame(payload.default_frame_id)
+            if not frame and payload.default_frame_id not in await storage.list_frames():
+                raise HTTPException(status_code=400, detail="Unknown frame_id")
+        chart_payload = build_chart_payload(payload)
+        record = await storage.create_chart(
+            user_id=user.user_id,
+            name=chart_payload["name"],
+            birth_date=chart_payload["birth_date"],
+            birth_time=chart_payload["birth_time"],
+            latitude=chart_payload["latitude"],
+            longitude=chart_payload["longitude"],
+            default_frame_id=chart_payload["default_frame_id"],
+            birth_place_text=chart_payload["birth_place_text"],
+            birth_place_id=chart_payload["birth_place_id"],
+            timezone=chart_payload["timezone"],
+            birth_datetime_utc=chart_payload["birth_datetime_utc"],
+        )
     return ChartCreateResponse(chart_id=record.chart_id)
 
 

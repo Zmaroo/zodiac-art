@@ -11,13 +11,13 @@ from zodiac_art.api.auth import AuthUser
 from zodiac_art.api.deps import get_frame_store, is_admin, optional_user, require_user
 from zodiac_art.api.frames_store import (
     PostgresFrameStore,
-    default_template_metadata,
     normalize_tags,
     prepare_frame_files,
+    template_metadata_from_opening,
     validate_frame_image,
     write_template_metadata,
 )
-from zodiac_art.config import STORAGE_ROOT
+from zodiac_art.config import STORAGE_ROOT, load_config
 from zodiac_art.frames.validation import validate_meta
 
 router = APIRouter()
@@ -30,9 +30,9 @@ def _public_url(rel_path: str) -> str:
     return f"/static/{rel_path}"
 
 
-def _parse_template_metadata(raw_json: str | None, width: int, height: int) -> dict:
+def _parse_template_metadata(raw_json: str | None) -> dict | None:
     if not raw_json:
-        return default_template_metadata(width, height)
+        return None
     try:
         data = json.loads(raw_json)
     except json.JSONDecodeError as exc:
@@ -139,11 +139,13 @@ async def create_frame(
         with Image.open(BytesIO(data)) as image:
             image.load()
             width, height = validate_frame_image(image)
-            metadata = _parse_template_metadata(
-                template_metadata_json,
-                width,
-                height,
-            )
+            metadata = _parse_template_metadata(template_metadata_json)
+            if metadata is None:
+                config = load_config()
+                metadata = template_metadata_from_opening(
+                    image,
+                    config.sign_ring_inner_ratio,
+                )
             validate_meta(metadata, image.size)
             frame_id = str(uuid4())
             file_info = prepare_frame_files(frame_id, image)

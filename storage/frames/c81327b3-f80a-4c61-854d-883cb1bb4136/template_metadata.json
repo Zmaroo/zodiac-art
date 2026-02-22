@@ -5,11 +5,11 @@
   },
   "chart": {
     "center": {
-      "x": 512,
-      "y": 512
+      "x": 509.02215576745846,
+      "y": 483.482047809814
     },
-    "ring_outer": 465,
-    "ring_inner": 345,
+    "ring_outer": 101.952,
+    "ring_inner": 86.6592,
     "rotation_deg": 0
   }
 }

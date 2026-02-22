@@ -10,6 +10,7 @@ Keep changes small, focused, and aligned with existing conventions.
 - CLI entry point: `zodiac_art/main.py` (runs an example when no args).
 - API entry point: `zodiac_art/api/app.py` (FastAPI).
 - Config defaults: `zodiac_art/config.py` with env overrides.
+- Ephemeral chart sessions use Redis when `REDIS_URL` is set.
 - Frames live in `frames/`; outputs written to `output/`.
 
 ## Repo Layout
@@ -72,6 +73,7 @@ ruff format .
 ```bash
 pytest
 pytest tests/test_config.py::test_build_database_url_from_pg_env
+pytest tests/test_session_storage.py::test_session_round_trip
 ```
 
 ## Code Style Guidelines
@@ -133,6 +135,34 @@ pytest tests/test_config.py::test_build_database_url_from_pg_env
 - Centralize defaults in `zodiac_art/config.py`.
 - Support overrides via environment variables (e.g., `SWEPH_PATH`).
 - Do not hardcode filesystem paths outside config or CLI args.
+
+### Redis Sessions
+- `REDIS_URL` enables chart sessions backed by Redis.
+- `CHART_SESSION_TTL_SECONDS` controls session TTL (default 604800).
+- Sessions store chart inputs + per-frame layout/meta overrides; saved charts persist in DB.
+
+### API Examples (Sessions)
+Create session:
+```bash
+POST /api/chart_sessions
+{
+  "birth_date": "1990-04-12",
+  "birth_time": "08:45",
+  "latitude": 40.7128,
+  "longitude": -74.0060,
+  "default_frame_id": "default"
+}
+```
+Response:
+```json
+{"session_id": "<uuid>"}
+```
+
+Save session:
+```bash
+POST /api/charts
+{"session_id": "<uuid>", "name": "My Saved Chart"}
+```
 
 ## Project-Specific Notes
 - `zodiac_art/main.py` runs an example when no CLI args are provided.
