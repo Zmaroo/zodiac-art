@@ -98,37 +98,7 @@ function Canvas({
               height={meta.canvas.height}
             />
           ) : null}
-          <circle
-            cx={meta.chart.center.x}
-            cy={meta.chart.center.y}
-            r={meta.chart.ring_outer}
-            fill="none"
-            stroke="rgba(0,0,0,0.2)"
-            strokeWidth={2}
-          />
-          <circle
-            cx={meta.chart.center.x}
-            cy={meta.chart.center.y}
-            r={meta.chart.ring_inner}
-            fill="none"
-            stroke="rgba(0,0,0,0.2)"
-            strokeWidth={2}
-          />
           <g ref={chartRootRef} id="chartRoot">
-            <g className="crosshair">
-              <line
-                x1={meta.chart.center.x - 20}
-                y1={meta.chart.center.y}
-                x2={meta.chart.center.x + 20}
-                y2={meta.chart.center.y}
-              />
-              <line
-                x1={meta.chart.center.x}
-                y1={meta.chart.center.y - 20}
-                x2={meta.chart.center.x}
-                y2={meta.chart.center.y + 20}
-              />
-            </g>
             <g dangerouslySetInnerHTML={{ __html: chartSvg }} />
           </g>
           {showFrameCircleDebug && frameCircle ? (
