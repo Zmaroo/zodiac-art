@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../api/client'
 import { detectInnerCircleFromImage } from '../lib/frameCircleDetect'
 import { normalizeOverride } from '../utils/format'
@@ -29,11 +29,16 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
   const [status, setStatus] = useState('')
   const saveKeyRef = useRef<string>('')
 
-  const apiFetchWithAuth = (url: string, init: RequestInit = {}) => apiFetch(url, jwt, init)
+  const apiFetchWithAuth = useCallback(
+    (url: string, init: RequestInit = {}) => apiFetch(url, jwt, init),
+    [jwt]
+  )
 
   useEffect(() => {
     if (!selectedFrameDetail) {
-      setFrameCircle(null)
+      queueMicrotask(() => {
+        setFrameCircle(null)
+      })
       return
     }
     const meta = selectedFrameDetail.template_metadata_json
@@ -45,7 +50,9 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
         cyNorm: cy / meta.canvas.height,
         rNorm: meta.chart.ring_outer / meta.canvas.width,
       }
-      setFrameCircle(circle)
+      queueMicrotask(() => {
+        setFrameCircle(circle)
+      })
       return
     }
     const frameUrl = `${apiBase}${selectedFrameDetail.image_url}`
@@ -101,7 +108,7 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
         setStatus('Frame circle saved.')
       })
       .catch((err) => setError(String(err)))
-  }, [apiBase, chartId, frameCircle, isChartOnly, jwt, overrides, selectedFrameDetail, selectedId])
+  }, [apiBase, apiFetchWithAuth, chartId, frameCircle, isChartOnly, jwt, overrides, selectedFrameDetail, selectedId])
 
   const clearStatus = () => {
     setStatus('')

@@ -146,7 +146,7 @@ function readStoredCircle(frameUrl: string): FrameCircle | null {
     ) {
       return parsed
     }
-  } catch (err) {
+  } catch {
     return null
   }
   return null
@@ -155,7 +155,7 @@ function readStoredCircle(frameUrl: string): FrameCircle | null {
 function writeStoredCircle(frameUrl: string, circle: FrameCircle) {
   try {
     localStorage.setItem(storageKey(frameUrl), JSON.stringify(circle))
-  } catch (err) {
+  } catch {
     return
   }
 }

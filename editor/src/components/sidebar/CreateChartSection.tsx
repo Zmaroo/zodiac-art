@@ -16,6 +16,10 @@ type CreateChartSectionProps = {
   onResetSession: () => void
   onFactoryReset: () => void
   onResetView: () => void
+  onAutoFit: () => void
+  onResetToSavedFit: () => void
+  autoFitEnabled: boolean
+  resetToSavedEnabled: boolean
   onClearMessages: () => void
 }
 
@@ -34,6 +38,10 @@ function CreateChartSection({
   onResetSession,
   onFactoryReset,
   onResetView,
+  onAutoFit,
+  onResetToSavedFit,
+  autoFitEnabled,
+  resetToSavedEnabled,
   onClearMessages,
 }: CreateChartSectionProps) {
   return (
@@ -65,30 +73,43 @@ function CreateChartSection({
       </label>
       <NumberField label="Latitude" value={latitude} step={0.0001} onChange={onLatitudeChange} />
       <NumberField label="Longitude" value={longitude} step={0.0001} onChange={onLongitudeChange} />
-      <button className="secondary" onClick={onCreateChart}>
-        Create chart
-      </button>
-      <button
-        className="secondary"
-        onClick={onResetSession}
-        title="Clears chart ID and birth inputs; resets fit/overrides for this session."
-      >
-        Clear Form
-      </button>
-      <button
-        className="secondary"
-        onClick={onFactoryReset}
-        title="Clears all editor local storage and restores defaults."
-      >
-        Factory reset
-      </button>
-      <button
-        className="secondary"
-        onClick={onResetView}
-        title="Reverts fit and label overrides to the initial loaded state."
-      >
-        Reset View
-      </button>
+      <div className="button-grid">
+        <button className="secondary" onClick={onCreateChart}>
+          Create chart
+        </button>
+        <button
+          className="secondary"
+          onClick={onResetSession}
+          title="Clears chart ID and birth inputs; resets fit/overrides for this session."
+        >
+          Clear Form
+        </button>
+        <button
+          className="secondary"
+          onClick={onFactoryReset}
+          title="Clears all editor local storage and restores defaults."
+        >
+          Factory reset
+        </button>
+        <button
+          className="secondary"
+          onClick={onResetView}
+          title="Reverts fit and label overrides to the initial loaded state."
+        >
+          Reset View
+        </button>
+        <button className="secondary" onClick={onAutoFit} disabled={!autoFitEnabled}>
+          Re-auto-fit
+        </button>
+        <button
+          className="secondary"
+          onClick={onResetToSavedFit}
+          disabled={!resetToSavedEnabled}
+          title={resetToSavedEnabled ? '' : 'No saved fit available yet.'}
+        >
+          Reset to saved fit
+        </button>
+      </div>
     </CollapsibleSection>
   )
 }

@@ -88,7 +88,7 @@ export function useMaskedFrame(
         const url = maskFrameWhite(image, center, radius, whiteCutoff)
         maskedCache.set(cacheKey, url)
         setMaskedUrl(url)
-      } catch (err) {
+      } catch {
         setMaskedUrl('')
       } finally {
         clearObjectUrl()

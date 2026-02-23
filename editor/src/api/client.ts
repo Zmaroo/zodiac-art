@@ -36,7 +36,7 @@ export async function readApiError(response: Response): Promise<string | null> {
     if (data?.detail) {
       return `Error: ${data.detail}`
     }
-  } catch (err) {
+  } catch {
     return null
   }
   return null

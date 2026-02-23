@@ -4,8 +4,7 @@ This document is for automated coding agents working in this repo.
 Keep changes small, focused, and aligned with existing conventions.
 
 ## Quick Facts
-- Primary language: Python 3.11 (conda environment).
-- Conda env is defined in `environment.yml`.
+- Primary language: Python 3.11 (conda env in `environment.yml`).
 - Linting: ruff. Tests: pytest.
 - CLI entry point: `zodiac_art/main.py` (runs an example when no args).
 - API entry point: `zodiac_art/api/app.py` (FastAPI).
@@ -58,30 +57,35 @@ python -m zodiac_art.main \
 python -m zodiac_art.api.app
 ```
 
-### Build Artifacts
-This repo does not have a separate build step. Running the CLI produces:
-- SVG output in `output/`
-- PNG output in `output/`
-
-### Linting
+### Lint and Format
 ```bash
 ruff check .
 ruff format .
 ```
 
-### Tests
+### Tests (All)
 ```bash
 pytest
+```
+
+### Tests (Single)
+Use pytest node IDs:
+```bash
 pytest tests/test_config.py::test_build_database_url_from_pg_env
 pytest tests/test_session_storage.py::test_session_round_trip
 ```
+
+### Build Artifacts
+No separate build step. Running the CLI produces:
+- SVG output in `output/`
+- PNG output in `output/`
 
 ## Code Style Guidelines
 ### Imports
 - Use absolute imports within the package, e.g. `from zodiac_art.utils...`.
 - Standard library imports first, then third-party, then local modules.
 - Keep import groups separated by a single blank line.
-- Avoid unused imports; prefer local imports only to avoid heavy deps.
+- Avoid unused imports; use local imports only to avoid heavy deps.
 
 ### Formatting
 - Use 4-space indentation.
@@ -101,7 +105,7 @@ pytest tests/test_session_storage.py::test_session_round_trip
 
 ### Naming Conventions
 - Modules: `snake_case.py`.
-- Classes: `PascalCase` (e.g., `SvgChartRenderer`).
+- Classes: `PascalCase`.
 - Functions and variables: `snake_case`.
 - Constants: `UPPER_SNAKE_CASE`.
 - CLI options: kebab-case flags mapped to snake_case vars.
@@ -113,15 +117,13 @@ pytest tests/test_session_storage.py::test_session_round_trip
 - Prefer clear, user-facing error text for CLI usage.
 - Avoid swallowing exceptions unless retrying or adding context.
 
-### Documentation and Comments
-- Keep docstrings concise and action-oriented.
-- Add comments only for non-obvious logic or domain-specific math.
-- Prefer updating existing docstrings over adding inline comments.
-- Keep README-style docs out of code; update this file instead.
+### Testing
+- Prefer small unit tests over end-to-end unless needed.
+- Use deterministic inputs; avoid time-based or random behavior.
+- Keep fixtures local to test modules unless widely reused.
 
 ### Data and Paths
 - Use `pathlib.Path` for filesystem paths.
-- Prefer small helper functions for transformations (e.g., normalize degrees).
 - JSON loading should validate file existence and raise `FileNotFoundError`.
 - Keep assets and output paths configurable via config/env.
 
@@ -140,36 +142,6 @@ pytest tests/test_session_storage.py::test_session_round_trip
 - `REDIS_URL` enables chart sessions backed by Redis.
 - `CHART_SESSION_TTL_SECONDS` controls session TTL (default 604800).
 - Sessions store chart inputs + per-frame layout/meta overrides; saved charts persist in DB.
-
-### API Examples (Sessions)
-Create session:
-```bash
-POST /api/chart_sessions
-{
-  "birth_date": "1990-04-12",
-  "birth_time": "08:45",
-  "latitude": 40.7128,
-  "longitude": -74.0060,
-  "default_frame_id": "default"
-}
-```
-Response:
-```json
-{"session_id": "<uuid>"}
-```
-
-Save session:
-```bash
-POST /api/charts
-{"session_id": "<uuid>", "name": "My Saved Chart"}
-```
-
-## Project-Specific Notes
-- `zodiac_art/main.py` runs an example when no CLI args are provided.
-- `frames/*.json` provides chart placement; `frames/*.png` is the artwork.
-- Output paths are returned as a dataclass `CompositeOutput`.
-- The compositor writes SVG first, then uses CairoSVG to export PNG.
-- Chart rendering is in `zodiac_art/renderer/`; frame assembly in `zodiac_art/frames/`.
 
 ## Cursor / Copilot Rules
 None found. No `.cursor/rules/`, `.cursorrules`, or

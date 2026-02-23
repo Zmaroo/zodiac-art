@@ -9,9 +9,6 @@ type UseExportParams = {
   chartName: string
   selectedId: string
   isChartOnly: boolean
-  glyphGlow: boolean
-  glyphOutlineEnabled: boolean
-  glyphOutlineColor: string
   selectedFrameDetail: FrameDetail | null
   setError: (value: string) => void
   setStatus: (value: string) => void
@@ -26,9 +23,6 @@ export function useExport(params: UseExportParams) {
     chartName,
     selectedId,
     isChartOnly,
-    glyphGlow,
-    glyphOutlineEnabled,
-    glyphOutlineColor,
     selectedFrameDetail,
     setError,
     setStatus,
@@ -60,12 +54,6 @@ export function useExport(params: UseExportParams) {
     const params = new URLSearchParams()
     if (!isChartOnly) {
       params.set('frame_id', selectedId)
-    }
-    if (glyphGlow) {
-      params.set('glyph_glow', '1')
-    }
-    if (glyphOutlineEnabled && glyphOutlineColor) {
-      params.set('glyph_outline_color', glyphOutlineColor)
     }
     const endpoint = isChartOnly
       ? `render_export_chart.${exportFormat}`

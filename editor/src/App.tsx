@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import './App.css'
 import Canvas from './components/Canvas'
 import Sidebar from './components/Sidebar'
@@ -28,6 +28,7 @@ import type { ChartFit, FrameCircle, Offset } from './types'
 
 const defaultChartFit: ChartFit = { dx: 0, dy: 0, scale: 1, rotation_deg: 0 }
 const CHART_ONLY_ID = '__chart_only__'
+const CHART_BACKGROUND_ID = 'chart.background'
 
 function App() {
   const defaultApiBase = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
@@ -90,21 +91,8 @@ function App() {
   )
   const { chartFit, userAdjustedFit, overrides, selectedElement } = editorState
   const chartLinesColor = overrides['chart.lines']?.color ?? ''
-  const [chartSvg, setChartSvg] = useState('')
   const [showFrameCircleDebug, setShowFrameCircleDebug] = useState(false)
-  const [glyphGlow, setGlyphGlow] = usePersistedState(
-    'zodiac_editor.glyphGlow',
-    false,
-    (raw) => raw === '1',
-    (value) => (value ? '1' : '0')
-  )
-  const [glyphOutlineEnabled, setGlyphOutlineEnabled] = usePersistedState(
-    'zodiac_editor.glyphOutlineEnabled',
-    false,
-    (raw) => raw === '1',
-    (value) => (value ? '1' : '0')
-  )
-  const [glyphOutlineColor, setGlyphOutlineColor] = usePersistedState(
+  const [selectionOutlineColor, setSelectionOutlineColor] = usePersistedState(
     'zodiac_editor.glyphOutlineColor',
     '#ffffff'
   )
@@ -149,7 +137,6 @@ function App() {
   const chartBackgroundRef = useRef<SVGGElement | null>(null)
   const chartRootRef = useRef<SVGGElement | null>(null)
   const highlightElementsRef = useRef<Element[]>([])
-  const highlightTimeoutRef = useRef<number | null>(null)
 
   const isChartOnly = selectedId === CHART_ONLY_ID
 
@@ -170,9 +157,6 @@ function App() {
     chartId,
     selectedId,
     isChartOnly,
-    glyphGlow,
-    glyphOutlineEnabled,
-    glyphOutlineColor,
     onLayoutLoaded: handleLayoutLoaded,
   })
 
@@ -192,6 +176,22 @@ function App() {
     overrides,
   })
 
+  const { chartBackgroundColor } = useChartBackground({
+    chartSvgBase,
+    overrides,
+    chartBackgroundId: CHART_BACKGROUND_ID,
+  })
+
+  const chartSvg = useMemo(() => {
+    if (!chartSvgBase) {
+      return ''
+    }
+    const base = chartBackgroundColor
+      ? stripElementById(chartSvgBase, CHART_BACKGROUND_ID)
+      : chartSvgBase
+    return applyOverrides(base, overrides)
+  }, [chartBackgroundColor, chartSvgBase, overrides])
+
   const {
     selectableGroups,
     selectableIds,
@@ -201,7 +201,6 @@ function App() {
     setSelectedElement,
     applySelectionColor,
     bulkIds,
-    chartBackgroundId,
   } = useSelection({
     chartSvg,
     meta,
@@ -212,20 +211,13 @@ function App() {
 
   const { computeFitFromCircle, resetToSavedEnabled } = useEditorDerived({ meta })
 
-
-  const { chartBackgroundColor } = useChartBackground({
-    chartSvgBase,
-    overrides,
-    chartBackgroundId,
-  })
-
   useSelectionHighlight({
     selectedElement,
     svgRef,
     chartSvg,
     bulkIds: Object.values(bulkIds),
+    outlineColor: selectionOutlineColor,
     highlightElementsRef,
-    highlightTimeoutRef,
   })
 
   useChartTransform({ chartFit, meta, chartSvg, chartRootRef, chartBackgroundRef })
@@ -270,22 +262,11 @@ function App() {
   }, [chartId, selectedId])
 
   useEffect(() => {
-    if (!chartSvgBase) {
-      setChartSvg('')
-      return
-    }
-    const base = chartBackgroundColor
-      ? stripElementById(chartSvgBase, chartBackgroundId)
-      : chartSvgBase
-    setChartSvg(applyOverrides(base, overrides))
-  }, [chartSvgBase, chartBackgroundColor, chartBackgroundId, overrides])
-
-  useEffect(() => {
     if (isChartOnly && !chartId) {
       dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {} })
       setFrameCircle(null)
     }
-  }, [chartId, isChartOnly])
+  }, [chartId, isChartOnly, setFrameCircle])
 
   useEffect(() => {
     dispatch({ type: 'SET_USER_ADJUSTED', value: hasSavedFit })
@@ -370,9 +351,6 @@ function App() {
     chartName,
     selectedId,
     isChartOnly,
-    glyphGlow,
-    glyphOutlineEnabled,
-    glyphOutlineColor,
     selectedFrameDetail,
     setError,
     setStatus,
@@ -601,12 +579,8 @@ function App() {
         onClearChartLinesColor={handleChartLinesColorClear}
         radialMoveEnabled={radialMoveEnabled}
         onRadialMoveEnabledChange={setRadialMoveEnabled}
-        glyphGlow={glyphGlow}
-        onGlyphGlowChange={setGlyphGlow}
-        glyphOutlineEnabled={glyphOutlineEnabled}
-        onGlyphOutlineEnabledChange={setGlyphOutlineEnabled}
-        glyphOutlineColor={glyphOutlineColor}
-        onGlyphOutlineColorChange={setGlyphOutlineColor}
+        outlineColor={selectionOutlineColor}
+        onOutlineColorChange={setSelectionOutlineColor}
         frameMaskCutoff={frameMaskCutoff}
         onFrameMaskCutoffChange={setFrameMaskCutoff}
         showFrameCircleDebug={showFrameCircleDebug}

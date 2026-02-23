@@ -5,8 +5,8 @@ type UseSelectionHighlightParams = {
   svgRef: React.RefObject<SVGSVGElement | null>
   chartSvg: string
   bulkIds: string[]
+  outlineColor: string
   highlightElementsRef: React.MutableRefObject<Element[]>
-  highlightTimeoutRef: React.MutableRefObject<number | null>
 }
 
 export function useSelectionHighlight(params: UseSelectionHighlightParams) {
@@ -15,15 +15,11 @@ export function useSelectionHighlight(params: UseSelectionHighlightParams) {
     svgRef,
     chartSvg,
     bulkIds,
+    outlineColor,
     highlightElementsRef,
-    highlightTimeoutRef,
   } = params
 
   useEffect(() => {
-    if (highlightTimeoutRef.current) {
-      window.clearTimeout(highlightTimeoutRef.current)
-      highlightTimeoutRef.current = null
-    }
     if (highlightElementsRef.current.length > 0) {
       highlightElementsRef.current.forEach((node) => node.classList.remove('selection-highlight'))
       highlightElementsRef.current = []
@@ -31,9 +27,16 @@ export function useSelectionHighlight(params: UseSelectionHighlightParams) {
     if (!selectedElement || !svgRef.current) {
       return
     }
+    if (selectedElement === 'chartRoot' || selectedElement === 'chart.background') {
+      return
+    }
     if (bulkIds.includes(selectedElement)) {
       return
     }
+    svgRef.current.style.setProperty(
+      '--selection-outline-color',
+      outlineColor || '#d9730d'
+    )
     const node = svgRef.current.querySelector(`[id="${CSS.escape(selectedElement)}"]`)
     if (!node) {
       return
@@ -41,22 +44,11 @@ export function useSelectionHighlight(params: UseSelectionHighlightParams) {
     const nodesToHighlight = [node, ...Array.from(node.querySelectorAll('*'))]
     nodesToHighlight.forEach((element) => element.classList.add('selection-highlight'))
     highlightElementsRef.current = nodesToHighlight
-    highlightTimeoutRef.current = window.setTimeout(() => {
-      highlightElementsRef.current.forEach((element) =>
-        element.classList.remove('selection-highlight')
-      )
-      highlightElementsRef.current = []
-      highlightTimeoutRef.current = null
-    }, 1400)
     return () => {
-      if (highlightTimeoutRef.current) {
-        window.clearTimeout(highlightTimeoutRef.current)
-        highlightTimeoutRef.current = null
-      }
       highlightElementsRef.current.forEach((element) =>
         element.classList.remove('selection-highlight')
       )
       highlightElementsRef.current = []
     }
-  }, [bulkIds, chartSvg, highlightElementsRef, highlightTimeoutRef, selectedElement, svgRef])
+  }, [bulkIds, chartSvg, highlightElementsRef, outlineColor, selectedElement, svgRef])
 }

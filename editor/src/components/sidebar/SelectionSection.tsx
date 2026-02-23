@@ -14,12 +14,8 @@ type SelectionSectionProps = {
   onClearChartLinesColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
-  glyphGlow: boolean
-  onGlyphGlowChange: (value: boolean) => void
-  glyphOutlineEnabled: boolean
-  onGlyphOutlineEnabledChange: (value: boolean) => void
-  glyphOutlineColor: string
-  onGlyphOutlineColorChange: (value: string) => void
+  outlineColor: string
+  onOutlineColorChange: (value: string) => void
   frameMaskCutoff: number
   onFrameMaskCutoffChange: (value: number) => void
 }
@@ -38,26 +34,11 @@ function SelectionSection({
   onClearChartLinesColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
-  glyphGlow,
-  onGlyphGlowChange,
-  glyphOutlineEnabled,
-  onGlyphOutlineEnabledChange,
-  glyphOutlineColor,
-  onGlyphOutlineColorChange,
+  outlineColor,
+  onOutlineColorChange,
   frameMaskCutoff,
   onFrameMaskCutoffChange,
 }: SelectionSectionProps) {
-  const palette = [
-    '#111111',
-    '#4a3320',
-    '#8a5a2b',
-    '#d9730d',
-    '#c7392d',
-    '#2d6a4f',
-    '#3b5bdb',
-    '#6f42c1',
-    '#ffffff',
-  ]
   return (
     <CollapsibleSection title="Selection" persistKey="selection">
       <label className="field">
@@ -78,20 +59,6 @@ function SelectionSection({
           ))}
         </select>
       </label>
-      <div className="palette">
-        {palette.map((color) => (
-          <button
-            key={color}
-            type="button"
-            className="swatch"
-            style={{ backgroundColor: color }}
-            onClick={() => onColorChange(color)}
-            disabled={!selectionEnabled}
-            aria-label={`Set color ${color}`}
-            title={color}
-          />
-        ))}
-      </div>
       <label className="field">
         Chart lines color
         <div className="color-row">
@@ -130,55 +97,23 @@ function SelectionSection({
           disabled={!selectionEnabled}
         />
       </label>
-      <label className="field checkbox">
-        Glow glyphs
-        <input
-          type="checkbox"
-          checked={glyphGlow}
-          onChange={(event) => onGlyphGlowChange(event.target.checked)}
-        />
-      </label>
-      <label className="field checkbox">
-        Outline glyphs
-        <input
-          type="checkbox"
-          checked={glyphOutlineEnabled}
-          onChange={(event) => onGlyphOutlineEnabledChange(event.target.checked)}
-        />
-      </label>
       <label className="field">
-        Outline color
+        Selection outline color
         <div className="color-row">
           <input
             type="color"
-            value={glyphOutlineColor}
-            onChange={(event) => onGlyphOutlineColorChange(event.target.value)}
-            disabled={!glyphOutlineEnabled}
+            value={outlineColor}
+            onChange={(event) => onOutlineColorChange(event.target.value)}
           />
           <button
             type="button"
             className="secondary"
-            onClick={() => onGlyphOutlineColorChange('#ffffff')}
-            disabled={!glyphOutlineEnabled}
+            onClick={() => onOutlineColorChange('#ffffff')}
           >
             Reset
           </button>
         </div>
       </label>
-      <div className="palette">
-        {palette.map((color) => (
-          <button
-            key={`outline-${color}`}
-            type="button"
-            className="swatch"
-            style={{ backgroundColor: color }}
-            onClick={() => onGlyphOutlineColorChange(color)}
-            disabled={!glyphOutlineEnabled}
-            aria-label={`Set outline color ${color}`}
-            title={color}
-          />
-        ))}
-      </div>
       <label className="field">
         Frame mask cutoff
         <input

@@ -8,7 +8,9 @@ export function useAutoDismissMessage(value: string, delayMs: number) {
     if (!value) {
       return
     }
-    setInlineValue(value)
+    queueMicrotask(() => {
+      setInlineValue(value)
+    })
     if (timeoutRef.current) {
       window.clearTimeout(timeoutRef.current)
     }

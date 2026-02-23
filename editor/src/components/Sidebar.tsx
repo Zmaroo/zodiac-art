@@ -51,6 +51,10 @@ type SidebarProps = {
   onResetSession: () => void
   onFactoryReset: () => void
   onResetView: () => void
+  onAutoFit: () => void
+  onResetToSavedFit: () => void
+  resetToSavedEnabled: boolean
+  autoFitEnabled: boolean
   frameSearch: string
   onFrameSearchChange: (value: string) => void
   selectedId: string
@@ -80,20 +84,12 @@ type SidebarProps = {
   onClearChartLinesColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
-  glyphGlow: boolean
-  onGlyphGlowChange: (value: boolean) => void
-  glyphOutlineEnabled: boolean
-  onGlyphOutlineEnabledChange: (value: boolean) => void
-  glyphOutlineColor: string
-  onGlyphOutlineColorChange: (value: string) => void
+  outlineColor: string
+  onOutlineColorChange: (value: string) => void
   frameMaskCutoff: number
   onFrameMaskCutoffChange: (value: number) => void
   showFrameCircleDebug: boolean
   onShowFrameCircleDebugChange: (value: boolean) => void
-  autoFitEnabled: boolean
-  onAutoFit: () => void
-  onResetToSavedFit: () => void
-  resetToSavedEnabled: boolean
   debugItems: { label: string; value: string }[]
   onSaveAll: () => void
   onAutoFix: () => void
@@ -148,6 +144,10 @@ function Sidebar({
   onResetSession,
   onFactoryReset,
   onResetView,
+  onAutoFit,
+  onResetToSavedFit,
+  resetToSavedEnabled,
+  autoFitEnabled,
   frameSearch,
   onFrameSearchChange,
   selectedId,
@@ -177,20 +177,12 @@ function Sidebar({
   onClearChartLinesColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
-  glyphGlow,
-  onGlyphGlowChange,
-  glyphOutlineEnabled,
-  onGlyphOutlineEnabledChange,
-  glyphOutlineColor,
-  onGlyphOutlineColorChange,
+  outlineColor,
+  onOutlineColorChange,
   frameMaskCutoff,
   onFrameMaskCutoffChange,
   showFrameCircleDebug,
   onShowFrameCircleDebugChange,
-  autoFitEnabled,
-  onAutoFit,
-  onResetToSavedFit,
-  resetToSavedEnabled,
   debugItems,
   onSaveAll,
   onAutoFix,
@@ -240,6 +232,10 @@ function Sidebar({
         onResetSession={onResetSession}
         onFactoryReset={onFactoryReset}
         onResetView={onResetView}
+        onAutoFit={onAutoFit}
+        onResetToSavedFit={onResetToSavedFit}
+        autoFitEnabled={autoFitEnabled}
+        resetToSavedEnabled={resetToSavedEnabled}
         onClearMessages={onClearCreateChartMessages}
       />
       {createChartError ? <div className="inline-error">{createChartError}</div> : null}
@@ -284,12 +280,8 @@ function Sidebar({
         onClearChartLinesColor={onClearChartLinesColor}
         radialMoveEnabled={radialMoveEnabled}
         onRadialMoveEnabledChange={onRadialMoveEnabledChange}
-        glyphGlow={glyphGlow}
-        onGlyphGlowChange={onGlyphGlowChange}
-        glyphOutlineEnabled={glyphOutlineEnabled}
-        onGlyphOutlineEnabledChange={onGlyphOutlineEnabledChange}
-        glyphOutlineColor={glyphOutlineColor}
-        onGlyphOutlineColorChange={onGlyphOutlineColorChange}
+        outlineColor={outlineColor}
+        onOutlineColorChange={onOutlineColorChange}
         frameMaskCutoff={frameMaskCutoff}
         onFrameMaskCutoffChange={onFrameMaskCutoffChange}
       />
@@ -303,17 +295,6 @@ function Sidebar({
       {actionsError ? <div className="inline-error">{actionsError}</div> : null}
       {actionsStatus ? <div className="inline-status">{actionsStatus}</div> : null}
       <div className="actions">
-        <button className="secondary" onClick={onAutoFit} disabled={!autoFitEnabled}>
-          Re-auto-fit
-        </button>
-        <button
-          className="secondary"
-          onClick={onResetToSavedFit}
-          disabled={!resetToSavedEnabled}
-          title={resetToSavedEnabled ? '' : 'No saved fit available yet.'}
-        >
-          Reset to saved fit
-        </button>
         <button
           onClick={onSaveAll}
           title="Saves layout + metadata (or chart-only fit) to the server."

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ChartDetail, ChartListItem } from '../types'
 import { apiFetch, readApiError } from '../api/client'
 
@@ -52,9 +52,12 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
 
-  const apiFetchWithAuth = (url: string, init: RequestInit = {}) => apiFetch(url, jwt, init)
+  const apiFetchWithAuth = useCallback(
+    (url: string, init: RequestInit = {}) => apiFetch(url, jwt, init),
+    [jwt]
+  )
 
-  const loadCharts = () => {
+  const loadCharts = useCallback(() => {
     if (!jwt) {
       setCharts([])
       return
@@ -63,15 +66,13 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
       .then((response) => response.json())
       .then((data: ChartListItem[]) => setCharts(data))
       .catch((err) => setError(String(err)))
-  }
+  }, [apiBase, apiFetchWithAuth, jwt])
 
   useEffect(() => {
-    if (!jwt) {
-      setCharts([])
-      return
-    }
-    loadCharts()
-  }, [apiBase, jwt])
+    queueMicrotask(() => {
+      loadCharts()
+    })
+  }, [loadCharts])
 
   useEffect(() => {
     localStorage.setItem('zodiac_editor.chartId', chartId)

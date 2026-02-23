@@ -232,25 +232,13 @@ class SvgChartRenderer:
         if asc_override:
             dx, dy = _resolve_override(asc_override, asc_angle)
             asc_group.translate(dx, dy)
-            if glyph_mode == "path":
-                path_data = glyph_path_data("↑", asc_pos[0], asc_pos[1], asc_size)
-                if path_data:
-                    d, transform = path_data
-                    asc_path = dwg.path(d=d, fill=asc_color, transform=transform)
-                    apply_outline(asc_path)
-                    asc_group.add(asc_path)
-                else:
-                    asc_text = dwg.text(
-                        "↑",
-                        insert=asc_pos,
-                        text_anchor="middle",
-                        alignment_baseline="middle",
-                        font_size=asc_size,
-                        font_family="serif",
-                        fill=asc_color,
-                    )
-                    apply_outline(asc_text)
-                    asc_group.add(asc_text)
+        if glyph_mode == "path":
+            path_data = glyph_path_data("↑", asc_pos[0], asc_pos[1], asc_size)
+            if path_data:
+                d, transform = path_data
+                asc_path = dwg.path(d=d, fill=asc_color, transform=transform)
+                apply_outline(asc_path)
+                asc_group.add(asc_path)
             else:
                 asc_text = dwg.text(
                     "↑",
@@ -263,6 +251,18 @@ class SvgChartRenderer:
                 )
                 apply_outline(asc_text)
                 asc_group.add(asc_text)
+        else:
+            asc_text = dwg.text(
+                "↑",
+                insert=asc_pos,
+                text_anchor="middle",
+                alignment_baseline="middle",
+                font_size=asc_size,
+                font_family="serif",
+                fill=asc_color,
+            )
+            apply_outline(asc_text)
+            asc_group.add(asc_text)
         chart_group.add(asc_group)
         for index, sign in enumerate(zodiac_signs):
             longitude = index * 30 + 15

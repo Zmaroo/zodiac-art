@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { User } from '../types'
 import { apiFetch, readApiError } from '../api/client'
 
@@ -46,7 +46,7 @@ export function useAuth(defaultApiBase: string): UseAuthResult {
     }
   }, [jwt])
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     if (!jwt) {
       setUser(null)
       return
@@ -58,11 +58,13 @@ export function useAuth(defaultApiBase: string): UseAuthResult {
     }
     const data = (await response.json()) as User
     setUser(data)
-  }
+  }, [apiBase, jwt])
 
   useEffect(() => {
-    refreshUser().catch(() => undefined)
-  }, [apiBase, jwt])
+    queueMicrotask(() => {
+      refreshUser().catch(() => undefined)
+    })
+  }, [refreshUser])
 
   const login = async () => {
     setError('')

@@ -255,6 +255,7 @@ def _chart_only_radius() -> float:
 
 CHART_ONLY_MIN_CANVAS = 4096
 CHART_ONLY_FONT_BASE_RADIUS = 465.0
+CHART_ONLY_RING_INNER_RATIO = 0.34 / 0.45
 
 
 def _chart_only_canvas_size(radius: float, scale: float) -> int:
@@ -283,7 +284,7 @@ def _chart_only_meta(chart_fit: dict | None) -> FrameMeta:
         "chart": {
             "center": {"x": center, "y": center},
             "ring_outer": radius,
-            "ring_inner": radius * config.sign_ring_inner_ratio,
+            "ring_inner": radius * CHART_ONLY_RING_INNER_RATIO,
             "rotation_deg": 0,
         },
     }

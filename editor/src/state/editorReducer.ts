@@ -71,7 +71,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       action.targets.forEach((id) => {
         const existing = next[id] || {}
         if (!action.color) {
-          const { color: _color, ...rest } = existing
+          const rest = { ...existing }
+          delete rest.color
           if (Object.keys(rest).length === 0) {
             delete next[id]
           } else {

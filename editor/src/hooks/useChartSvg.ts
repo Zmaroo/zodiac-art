@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchJsonAuth, fetchJsonIfOkAuth, fetchTextIfOkAuth } from '../api/client'
 import { extractChartInner, stripOverrideTransforms } from '../utils/svg'
 import type { ChartFit, ChartMeta, FrameCircle, FrameDetail, LayoutFile, Offset } from '../types'
@@ -15,9 +15,6 @@ type UseChartSvgParams = {
   chartId: string
   selectedId: string
   isChartOnly: boolean
-  glyphGlow: boolean
-  glyphOutlineEnabled: boolean
-  glyphOutlineColor: string
   onLayoutLoaded: (result: LayoutLoadResult) => void
 }
 
@@ -38,9 +35,6 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
     chartId,
     selectedId,
     isChartOnly,
-    glyphGlow,
-    glyphOutlineEnabled,
-    glyphOutlineColor,
     onLayoutLoaded,
   } = params
   const [meta, setMeta] = useState<ChartMeta | null>(null)
@@ -52,9 +46,9 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
   const onLayoutLoadedRef = useRef(onLayoutLoaded)
   const lastLayoutKeyRef = useRef('')
 
-  const fetchJsonAuthWith = (url: string) => fetchJsonAuth(url, jwt)
-  const fetchJsonIfOkAuthWith = (url: string) => fetchJsonIfOkAuth(url, jwt)
-  const fetchTextIfOkAuthWith = (url: string) => fetchTextIfOkAuth(url, jwt)
+  const fetchJsonAuthWith = useCallback((url: string) => fetchJsonAuth(url, jwt), [jwt])
+  const fetchJsonIfOkAuthWith = useCallback((url: string) => fetchJsonIfOkAuth(url, jwt), [jwt])
+  const fetchTextIfOkAuthWith = useCallback((url: string) => fetchTextIfOkAuth(url, jwt), [jwt])
 
   useEffect(() => {
     onLayoutLoadedRef.current = onLayoutLoaded
@@ -62,30 +56,30 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
 
   useEffect(() => {
     if (!selectedId) {
-      setSelectedFrameDetail(null)
-      setMeta(null)
-      setChartSvgBase('')
-      setHasSavedFit(false)
-      return
-    }
-    setError('')
-    setStatus('')
-    if (isChartOnly) {
-      if (!chartId) {
+      queueMicrotask(() => {
         setSelectedFrameDetail(null)
         setMeta(null)
         setChartSvgBase('')
+        setHasSavedFit(false)
+      })
+      return
+    }
+    queueMicrotask(() => {
+      setError('')
+      setStatus('')
+    })
+    if (isChartOnly) {
+      if (!chartId) {
+        queueMicrotask(() => {
+          setSelectedFrameDetail(null)
+          setMeta(null)
+          setChartSvgBase('')
+        })
         return
       }
       const chartMetaUrl = `${apiBase}/api/charts/${chartId}/chart_only/meta`
       const layoutUrl = `${apiBase}/api/charts/${chartId}/layout`
-      const svgParams = new URLSearchParams({
-        glyph_glow: glyphGlow ? '1' : '0',
-      })
-      if (glyphOutlineEnabled && glyphOutlineColor) {
-        svgParams.set('glyph_outline_color', glyphOutlineColor)
-      }
-      const svgUrl = `${apiBase}/api/charts/${chartId}/render_chart.svg?${svgParams.toString()}`
+      const svgUrl = `${apiBase}/api/charts/${chartId}/render_chart.svg`
       Promise.all([
         fetchJsonAuthWith(chartMetaUrl),
         fetchJsonIfOkAuthWith(layoutUrl),
@@ -126,10 +120,6 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
     const svgUrl = chartId
       ? `${apiBase}/api/charts/${chartId}/render.svg?${new URLSearchParams({
           frame_id: selectedId,
-          glyph_glow: glyphGlow ? '1' : '0',
-          ...(glyphOutlineEnabled && glyphOutlineColor
-            ? { glyph_outline_color: glyphOutlineColor }
-            : {}),
         }).toString()}`
       : null
 
@@ -164,16 +154,7 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
       })
       .catch((err) => setError(String(err)))
-  }, [
-    apiBase,
-    chartId,
-    isChartOnly,
-    jwt,
-    selectedId,
-    glyphGlow,
-    glyphOutlineEnabled,
-    glyphOutlineColor,
-  ])
+  }, [apiBase, chartId, fetchJsonAuthWith, fetchJsonIfOkAuthWith, fetchTextIfOkAuthWith, isChartOnly, jwt, selectedId])
 
   const clearStatus = () => {
     setStatus('')

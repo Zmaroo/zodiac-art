@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { PointerEvent, RefObject } from 'react'
 import { useMaskedFrame } from '../hooks/useMaskedFrame'
 import type { ChartMeta, FrameCircle, FrameDetail } from '../types'
@@ -41,6 +42,8 @@ function Canvas({
   onPointerMove,
   onPointerUp,
 }: CanvasProps) {
+  const canvasRef = useRef<HTMLElement | null>(null)
+  const chartOnlyScrollKeyRef = useRef('')
   const debugCx = frameCircle ? frameCircle.cxNorm * (meta?.canvas.width ?? 0) : 0
   const debugCy = frameCircle ? frameCircle.cyNorm * (meta?.canvas.height ?? 0) : 0
   const debugR = frameCircle ? frameCircle.rNorm * (meta?.canvas.width ?? 0) : 0
@@ -64,8 +67,30 @@ function Canvas({
     frameMaskCutoff
   )
   const frameHref = showMaskedFrame ? maskedFrameUrl || frameUrl : frameUrl
+
+  useEffect(() => {
+    if (!isChartOnly || !meta || !chartId) {
+      return
+    }
+    const key = `${chartId}:${meta.canvas.width}:${meta.canvas.height}`
+    if (chartOnlyScrollKeyRef.current === key) {
+      return
+    }
+    chartOnlyScrollKeyRef.current = key
+    requestAnimationFrame(() => {
+      const container = canvasRef.current
+      if (!container) {
+        return
+      }
+      const targetLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2)
+      const targetTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2)
+      container.scrollLeft = targetLeft
+      container.scrollTop = targetTop
+    })
+  }, [chartId, isChartOnly, meta])
+
   return (
-    <main className="canvas">
+    <main className="canvas" ref={canvasRef}>
       {meta ? (
         <svg
           ref={svgRef}

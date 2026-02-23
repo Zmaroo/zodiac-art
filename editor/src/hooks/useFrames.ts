@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchJsonAuth } from '../api/client'
 import type { FrameEntry } from '../types'
 
@@ -22,7 +22,7 @@ export function useFrames(apiBase: string, jwt: string): UseFramesResult {
   const [frameSearch, setFrameSearch] = useState('')
   const [error, setError] = useState('')
 
-  const loadFrames = () => {
+  const loadFrames = useCallback(() => {
     fetchJsonAuth(`${apiBase}/api/frames`, jwt)
       .then((data: FrameEntry[]) => {
         setFrames(data)
@@ -39,11 +39,11 @@ export function useFrames(apiBase: string, jwt: string): UseFramesResult {
         }
       })
       .catch((err) => setError(String(err)))
-  }
+  }, [apiBase, jwt])
 
   useEffect(() => {
     loadFrames()
-  }, [apiBase])
+  }, [loadFrames])
 
   useEffect(() => {
     localStorage.setItem('zodiac_editor.frameId', selectedId)

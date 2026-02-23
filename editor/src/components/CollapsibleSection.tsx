@@ -26,7 +26,7 @@ function CollapsibleSection({
       if (stored === 'false') {
         return false
       }
-    } catch (err) {
+    } catch {
       return initialOpen
     }
     return initialOpen
@@ -37,7 +37,7 @@ function CollapsibleSection({
       const next = !current
       try {
         localStorage.setItem(storageKey, String(next))
-      } catch (err) {
+      } catch {
         return next
       }
       onToggle?.(next)
