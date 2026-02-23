@@ -324,11 +324,15 @@ def default_template_metadata(width: int, height: int) -> dict:
     }
 
 
-def template_metadata_from_opening(image: Image.Image, ring_inner_ratio: float) -> dict:
+def template_metadata_from_opening(
+    image: Image.Image,
+    ring_inner_ratio: float | None = None,
+) -> dict:
     width, height = image.size
     center_x, center_y, radius = detect_opening_circle(image)
     ring_outer = float(radius)
-    ring_inner = float(radius) * float(ring_inner_ratio)
+    ratio = DEFAULT_RING_INNER_RATIO if ring_inner_ratio is None else float(ring_inner_ratio)
+    ring_inner = float(radius) * ratio
     return {
         "canvas": {"width": width, "height": height},
         "chart": {
@@ -402,3 +406,6 @@ def _find_frame_image(frame_dir: Path) -> Path:
         names = ", ".join(path.name for path in existing)
         raise ValueError(f"Multiple frame images found for {frame_dir.name}: {names}")
     return existing[0]
+
+
+DEFAULT_RING_INNER_RATIO = 0.34 / 0.45

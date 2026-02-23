@@ -17,7 +17,7 @@ from zodiac_art.api.frames_store import (
     validate_frame_image,
     write_template_metadata,
 )
-from zodiac_art.config import STORAGE_ROOT, load_config
+from zodiac_art.config import STORAGE_ROOT
 from zodiac_art.frames.validation import validate_meta
 
 router = APIRouter()
@@ -141,11 +141,7 @@ async def create_frame(
             width, height = validate_frame_image(image)
             metadata = _parse_template_metadata(template_metadata_json)
             if metadata is None:
-                config = load_config()
-                metadata = template_metadata_from_opening(
-                    image,
-                    config.sign_ring_inner_ratio,
-                )
+                metadata = template_metadata_from_opening(image)
             validate_meta(metadata, image.size)
             frame_id = str(uuid4())
             file_info = prepare_frame_files(frame_id, image)

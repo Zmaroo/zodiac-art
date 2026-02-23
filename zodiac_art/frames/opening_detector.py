@@ -22,7 +22,8 @@ def detect_opening_circle(image: Image.Image) -> tuple[float, float, float]:
 
     max_c = np.maximum(np.maximum(r, g), b)
     min_c = np.minimum(np.minimum(r, g), b)
-    saturation = np.where(max_c == 0, 0.0, (max_c - min_c) / max_c)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        saturation = np.where(max_c == 0, 0.0, (max_c - min_c) / max_c)
     luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
 
     mask = (a > 0.05) & (luminance > 0.95) & (saturation < 0.1)
