@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import AccountSection from './sidebar/AccountSection'
 import ChartsSection from './sidebar/ChartsSection'
 import CreateChartSection from './sidebar/CreateChartSection'
@@ -197,7 +197,14 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     exportDisabledTitle,
   } = actions
   const { debugItems, showFrameCircleDebug, onShowFrameCircleDebugChange } = debug
-  const [activeTab, setActiveTab] = useState<'main' | 'design'>('main')
+  const [activeTab, setActiveTab] = useState<'main' | 'design'>(() => {
+    const stored = localStorage.getItem('zodiac_editor.sidebarTab')
+    return stored === 'design' ? 'design' : 'main'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('zodiac_editor.sidebarTab', activeTab)
+  }, [activeTab])
   return (
     <aside className="sidebar">
       <h1>Frame Alignment + Layout</h1>
