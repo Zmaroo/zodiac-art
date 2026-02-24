@@ -17,7 +17,6 @@ type UseEditorActionsParams = {
   setStatus: (value: string) => void
   clearActionsMessages: () => void
   saveAll: () => Promise<void>
-  autoFix: () => Promise<void>
 }
 
 export function useEditorActions(params: UseEditorActionsParams) {
@@ -29,10 +28,9 @@ export function useEditorActions(params: UseEditorActionsParams) {
     dispatch,
     setError,
     setStatus,
-    clearActionsMessages,
-    saveAll,
-    autoFix,
-  } = params
+  clearActionsMessages,
+  saveAll,
+} = params
 
   const handleAutoFit = () => {
     clearActionsMessages()
@@ -62,11 +60,6 @@ export function useEditorActions(params: UseEditorActionsParams) {
     await saveAll()
   }
 
-  const handleAutoFixClick = async () => {
-    clearActionsMessages()
-    await autoFix()
-  }
-
   const handleResetView = () => {
     clearActionsMessages()
     dispatch({ type: 'RESET_TO_INITIAL' })
@@ -76,7 +69,6 @@ export function useEditorActions(params: UseEditorActionsParams) {
     handleAutoFit,
     handleResetToSavedFit,
     handleSaveAllClick,
-    handleAutoFixClick,
     handleResetView,
   }
 }

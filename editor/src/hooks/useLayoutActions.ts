@@ -1,6 +1,6 @@
 import { apiFetch, readApiError } from '../api/client'
 import { normalizeOverride, round } from '../utils/format'
-import type { ChartFit, ChartMeta, FrameCircle, Offset } from '../types'
+import type { ChartFit, ChartMeta, DesignSettings, FrameCircle, Offset } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
 type UseLayoutActionsParams = {
@@ -12,6 +12,7 @@ type UseLayoutActionsParams = {
   meta: ChartMeta | null
   chartFit: ChartFit
   overrides: Record<string, Offset>
+  design: DesignSettings
   frameCircle: FrameCircle | null
   setError: (value: string) => void
   setStatus: (value: string) => void
@@ -28,6 +29,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
     meta,
     chartFit,
     overrides,
+    design,
     frameCircle,
     setError,
     setStatus,
@@ -59,6 +61,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
             normalizeOverride(value),
           ])
         ),
+        design,
       }
       const fitResponse = await apiFetchWithAuth(`${apiBase}/api/charts/${chartId}/chart_fit`, {
         method: 'PUT',
@@ -107,6 +110,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
         ])
       ),
       frame_circle: frameCircle ?? undefined,
+      design,
     }
     const metaResponse = await apiFetchWithAuth(
       `${apiBase}/api/charts/${chartId}/frames/${selectedId}/metadata`,
@@ -141,40 +145,5 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
     setStatus('Saved metadata and layout.')
   }
 
-  const autoFix = async () => {
-    if (!jwt) {
-      setError('Login required for auto-fix.')
-      return
-    }
-    if (!chartId) {
-      setError('Chart ID is required for auto-fix.')
-      return
-    }
-    if (!isChartOnly && !selectedId) {
-      setError('Select a frame before auto-fix.')
-      return
-    }
-    const endpoint = isChartOnly
-      ? `${apiBase}/api/charts/${chartId}/auto_layout`
-      : `${apiBase}/api/charts/${chartId}/frames/${selectedId}/auto_layout`
-    const response = await apiFetchWithAuth(
-      endpoint,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'glyphs', min_gap_px: 10, max_iter: 240 }),
-      }
-    )
-    if (!response.ok) {
-      setError('Failed to auto-fix overlaps.')
-      setStatus('')
-      return
-    }
-    const data = (await response.json()) as { overrides: Record<string, Offset> }
-    dispatch({ type: 'SET_OVERRIDES', overrides: { ...overrides, ...data.overrides } })
-    setError('')
-    setStatus('Auto-fix applied.')
-  }
-
-  return { saveAll, autoFix }
+  return { saveAll }
 }

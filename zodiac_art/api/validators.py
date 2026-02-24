@@ -49,6 +49,81 @@ def validate_chart_fit_payload(payload: dict) -> dict:
     }
 
 
+_REQUIRED_DESIGN_LAYERS = {"background", "frame", "chart"}
+
+
+def normalize_design_settings(design: dict | None) -> dict | None:
+    if design is None:
+        return None
+    if not isinstance(design, dict):
+        raise HTTPException(status_code=400, detail="design must be an object")
+    normalized: dict[str, object] = {}
+    layer_order = design.get("layer_order")
+    if layer_order is not None:
+        if not isinstance(layer_order, list) or not all(isinstance(v, str) for v in layer_order):
+            raise HTTPException(
+                status_code=400, detail="design.layer_order must be a list of strings"
+            )
+        normalized_order: list[str] = []
+        seen: set[str] = set()
+        for layer in layer_order:
+            if layer in seen:
+                continue
+            seen.add(layer)
+            normalized_order.append(layer)
+        for required in ("background", "frame", "chart"):
+            if required not in seen:
+                normalized_order.append(required)
+                seen.add(required)
+        normalized["layer_order"] = normalized_order
+    for key in ("sign_glyph_scale", "planet_glyph_scale", "inner_ring_scale"):
+        if key not in design:
+            continue
+        value = design.get(key)
+        if not isinstance(value, (int, float)) or value <= 0:
+            raise HTTPException(status_code=400, detail=f"design.{key} must be a positive number")
+        normalized[key] = float(value)
+    for key in ("background_image_scale",):
+        if key not in design:
+            continue
+        value = design.get(key)
+        if not isinstance(value, (int, float)) or value <= 0:
+            raise HTTPException(status_code=400, detail=f"design.{key} must be a positive number")
+        normalized[key] = float(value)
+    for key in ("background_image_dx", "background_image_dy"):
+        if key not in design:
+            continue
+        value = design.get(key)
+        if not isinstance(value, (int, float)):
+            raise HTTPException(status_code=400, detail=f"design.{key} must be a number")
+        normalized[key] = float(value)
+    layer_opacity = design.get("layer_opacity")
+    if layer_opacity is not None:
+        if not isinstance(layer_opacity, dict):
+            raise HTTPException(status_code=400, detail="design.layer_opacity must be an object")
+        normalized_opacity: dict[str, float] = {}
+        for key, value in layer_opacity.items():
+            if not isinstance(key, str):
+                raise HTTPException(
+                    status_code=400, detail="design.layer_opacity keys must be strings"
+                )
+            if not isinstance(value, (int, float)) or not 0 <= float(value) <= 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="design.layer_opacity values must be between 0 and 1",
+                )
+            normalized_opacity[key] = float(value)
+        normalized["layer_opacity"] = normalized_opacity
+    background_image_path = design.get("background_image_path")
+    if background_image_path is not None:
+        if not isinstance(background_image_path, str):
+            raise HTTPException(
+                status_code=400, detail="design.background_image_path must be a string"
+            )
+        normalized["background_image_path"] = background_image_path.strip() or None
+    return normalized
+
+
 def validate_layout_payload(payload: dict) -> dict:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Layout payload must be an object")
@@ -107,6 +182,9 @@ def validate_layout_payload(payload: dict) -> dict:
                 raise HTTPException(status_code=400, detail="frame_circle values must be numbers")
             normalized_circle[key] = float(value)
     result = {"version": version, "overrides": normalized_overrides}
+    design = normalize_design_settings(payload.get("design"))
+    if design:
+        result["design"] = design
     if normalized_circle is not None:
         result["frame_circle"] = normalized_circle
     return result

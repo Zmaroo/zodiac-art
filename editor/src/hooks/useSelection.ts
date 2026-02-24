@@ -5,6 +5,7 @@ import type { Offset, ChartMeta } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
 const CHART_BACKGROUND_ID = 'chart.background'
+const BACKGROUND_IMAGE_ID = 'chart.background_image'
 const BULK_ALL = '__bulk_all__'
 const BULK_PLANETS = '__bulk_planets__'
 const BULK_SIGNS = '__bulk_signs__'
@@ -15,6 +16,7 @@ type UseSelectionParams = {
   meta: ChartMeta | null
   overrides: Record<string, Offset>
   selectedElement: string
+  hasBackgroundImage: boolean
   dispatch: (action: EditorAction) => void
 }
 
@@ -37,7 +39,7 @@ type UseSelectionResult = {
 }
 
 export function useSelection(params: UseSelectionParams): UseSelectionResult {
-  const { chartSvg, meta, overrides, selectedElement, dispatch } = params
+  const { chartSvg, meta, overrides, selectedElement, hasBackgroundImage, dispatch } = params
 
   const selectableGroups = useMemo(() => {
     if (!chartSvg) {
@@ -55,6 +57,9 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
     if (meta) {
       idSet.add('chartRoot')
       idSet.add(CHART_BACKGROUND_ID)
+    }
+    if (hasBackgroundImage) {
+      idSet.add(BACKGROUND_IMAGE_ID)
     }
     const uniqueIds = Array.from(idSet).sort()
     const groups = {
@@ -88,7 +93,7 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
       { id: BULK_GLYPHS, label: 'All glyphs' },
     ]
     return [{ label: 'Bulk', items: bulkItems }, ...grouped]
-  }, [chartSvg, meta])
+  }, [chartSvg, hasBackgroundImage, meta])
 
   const selectableElements = useMemo(
     () => selectableGroups.flatMap((group) => group.items.map((item) => item.id)),
@@ -125,6 +130,9 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
     }
     if (selectedElement === CHART_BACKGROUND_ID) {
       return [CHART_BACKGROUND_ID]
+    }
+    if (selectedElement === BACKGROUND_IMAGE_ID) {
+      return [BACKGROUND_IMAGE_ID]
     }
     return [selectedElement]
   }, [selectableElements, selectedElement])

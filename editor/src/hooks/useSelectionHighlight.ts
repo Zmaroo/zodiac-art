@@ -20,14 +20,38 @@ export function useSelectionHighlight(params: UseSelectionHighlightParams) {
   } = params
 
   useEffect(() => {
+    const restoreAttribute = (node: Element, attr: string) => {
+      const dataKey = `data-prev-${attr}`
+      if (!node.hasAttribute(dataKey)) {
+        return
+      }
+      const prev = node.getAttribute(dataKey)
+      node.removeAttribute(dataKey)
+      if (prev === null || prev === '') {
+        node.removeAttribute(attr)
+      } else {
+        node.setAttribute(attr, prev)
+      }
+    }
+
     if (highlightElementsRef.current.length > 0) {
-      highlightElementsRef.current.forEach((node) => node.classList.remove('selection-highlight'))
+      highlightElementsRef.current.forEach((node) => {
+        node.classList.remove('selection-highlight')
+        restoreAttribute(node, 'stroke')
+        restoreAttribute(node, 'stroke-width')
+        restoreAttribute(node, 'paint-order')
+        restoreAttribute(node, 'vector-effect')
+      })
       highlightElementsRef.current = []
     }
     if (!selectedElement || !svgRef.current) {
       return
     }
-    if (selectedElement === 'chartRoot' || selectedElement === 'chart.background') {
+    if (
+      selectedElement === 'chartRoot' ||
+      selectedElement === 'chart.background' ||
+      selectedElement === 'chart.background_image'
+    ) {
       return
     }
     if (bulkIds.includes(selectedElement)) {
@@ -42,7 +66,20 @@ export function useSelectionHighlight(params: UseSelectionHighlightParams) {
       return
     }
     const nodesToHighlight = [node, ...Array.from(node.querySelectorAll('*'))]
-    nodesToHighlight.forEach((element) => element.classList.add('selection-highlight'))
+    nodesToHighlight.forEach((element) => {
+      const setAttr = (attr: string, value: string) => {
+        const dataKey = `data-prev-${attr}`
+        if (!element.hasAttribute(dataKey)) {
+          element.setAttribute(dataKey, element.getAttribute(attr) ?? '')
+        }
+        element.setAttribute(attr, value)
+      }
+      element.classList.add('selection-highlight')
+      setAttr('stroke', outlineColor || '#d9730d')
+      setAttr('stroke-width', '2.5')
+      setAttr('paint-order', 'stroke fill')
+      setAttr('vector-effect', 'non-scaling-stroke')
+    })
     highlightElementsRef.current = nodesToHighlight
     return () => {
       highlightElementsRef.current.forEach((element) =>

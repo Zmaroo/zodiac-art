@@ -18,7 +18,7 @@ from zodiac_art.api.storage import ChartRecord
 from zodiac_art.astro.chart_builder import build_chart
 from zodiac_art.astro.ephemeris import calculate_ephemeris
 from zodiac_art.compositor.compositor import compose_svg
-from zodiac_art.config import AppConfig, load_config
+from zodiac_art.config import STORAGE_ROOT, AppConfig, load_config
 from zodiac_art.frames.frame_loader import FrameAsset, FrameMeta
 from zodiac_art.frames.validation import validate_meta
 from zodiac_art.geo.timezone import to_utc_iso
@@ -53,6 +53,19 @@ class AutoLayoutElement:
 
 
 @dataclass(frozen=True)
+class DesignSettings:
+    layer_order: tuple[str, ...]
+    layer_opacity: dict[str, float]
+    background_image_path: str | None
+    background_image_scale: float
+    background_image_dx: float
+    background_image_dy: float
+    sign_glyph_scale: float
+    planet_glyph_scale: float
+    inner_ring_scale: float
+
+
+@dataclass(frozen=True)
 class RenderContext:
     chart: Chart
     settings: RenderSettings
@@ -60,6 +73,7 @@ class RenderContext:
     chart_fit: ChartFit
     frame_circle: FrameCircle | None
     meta: FrameMeta
+    design: DesignSettings
     image_path: Path | None = None
     frame_id: str | None = None
     metadata_path: Path | None = None
@@ -78,6 +92,80 @@ def _merge_dicts(base: dict, override: dict | None) -> dict:
     return merged
 
 
+_DEFAULT_LAYER_ORDER = ("background", "frame", "chart")
+_DEFAULT_LAYER_OPACITY: dict[str, float] = {}
+_REQUIRED_LAYERS = {"background", "frame", "chart"}
+_BACKGROUND_IMAGE_LAYER = "chart_background_image"
+_DEFAULT_SIGN_GLYPH_SCALE = 1.0
+_DEFAULT_PLANET_GLYPH_SCALE = 1.0
+_DEFAULT_INNER_RING_SCALE = 1.0
+_DEFAULT_BACKGROUND_IMAGE_SCALE = 1.0
+_DEFAULT_BACKGROUND_IMAGE_DX = 0.0
+_DEFAULT_BACKGROUND_IMAGE_DY = 0.0
+
+
+def _design_from_layout(
+    layout: dict | None,
+    override: dict | None = None,
+) -> DesignSettings:
+    design_payload = {}
+    if layout and isinstance(layout.get("design"), dict):
+        design_payload = layout.get("design", {})
+    merged = {**design_payload}
+    if override:
+        merged.update({key: value for key, value in override.items() if value is not None})
+    layer_order = merged.get("layer_order")
+    if not isinstance(layer_order, list) or not set(layer_order).issuperset(_REQUIRED_LAYERS):
+        layer_order_list = list(map(str, _DEFAULT_LAYER_ORDER))
+    else:
+        seen: set[str] = set()
+        layer_order_list = [str(key) for key in layer_order if not (key in seen or seen.add(key))]
+    background_image_path = merged.get("background_image_path")
+    if isinstance(background_image_path, str):
+        background_image_path = background_image_path.strip() or None
+    else:
+        background_image_path = None
+    if background_image_path and _BACKGROUND_IMAGE_LAYER not in layer_order_list:
+        if "chart" in layer_order_list:
+            chart_index = layer_order_list.index("chart")
+            layer_order_list.insert(chart_index, _BACKGROUND_IMAGE_LAYER)
+        else:
+            layer_order_list.append(_BACKGROUND_IMAGE_LAYER)
+    layer_opacity = merged.get("layer_opacity")
+    if not isinstance(layer_opacity, dict):
+        layer_opacity = dict(_DEFAULT_LAYER_OPACITY)
+    else:
+        layer_opacity = {
+            str(key): float(value)
+            for key, value in layer_opacity.items()
+            if isinstance(key, str) and isinstance(value, (int, float))
+        }
+    return DesignSettings(
+        layer_order=tuple(layer_order_list),
+        layer_opacity=layer_opacity,
+        background_image_path=background_image_path,
+        background_image_scale=float(
+            merged.get("background_image_scale", _DEFAULT_BACKGROUND_IMAGE_SCALE)
+        ),
+        background_image_dx=float(merged.get("background_image_dx", _DEFAULT_BACKGROUND_IMAGE_DX)),
+        background_image_dy=float(merged.get("background_image_dy", _DEFAULT_BACKGROUND_IMAGE_DY)),
+        sign_glyph_scale=float(merged.get("sign_glyph_scale", _DEFAULT_SIGN_GLYPH_SCALE)),
+        planet_glyph_scale=float(merged.get("planet_glyph_scale", _DEFAULT_PLANET_GLYPH_SCALE)),
+        inner_ring_scale=float(merged.get("inner_ring_scale", _DEFAULT_INNER_RING_SCALE)),
+    )
+
+
+def _resolve_background_image_path(background_image_path: str | None) -> Path | None:
+    if not background_image_path:
+        return None
+    candidate = Path(background_image_path)
+    if candidate.is_absolute():
+        return candidate if candidate.exists() else None
+    cleaned = background_image_path.lstrip("/")
+    resolved = STORAGE_ROOT / cleaned
+    return resolved if resolved.exists() else None
+
+
 logger = logging.getLogger(__name__)
 
 _IMAGE_SIZE_CACHE: dict[str, tuple[float, tuple[int, int]]] = {}
@@ -87,10 +175,12 @@ _CACHE_KEYS: list[str] = []
 _CACHE_MAX_ENTRIES = load_config().render_cache_max
 
 
-def _build_settings(meta, config, font_scale: float = 1.0) -> RenderSettings:
+def _build_settings(
+    meta, config, design: DesignSettings, font_scale: float = 1.0
+) -> RenderSettings:
     if meta.ring_outer <= 0:
         raise ValueError("Frame ring outer radius must be positive.")
-    inner_ratio = meta.ring_inner / meta.ring_outer
+    inner_ratio = (meta.ring_inner / meta.ring_outer) * design.inner_ring_scale
     return RenderSettings(
         width=meta.canvas_width,
         height=meta.canvas_height,
@@ -99,10 +189,12 @@ def _build_settings(meta, config, font_scale: float = 1.0) -> RenderSettings:
         radius=meta.ring_outer,
         sign_ring_inner_ratio=inner_ratio,
         sign_ring_outer_ratio=1.0,
-        planet_ring_ratio=config.planet_ring_ratio,
+        planet_ring_ratio=config.planet_ring_ratio * design.inner_ring_scale,
         label_ring_ratio=config.label_ring_ratio,
         planet_label_offset_ratio=config.planet_label_offset_ratio,
         font_scale=font_scale,
+        sign_glyph_scale=design.sign_glyph_scale,
+        planet_glyph_scale=design.planet_glyph_scale,
         glyph_mode=config.glyph_mode,
     )
 
@@ -141,23 +233,33 @@ def _render_chart_svg_from_context(
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
     )
-    if context.image_path is None:
-        return RenderResult(
-            svg=chart_svg,
-            width=context.settings.width,
-            height=context.settings.height,
+    frame_asset = None
+    if context.image_path is not None:
+        frame_id = context.frame_id or ""
+        metadata_path = context.metadata_path or Path("")
+        frame_asset = FrameAsset(
+            frame_id=frame_id,
+            frame_dir=context.image_path.parent,
+            image_path=context.image_path,
+            metadata_path=metadata_path,
+            meta=context.meta,
+            image=None,
         )
-    frame_id = context.frame_id or ""
-    metadata_path = context.metadata_path or Path("")
-    frame_asset = FrameAsset(
-        frame_id=frame_id,
-        frame_dir=context.image_path.parent,
-        image_path=context.image_path,
-        metadata_path=metadata_path,
-        meta=context.meta,
-        image=None,
+    background_image_path = _resolve_background_image_path(context.design.background_image_path)
+    final_svg = compose_svg(
+        chart_svg,
+        frame_asset,
+        embed_frame_data_uri=embed_frame_data_uri,
+        layer_order=context.design.layer_order,
+        layer_opacity=context.design.layer_opacity,
+        background_image_path=background_image_path,
+        background_image_transform=(
+            context.design.background_image_scale,
+            context.design.background_image_dx,
+            context.design.background_image_dy,
+        ),
+        meta_override=context.meta,
     )
-    final_svg = compose_svg(chart_svg, frame_asset, embed_frame_data_uri=embed_frame_data_uri)
     return RenderResult(
         svg=final_svg, width=context.meta.canvas_width, height=context.meta.canvas_height
     )
@@ -174,6 +276,7 @@ async def _build_frame_render_context(
     chart: ChartRecord,
     frame_id: str,
     config,
+    design_override: dict | None = None,
 ) -> RenderContext:
     template_meta = await storage.load_template_meta(frame_id)
     override_meta = await storage.load_chart_meta(chart.chart_id, frame_id)
@@ -193,7 +296,8 @@ async def _build_frame_render_context(
         scale=meta.chart_fit_scale,
         rotation_deg=meta.chart_fit_rotation_deg,
     )
-    settings = _build_settings(meta, config)
+    design = _design_from_layout(layout, design_override)
+    settings = _build_settings(meta, config, design)
     metadata_path = await storage.template_meta_path(frame_id)
     cache_key = _cache_key(
         "frame",
@@ -210,6 +314,7 @@ async def _build_frame_render_context(
         chart_fit=chart_fit,
         frame_circle=frame_circle,
         meta=meta,
+        design=design,
         image_path=image_path,
         frame_id=frame_id,
         metadata_path=metadata_path,
@@ -221,12 +326,14 @@ async def _build_chart_only_context(
     storage: StorageProtocol,
     chart: ChartRecord,
     config,
+    design_override: dict | None = None,
 ) -> RenderContext:
     chart_fit_payload = await storage.load_chart_fit(chart.chart_id)
     layout = await storage.load_chart_layout_base(chart.chart_id) or {"overrides": {}}
     meta = _chart_only_meta(chart_fit_payload)
     font_scale = max(0.1, meta.ring_outer / CHART_ONLY_FONT_BASE_RADIUS)
-    settings = _build_settings(meta, config, font_scale=font_scale)
+    design = _design_from_layout(layout, design_override)
+    settings = _build_settings(meta, config, design, font_scale=font_scale)
     overrides = _overrides_from_layout(layout)
     chart_fit = _chart_fit_from_payload(chart_fit_payload)
     cache_key = _cache_key(
@@ -243,6 +350,7 @@ async def _build_chart_only_context(
         chart_fit=chart_fit,
         frame_circle=None,
         meta=meta,
+        design=design,
         image_path=None,
         cache_key=cache_key,
     )
@@ -270,7 +378,6 @@ def _chart_only_canvas_size(radius: float, scale: float) -> int:
 
 
 def _chart_only_meta(chart_fit: dict | None) -> FrameMeta:
-    config = load_config()
     scale = 1.0
     if chart_fit and isinstance(chart_fit, dict):
         scale_value = chart_fit.get("scale", 1.0)
@@ -432,15 +539,23 @@ async def render_chart_svg(
     frame_id: str,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_override: dict | None = None,
 ) -> RenderResult:
     config = load_config()
-    context = await _build_frame_render_context(storage, chart, frame_id, config)
+    context = await _build_frame_render_context(
+        storage,
+        chart,
+        frame_id,
+        config,
+        design_override=design_override,
+    )
     cache_key = _cache_key(
         "svg",
         context.cache_key,
         glyph_glow,
         glyph_outline_color,
         config.embed_frame_data_uri,
+        design_override,
     )
     cached = _SVG_CACHE.get(cache_key)
     if cached:
@@ -460,10 +575,22 @@ async def render_chart_only_svg(
     chart: ChartRecord,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_override: dict | None = None,
 ) -> RenderResult:
     config = load_config()
-    context = await _build_chart_only_context(storage, chart, config)
-    cache_key = _cache_key("svg", context.cache_key, glyph_glow, glyph_outline_color)
+    context = await _build_chart_only_context(
+        storage,
+        chart,
+        config,
+        design_override=design_override,
+    )
+    cache_key = _cache_key(
+        "svg",
+        context.cache_key,
+        glyph_glow,
+        glyph_outline_color,
+        design_override,
+    )
     cached = _SVG_CACHE.get(cache_key)
     if cached:
         return cached
@@ -488,6 +615,7 @@ def _overlaps_by_distance(
     other: AutoLayoutElement,
     other_dr: float,
     min_gap_px: float,
+    ring_radius: float,
     radius_scale: float,
 ) -> bool:
     x, y = _position_for_element(element, dr, 0.0)
@@ -495,7 +623,52 @@ def _overlaps_by_distance(
     radius = max(element.width, element.height) / 2 * radius_scale
     other_radius = max(other.width, other.height) / 2 * radius_scale
     min_distance = radius + other_radius + min_gap_px
-    return math.hypot(x - ox, y - oy) < min_distance
+    if ring_radius > 0:
+        angle_delta = abs((element.theta_deg - other.theta_deg + 180.0) % 360.0 - 180.0)
+        angle_threshold = math.degrees(min_distance / ring_radius)
+        if angle_delta > angle_threshold:
+            return False
+    tolerance = max(3.0, min_gap_px * 0.5)
+    return math.hypot(x - ox, y - oy) < (min_distance - tolerance)
+
+
+def _required_inward_shift(
+    element: AutoLayoutElement,
+    current_dr: float,
+    other: AutoLayoutElement,
+    other_dr: float,
+    min_gap_px: float,
+    ring_radius: float,
+    radius_scale: float,
+) -> float | None:
+    if not _overlaps_by_distance(
+        element,
+        current_dr,
+        other,
+        other_dr,
+        min_gap_px,
+        ring_radius,
+        radius_scale,
+    ):
+        return None
+    base_x, base_y = _position_for_element(element, 0.0, 0.0)
+    ox, oy = _position_for_element(other, other_dr, 0.0)
+    radius = max(element.width, element.height) / 2 * radius_scale
+    other_radius = max(other.width, other.height) / 2 * radius_scale
+    min_distance = radius + other_radius + min_gap_px
+    dx = base_x - ox
+    dy = base_y - oy
+    ux, uy = polar_offset_to_xy(1.0, 0.0, element.theta_deg)
+    b = dx * ux + dy * uy
+    c = dx * dx + dy * dy - min_distance * min_distance
+    discriminant = b * b - c
+    if discriminant <= 0:
+        return current_dr - 1.0
+    root = math.sqrt(discriminant)
+    r1 = -b - root
+    if r1 >= current_dr:
+        return current_dr - 1.0
+    return r1
 
 
 def _compute_auto_layout_overrides_from_meta(
@@ -505,8 +678,11 @@ def _compute_auto_layout_overrides_from_meta(
     min_gap_px: int,
     max_iter: int,
 ) -> dict[str, dict[str, float]]:
-    settings = _build_settings(meta, config)
+    design = _design_from_layout(None)
+    settings = _build_settings(meta, config, design)
     chart_data = _build_chart(chart)
+    glyph_font_base = 60.0
+    glyph_font = glyph_font_base * settings.font_scale
 
     elements: list[AutoLayoutElement] = []
     for planet in chart_data.planets:
@@ -517,7 +693,6 @@ def _compute_auto_layout_overrides_from_meta(
             settings.radius * settings.planet_ring_ratio,
             angle,
         )
-        glyph_font = 60.0 * settings.font_scale
         glyph_width = glyph_font * 0.95
         glyph_height = glyph_font * 0.95
         elements.append(
@@ -534,40 +709,36 @@ def _compute_auto_layout_overrides_from_meta(
     elements = sorted(elements, key=lambda item: (item.theta_deg, item.element_id))
 
     overrides: dict[str, dict[str, float]] = {}
-    dr_step = 6.0
     dr_min = -120.0
-    radius_scale = 1.0
-    max_passes = 8
+    max_inward_shift = -0.4 * glyph_font
+    gap_ratio = min_gap_px / glyph_font_base if min_gap_px > 0 else 0.0
+    gap_px = glyph_font * gap_ratio
+    ring_radius = settings.radius * settings.planet_ring_ratio
+    radius_scale = 0.85
 
     dr_values = {element.element_id: 0.0 for element in elements}
 
-    def overlaps_any(current: AutoLayoutElement, dr: float) -> bool:
-        return any(
-            _overlaps_by_distance(
-                current,
-                dr,
+    placed: list[AutoLayoutElement] = []
+    for element in elements:
+        current_dr = dr_values[element.element_id]
+        required_dr = current_dr
+        for other in placed:
+            candidate = _required_inward_shift(
+                element,
+                required_dr,
                 other,
                 dr_values[other.element_id],
-                min_gap_px,
+                gap_px,
+                ring_radius,
                 radius_scale,
             )
-            for other in elements
-            if other.element_id != current.element_id
-        )
-
-    for _ in range(max_passes):
-        changed = False
-        for element in elements:
-            attempts = 0
-            while attempts < max_iter and overlaps_any(element, dr_values[element.element_id]):
-                next_dr = dr_values[element.element_id] - dr_step
-                if next_dr < dr_min:
-                    break
-                dr_values[element.element_id] = next_dr
-                changed = True
-                attempts += 1
-        if not changed:
-            break
+            if candidate is not None:
+                required_dr = min(required_dr, candidate)
+        dr_floor = max(dr_min, max_inward_shift)
+        if required_dr < dr_floor:
+            required_dr = dr_floor
+        dr_values[element.element_id] = required_dr
+        placed.append(element)
 
     for element in elements:
         dr = dr_values[element.element_id]
@@ -627,9 +798,16 @@ async def render_chart_png(
     max_size: int | None = None,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_override: dict | None = None,
 ) -> bytes:
     config = load_config()
-    context = await _build_frame_render_context(storage, chart, frame_id, config)
+    context = await _build_frame_render_context(
+        storage,
+        chart,
+        frame_id,
+        config,
+        design_override=design_override,
+    )
     cache_key = _cache_key(
         "png",
         context.cache_key,
@@ -637,6 +815,7 @@ async def render_chart_png(
         glyph_glow,
         glyph_outline_color,
         config.embed_frame_data_uri,
+        design_override,
     )
     cached = _PNG_CACHE.get(cache_key)
     if cached:
@@ -673,15 +852,22 @@ async def render_chart_only_png(
     max_size: int | None = None,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_override: dict | None = None,
 ) -> bytes:
     config = load_config()
-    context = await _build_chart_only_context(storage, chart, config)
+    context = await _build_chart_only_context(
+        storage,
+        chart,
+        config,
+        design_override=design_override,
+    )
     cache_key = _cache_key(
         "png",
         context.cache_key,
         max_size,
         glyph_glow,
         glyph_outline_color,
+        design_override,
     )
     cached = _PNG_CACHE.get(cache_key)
     if cached:

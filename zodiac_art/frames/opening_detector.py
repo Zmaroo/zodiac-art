@@ -26,10 +26,26 @@ def detect_opening_circle(image: Image.Image) -> tuple[float, float, float]:
         saturation = np.where(max_c == 0, 0.0, (max_c - min_c) / max_c)
     luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-    mask = (a > 0.05) & (luminance > 0.95) & (saturation < 0.1)
-    count = int(mask.sum())
-    if count < (width * height * 0.01):
-        raise ValueError("Frame opening not detected (white area too small).")
+    white_mask = (a > 0.05) & (luminance > 0.95) & (saturation < 0.1)
+    margin = int(min(width, height) * 0.05)
+    inner_mask = np.ones((height, width), dtype=bool)
+    if margin > 0:
+        inner_mask[:margin, :] = False
+        inner_mask[-margin:, :] = False
+        inner_mask[:, :margin] = False
+        inner_mask[:, -margin:] = False
+    alpha_mask = (a <= 0.05) & inner_mask
+    alpha_count = int(alpha_mask.sum())
+    white_count = int(white_mask.sum())
+    min_count = int(width * height * 0.01)
+    if alpha_count >= min_count:
+        mask = alpha_mask
+        count = alpha_count
+    else:
+        mask = white_mask
+        count = white_count
+    if count < min_count:
+        raise ValueError("Frame opening not detected (white/transparent area too small).")
 
     ys, xs = np.nonzero(mask)
     cx = float(xs.mean())

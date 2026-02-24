@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { PointerEvent } from 'react'
-import type { ChartFit, DragState, Offset } from '../types'
+import type { ChartFit, DesignSettings, DragState, Offset } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 import { isDraggableElement } from '../utils/format'
 import { toNodePoint, toSvgPoint } from '../utils/geometry'
@@ -8,6 +8,9 @@ import { toNodePoint, toSvgPoint } from '../utils/geometry'
 type UseChartInteractionParams = {
   chartFit: ChartFit
   overrides: Record<string, Offset>
+  design: DesignSettings
+  selectedElement: string
+  updateDesign: (next: Partial<DesignSettings>) => void
   svgRef: React.RefObject<SVGSVGElement | null>
   chartRootRef: React.RefObject<SVGGElement | null>
   dispatch: (action: EditorAction) => void
@@ -21,8 +24,19 @@ type UseChartInteractionResult = {
 }
 
 export function useChartInteraction(params: UseChartInteractionParams): UseChartInteractionResult {
-  const { chartFit, overrides, svgRef, chartRootRef, dispatch, radialMoveEnabled } = params
+  const {
+    chartFit,
+    overrides,
+    design,
+    selectedElement,
+    updateDesign,
+    svgRef,
+    chartRootRef,
+    dispatch,
+    radialMoveEnabled,
+  } = params
   const [drag, setDrag] = useState<DragState | null>(null)
+  const backgroundImageId = 'chart.background_image'
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (!svgRef.current || !chartRootRef.current) {
@@ -32,6 +46,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     const labelElement = target?.closest('[id]') as Element | null
     const chartElement = target?.closest('#chartRoot') as Element | null
     const chartBackgroundElement = target?.closest('#chartBackgroundRoot') as Element | null
+    const backgroundImageElement = target?.closest('#chartBackgroundImageRoot') as Element | null
 
     const point = labelElement && chartRootRef.current
       ? toNodePoint(event, chartRootRef.current)
@@ -53,6 +68,26 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
         svgRef.current.setPointerCapture(event.pointerId)
         return
       }
+    }
+
+    if (
+      design.background_image_path &&
+      (backgroundImageElement || selectedElement === backgroundImageId)
+    ) {
+      const mode = event.shiftKey ? 'background-image-scale' : 'background-image-move'
+      dispatch({ type: 'SET_SELECTED_ELEMENT', id: backgroundImageId })
+      setDrag({
+        mode,
+        startPoint: point,
+        startFit: chartFit,
+        backgroundImage: {
+          scale: design.background_image_scale,
+          dx: design.background_image_dx,
+          dy: design.background_image_dy,
+        },
+      })
+      svgRef.current.setPointerCapture(event.pointerId)
+      return
     }
 
     if (chartElement || chartBackgroundElement) {
@@ -108,6 +143,18 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
         },
         userAdjusted: true,
       })
+      return
+    }
+    if (drag.mode === 'background-image-move' && drag.backgroundImage) {
+      updateDesign({
+        background_image_dx: drag.backgroundImage.dx + dx,
+        background_image_dy: drag.backgroundImage.dy + dy,
+      })
+      return
+    }
+    if (drag.mode === 'background-image-scale' && drag.backgroundImage) {
+      const nextScale = Math.max(0.1, drag.backgroundImage.scale * (1 + dx / 300))
+      updateDesign({ background_image_scale: nextScale })
       return
     }
     if (drag.mode === 'label' && drag.labelId && drag.startOffset) {

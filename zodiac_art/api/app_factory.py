@@ -17,10 +17,10 @@ from starlette.types import Scope
 from zodiac_art.api.auth import get_current_user_dependency
 from zodiac_art.api.frames_store import FileFrameStore, PostgresFrameStore
 from zodiac_art.api.routes import auth, chart_sessions, charts, frames, health, renders
+from zodiac_art.api.session_storage import RedisSessionStore
 from zodiac_art.api.storage import FileStorage
 from zodiac_art.api.storage_async import AsyncFileStorage
 from zodiac_art.api.storage_postgres import PostgresStorage
-from zodiac_art.api.session_storage import RedisSessionStore
 from zodiac_art.config import (
     PROJECT_ROOT,
     STORAGE_ROOT,

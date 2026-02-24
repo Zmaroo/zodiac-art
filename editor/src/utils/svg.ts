@@ -1,30 +1,39 @@
 import type { Offset } from '../types'
 import { polarOffsetToXY } from './geometry'
 
+const stripNamespaces = (svgText: string): string => {
+  return svgText
+    .replace(/\sxmlns:[A-Za-z0-9_-]+="[^"]*"/g, '')
+    .replace(/<([A-Za-z0-9_-]+):/g, '<')
+    .replace(/<\/([A-Za-z0-9_-]+):/g, '</')
+}
+
 export function extractChartInner(svgText: string): string {
   const parser = new DOMParser()
-  const doc = parser.parseFromString(svgText, 'image/svg+xml')
+  const normalized = stripNamespaces(svgText)
+  const doc = parser.parseFromString(normalized, 'image/svg+xml')
   const chartRoot = doc.querySelector('#chartRoot')
   if (chartRoot) {
     const defs = doc.querySelector('defs')
     const defsMarkup = defs ? defs.outerHTML : ''
-    return `${defsMarkup}${chartRoot.innerHTML}`
+    return stripNamespaces(`${defsMarkup}${chartRoot.innerHTML}`)
   }
-  return doc.documentElement.innerHTML
+  return stripNamespaces(doc.documentElement.innerHTML)
 }
 
 export function stripOverrideTransforms(svgInner: string, overrides: Record<string, Offset>) {
   if (!svgInner) {
     return svgInner
   }
+  const normalized = stripNamespaces(svgInner)
   const parser = new DOMParser()
   const doc = parser.parseFromString(
-    `<svg xmlns="http://www.w3.org/2000/svg">${svgInner}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg">${normalized}</svg>`,
     'image/svg+xml'
   )
   const keys = Object.keys(overrides)
   if (keys.length === 0) {
-    return svgInner
+    return normalized
   }
   keys.forEach((key) => {
     const node = doc.querySelector(`[id="${CSS.escape(key)}"]`)
@@ -32,16 +41,17 @@ export function stripOverrideTransforms(svgInner: string, overrides: Record<stri
       node.removeAttribute('transform')
     }
   })
-  return doc.documentElement.innerHTML
+  return stripNamespaces(doc.documentElement.innerHTML)
 }
 
 export function applyOverrides(
   svgInner: string,
   overrides: Record<string, Offset>
 ) {
+  const normalized = stripNamespaces(svgInner)
   const parser = new DOMParser()
   const doc = parser.parseFromString(
-    `<svg xmlns="http://www.w3.org/2000/svg">${svgInner}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg">${normalized}</svg>`,
     'image/svg+xml'
   )
   const nodes = doc.querySelectorAll('[id]')
@@ -66,22 +76,23 @@ export function applyOverrides(
     const existing = node.getAttribute('transform')
     node.setAttribute('transform', existing ? `${existing} ${translate}` : translate)
   })
-  return doc.documentElement.innerHTML
+  return stripNamespaces(doc.documentElement.innerHTML)
 }
 
 export function stripElementById(svgInner: string, id: string): string {
   if (!svgInner) {
     return svgInner
   }
+  const normalized = stripNamespaces(svgInner)
   const parser = new DOMParser()
   const doc = parser.parseFromString(
-    `<svg xmlns="http://www.w3.org/2000/svg">${svgInner}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg">${normalized}</svg>`,
     'image/svg+xml'
   )
   doc.querySelectorAll(`[id="${CSS.escape(id)}"]`).forEach((node) => {
     node.remove()
   })
-  return doc.documentElement.innerHTML
+  return stripNamespaces(doc.documentElement.innerHTML)
 }
 
 function applyColor(node: Element, color: string) {

@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import type { PointerEvent, RefObject } from 'react'
 import { useMaskedFrame } from '../hooks/useMaskedFrame'
-import type { ChartMeta, FrameCircle, FrameDetail } from '../types'
+import type { ChartMeta, FrameCircle, FrameDetail, LayerOrderKey } from '../types'
 
 type CanvasProps = {
   meta: ChartMeta | null
@@ -11,6 +11,12 @@ type CanvasProps = {
   chartId: string
   isChartOnly: boolean
   chartBackgroundColor: string
+  layerOrder: LayerOrderKey[]
+  layerOpacity: Record<string, number>
+  backgroundImageUrl: string
+  backgroundImageScale: number
+  backgroundImageDx: number
+  backgroundImageDy: number
   frameMaskCutoff: number
   showChartBackground: boolean
   frameCircle: FrameCircle | null
@@ -31,6 +37,12 @@ function Canvas({
   chartId,
   isChartOnly,
   chartBackgroundColor,
+  layerOrder,
+  layerOpacity,
+  backgroundImageUrl,
+  backgroundImageScale,
+  backgroundImageDx,
+  backgroundImageDy,
   frameMaskCutoff,
   showChartBackground,
   frameCircle,
@@ -48,7 +60,7 @@ function Canvas({
   const debugCy = frameCircle ? frameCircle.cyNorm * (meta?.canvas.height ?? 0) : 0
   const debugR = frameCircle ? frameCircle.rNorm * (meta?.canvas.width ?? 0) : 0
   const frameUrl = selectedFrameDetail ? `${apiBase}${selectedFrameDetail.image_url}` : ''
-  const showMaskedFrame = Boolean(selectedFrameDetail && showChartBackground)
+  const showMaskedFrame = Boolean(selectedFrameDetail && meta)
   const showCircleBackground = showChartBackground
   const maskCenter = frameCircle
     ? {
@@ -67,6 +79,7 @@ function Canvas({
     frameMaskCutoff
   )
   const frameHref = showMaskedFrame ? maskedFrameUrl || frameUrl : frameUrl
+  const clipId = 'chartBackgroundImageClip'
 
   useEffect(() => {
     if (!isChartOnly || !meta || !chartId) {
@@ -89,6 +102,51 @@ function Canvas({
     })
   }, [chartId, isChartOnly, meta])
 
+  const backgroundLayer = showCircleBackground ? (
+    <g ref={chartBackgroundRef} id="chartBackgroundRoot">
+      <circle
+        id="chart.background"
+        data-fill-only="true"
+        cx={meta?.chart.center.x ?? 0}
+        cy={meta?.chart.center.y ?? 0}
+        r={meta?.chart.ring_outer ?? 0}
+        fill={chartBackgroundColor || 'none'}
+        stroke="none"
+      />
+    </g>
+  ) : null
+  const frameLayer = selectedFrameDetail ? (
+    <image
+      href={frameHref}
+      x={0}
+      y={0}
+      width={meta?.canvas.width ?? 0}
+      height={meta?.canvas.height ?? 0}
+    />
+  ) : null
+  const chartLayer = (
+    <g ref={chartRootRef} id="chartRoot">
+      <g dangerouslySetInnerHTML={{ __html: chartSvg }} />
+    </g>
+  )
+  const backgroundImageLayer = backgroundImageUrl ? (
+    <g id="chartBackgroundImageRoot" clipPath={`url(#${clipId})`}>
+      <image
+        id="chart.background_image"
+        href={backgroundImageUrl}
+        x={backgroundImageDx}
+        y={backgroundImageDy}
+        width={(meta?.canvas.width ?? 0) * backgroundImageScale}
+        height={(meta?.canvas.height ?? 0) * backgroundImageScale}
+      />
+    </g>
+  ) : null
+  const layers: Record<LayerOrderKey, JSX.Element | null> = {
+    background: backgroundLayer,
+    frame: frameLayer,
+    chart_background_image: backgroundImageLayer,
+    chart: chartLayer,
+  }
   return (
     <main className="canvas" ref={canvasRef}>
       {meta ? (
@@ -101,31 +159,32 @@ function Canvas({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
-          {showCircleBackground ? (
-            <g ref={chartBackgroundRef} id="chartBackgroundRoot">
-              <circle
-                id="chart.background"
-                data-fill-only="true"
-                cx={meta.chart.center.x}
-                cy={meta.chart.center.y}
-                r={meta.chart.ring_outer}
-                fill={chartBackgroundColor || 'none'}
-                stroke="none"
-              />
-            </g>
+          {backgroundImageUrl ? (
+            <defs>
+              <clipPath id={clipId}>
+                <circle
+                  cx={meta.chart.center.x}
+                  cy={meta.chart.center.y}
+                  r={meta.chart.ring_outer}
+                />
+              </clipPath>
+            </defs>
           ) : null}
-          {selectedFrameDetail ? (
-            <image
-              href={frameHref}
-              x={0}
-              y={0}
-              width={meta.canvas.width}
-              height={meta.canvas.height}
-            />
-          ) : null}
-          <g ref={chartRootRef} id="chartRoot">
-            <g dangerouslySetInnerHTML={{ __html: chartSvg }} />
-          </g>
+          {layerOrder.map((key) => {
+            const layer = layers[key]
+            if (!layer) {
+              return null
+            }
+            const opacity = layerOpacity[key]
+            if (opacity !== undefined && opacity >= 0 && opacity <= 1 && opacity !== 1) {
+              return (
+                <g key={key} opacity={opacity}>
+                  {layer}
+                </g>
+              )
+            }
+            return <Fragment key={key}>{layer}</Fragment>
+          })}
           {showFrameCircleDebug && frameCircle ? (
             <circle
               cx={debugCx}

@@ -33,6 +33,9 @@ export function formatSelectionLabel(id: string): string {
   if (id === 'chart.background') {
     return 'Chart background'
   }
+  if (id === 'chart.background_image') {
+    return 'Background image'
+  }
   if (id === 'asc.marker') {
     return 'Ascendant marker ↑'
   }

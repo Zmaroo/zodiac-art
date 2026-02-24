@@ -21,6 +21,31 @@
   letter-spacing: 0.08em;
 }
 
+.sidebar-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sidebar-tabs button {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #c8bfae;
+  background: #efe9de;
+  color: #2f2a22;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.sidebar-tabs button.active {
+  background: #2f2a22;
+  color: #f8f5ef;
+  border-color: #2f2a22;
+}
+
 .section {
   margin-top: 20px;
   padding-top: 16px;
@@ -195,6 +220,77 @@
 .hint {
   font-size: 11px;
   color: #6b6254;
+}
+
+.subsection-title {
+  margin: 14px 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b6254;
+}
+
+.layer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.layer-row {
+  border: 1px solid #e0d7c8;
+  background: #fffaf1;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.layer-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.layer-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.layer-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.layer-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #c8bfae;
+  background: #efe9de;
+  color: #2f2a22;
+  cursor: pointer;
+}
+
+.layer-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.layer-opacity input[type='range'] {
+  width: 100%;
+}
+
+.layer-image-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layer-image-preview img {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #d4cbbd;
 }
 
 .selection {

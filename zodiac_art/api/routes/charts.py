@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from pathlib import Path
+
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
 
 from zodiac_art.api.auth import AuthUser
+from zodiac_art.api.chart_inputs import build_chart_payload, normalize_chart_name
 from zodiac_art.api.deps import (
     frame_exists,
     get_frame_store,
@@ -13,7 +16,6 @@ from zodiac_art.api.deps import (
     load_chart_for_user,
     require_user,
 )
-from zodiac_art.api.chart_inputs import build_chart_payload, normalize_chart_name
 from zodiac_art.api.models import (
     AutoLayoutRequest,
     AutoLayoutResponse,
@@ -36,9 +38,26 @@ from zodiac_art.api.validators import (
     validate_layout_payload,
     validate_session_id,
 )
+from zodiac_art.config import STORAGE_ROOT
 from zodiac_art.frames.validation import validate_meta
 
 router = APIRouter()
+
+_BACKGROUND_IMAGE_NAME = "chart_background"
+_BACKGROUND_IMAGE_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/webp": ".webp",
+}
+
+
+def _chart_design_dir(chart_id: str) -> Path:
+    return STORAGE_ROOT / "charts" / chart_id / "design"
+
+
+def _background_image_path(chart_id: str, ext: str) -> Path:
+    return _chart_design_dir(chart_id) / f"{_BACKGROUND_IMAGE_NAME}{ext}"
 
 
 @router.post("/api/charts", response_model=ChartCreateResponse)
@@ -350,3 +369,46 @@ async def auto_layout_chart_only(
         max_iter=payload.max_iter,
     )
     return AutoLayoutResponse(overrides=overrides)
+
+
+@router.post("/api/charts/{chart_id}/design/background_image")
+async def upload_background_image(
+    request: Request,
+    chart_id: str,
+    file: UploadFile = File(...),
+    user: AuthUser = Depends(require_user),
+) -> dict:
+    validate_chart_id(chart_id)
+    await load_chart_for_user(request, chart_id, user.user_id)
+    if not file.content_type or file.content_type.lower() not in _BACKGROUND_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty upload")
+    ext = _BACKGROUND_IMAGE_TYPES[file.content_type.lower()]
+    output_dir = _chart_design_dir(chart_id)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = _background_image_path(chart_id, ext)
+    output_path.write_bytes(data)
+    relative_path = output_path.relative_to(STORAGE_ROOT).as_posix()
+    return {
+        "path": relative_path,
+        "url": f"/static/storage/{relative_path}",
+    }
+
+
+@router.delete("/api/charts/{chart_id}/design/background_image")
+async def delete_background_image(
+    request: Request,
+    chart_id: str,
+    user: AuthUser = Depends(require_user),
+) -> dict:
+    validate_chart_id(chart_id)
+    await load_chart_for_user(request, chart_id, user.user_id)
+    output_dir = _chart_design_dir(chart_id)
+    if output_dir.exists():
+        for ext in _BACKGROUND_IMAGE_TYPES.values():
+            candidate = output_dir / f"{_BACKGROUND_IMAGE_NAME}{ext}"
+            if candidate.exists():
+                candidate.unlink()
+    return {"status": "ok"}

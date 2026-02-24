@@ -1,4 +1,4 @@
-import type { ChartFit, Offset } from '../types'
+import type { ChartFit, DesignSettings, Offset } from '../types'
 
 export type EditorState = {
   chartFit: ChartFit
@@ -7,14 +7,17 @@ export type EditorState = {
   userAdjustedFit: boolean
   overrides: Record<string, Offset>
   initialOverrides: Record<string, Offset>
+  design: DesignSettings
+  initialDesign: DesignSettings
   selectedElement: string
 }
 
 export type EditorAction =
-  | { type: 'LOAD_LAYOUT'; fit: ChartFit; overrides: Record<string, Offset> }
+  | { type: 'LOAD_LAYOUT'; fit: ChartFit; overrides: Record<string, Offset>; design: DesignSettings }
   | { type: 'SET_CHART_FIT'; fit: ChartFit; userAdjusted: boolean; setInitial?: boolean }
   | { type: 'SET_SAVED_FIT'; fit: ChartFit }
   | { type: 'SET_OVERRIDES'; overrides: Record<string, Offset>; setInitial?: boolean }
+  | { type: 'SET_DESIGN'; design: DesignSettings; setInitial?: boolean }
   | { type: 'APPLY_COLOR'; targets: string[]; color: string | null }
   | { type: 'SET_SELECTED_ELEMENT'; id: string }
   | { type: 'CLEAR_SELECTION' }
@@ -24,7 +27,7 @@ export type EditorAction =
   | { type: 'RESET_USER_ADJUSTED' }
   | { type: 'SET_USER_ADJUSTED'; value: boolean }
 
-export function createInitialEditorState(defaultFit: ChartFit): EditorState {
+export function createInitialEditorState(defaultFit: ChartFit, defaultDesign: DesignSettings): EditorState {
   return {
     chartFit: defaultFit,
     savedFit: defaultFit,
@@ -32,6 +35,8 @@ export function createInitialEditorState(defaultFit: ChartFit): EditorState {
     userAdjustedFit: false,
     overrides: {},
     initialOverrides: {},
+    design: defaultDesign,
+    initialDesign: defaultDesign,
     selectedElement: '',
   }
 }
@@ -46,6 +51,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         initialFit: action.fit,
         overrides: action.overrides,
         initialOverrides: action.overrides,
+        design: action.design,
+        initialDesign: action.design,
         selectedElement: '',
       }
     case 'SET_CHART_FIT':
@@ -65,6 +72,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         overrides: action.overrides,
         initialOverrides: action.setInitial ? action.overrides : state.initialOverrides,
+      }
+    case 'SET_DESIGN':
+      return {
+        ...state,
+        design: action.design,
+        initialDesign: action.setInitial ? action.design : state.initialDesign,
       }
     case 'APPLY_COLOR': {
       const next = { ...state.overrides }
@@ -102,6 +115,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         chartFit: state.initialFit,
         overrides: state.initialOverrides,
+        design: state.initialDesign,
         selectedElement: '',
         userAdjustedFit: false,
       }

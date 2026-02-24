@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import json
 import asyncio
+import json
 from pathlib import Path
 
-from PIL import Image
-
 from dotenv import load_dotenv
+from PIL import Image
 
 from zodiac_art.api.frames_store import template_metadata_from_opening
 from zodiac_art.config import STORAGE_ROOT, build_database_url

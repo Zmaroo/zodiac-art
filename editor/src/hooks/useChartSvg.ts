@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchJsonAuth, fetchJsonIfOkAuth, fetchTextIfOkAuth } from '../api/client'
 import { extractChartInner, stripOverrideTransforms } from '../utils/svg'
-import type { ChartFit, ChartMeta, FrameCircle, FrameDetail, LayoutFile, Offset } from '../types'
+import type {
+  ChartFit,
+  ChartMeta,
+  DesignSettings,
+  FrameCircle,
+  FrameDetail,
+  LayoutFile,
+  Offset,
+} from '../types'
 
 type LayoutLoadResult = {
   fit: ChartFit
   overrides: Record<string, Offset>
   frameCircle: FrameCircle | null
+  design: DesignSettings
 }
 
 type UseChartSvgParams = {
@@ -15,6 +24,8 @@ type UseChartSvgParams = {
   chartId: string
   selectedId: string
   isChartOnly: boolean
+  designPreview: DesignSettings
+  defaultDesign: DesignSettings
   onLayoutLoaded: (result: LayoutLoadResult) => void
 }
 
@@ -35,16 +46,20 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
     chartId,
     selectedId,
     isChartOnly,
+    designPreview,
+    defaultDesign,
     onLayoutLoaded,
   } = params
   const [meta, setMeta] = useState<ChartMeta | null>(null)
   const [selectedFrameDetail, setSelectedFrameDetail] = useState<FrameDetail | null>(null)
   const [chartSvgBase, setChartSvgBase] = useState('')
   const [hasSavedFit, setHasSavedFit] = useState(false)
+  const [layoutReady, setLayoutReady] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const onLayoutLoadedRef = useRef(onLayoutLoaded)
   const lastLayoutKeyRef = useRef('')
+  const layoutOverridesRef = useRef<Record<string, Offset>>({})
 
   const fetchJsonAuthWith = useCallback((url: string) => fetchJsonAuth(url, jwt), [jwt])
   const fetchJsonIfOkAuthWith = useCallback((url: string) => fetchJsonIfOkAuth(url, jwt), [jwt])
@@ -54,13 +69,99 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
     onLayoutLoadedRef.current = onLayoutLoaded
   }, [onLayoutLoaded])
 
+  const normalizeDesign = (design?: Partial<DesignSettings> | null) => {
+    const requiredLayers: Array<DesignSettings['layer_order'][number]> = [
+      'background',
+      'frame',
+      'chart',
+    ]
+    const baseOrder = design?.layer_order ?? defaultDesign.layer_order
+    const seen = new Set<string>()
+    const deduped = baseOrder.filter((layer) => {
+      if (seen.has(layer)) {
+        return false
+      }
+      seen.add(layer)
+      return true
+    })
+    const defaultOrder = defaultDesign.layer_order
+    const withRequired = [...deduped]
+    requiredLayers.forEach((layer) => {
+      if (withRequired.includes(layer)) {
+        return
+      }
+      const defaultIndex = defaultOrder.indexOf(layer)
+      if (defaultIndex >= 0) {
+        const nextIndex = withRequired.findIndex((value) => {
+          const valueIndex = defaultOrder.indexOf(value)
+          return valueIndex >= 0 && valueIndex > defaultIndex
+        })
+        if (nextIndex >= 0) {
+          withRequired.splice(nextIndex, 0, layer)
+          return
+        }
+      }
+      withRequired.push(layer)
+    })
+
+    const backgroundImagePath =
+      design?.background_image_path ?? defaultDesign.background_image_path
+    let nextLayerOrder = withRequired
+    if (backgroundImagePath && !nextLayerOrder.includes('chart_background_image')) {
+      const chartIndex = nextLayerOrder.indexOf('chart')
+      nextLayerOrder =
+        chartIndex >= 0
+          ? [
+              ...nextLayerOrder.slice(0, chartIndex),
+              'chart_background_image',
+              ...nextLayerOrder.slice(chartIndex),
+            ]
+          : [...nextLayerOrder, 'chart_background_image']
+    }
+    return {
+      layer_order: nextLayerOrder,
+      layer_opacity: design?.layer_opacity ?? defaultDesign.layer_opacity,
+      background_image_path: backgroundImagePath,
+      background_image_scale:
+        design?.background_image_scale ?? defaultDesign.background_image_scale,
+      background_image_dx: design?.background_image_dx ?? defaultDesign.background_image_dx,
+      background_image_dy: design?.background_image_dy ?? defaultDesign.background_image_dy,
+      sign_glyph_scale: design?.sign_glyph_scale ?? defaultDesign.sign_glyph_scale,
+      planet_glyph_scale: design?.planet_glyph_scale ?? defaultDesign.planet_glyph_scale,
+      inner_ring_scale: design?.inner_ring_scale ?? defaultDesign.inner_ring_scale,
+    }
+  }
+
+  const buildDesignParams = (design: DesignSettings) => {
+    const requiredLayers: Array<DesignSettings['layer_order'][number]> = [
+      'background',
+      'frame',
+      'chart',
+    ]
+    const layerOrder = requiredLayers.every((layer) => design.layer_order.includes(layer))
+      ? design.layer_order
+      : defaultDesign.layer_order
+    const params = new URLSearchParams()
+    params.set('design_layer_order', layerOrder.join(','))
+    params.set('design_sign_glyph_scale', design.sign_glyph_scale.toString())
+    params.set('design_planet_glyph_scale', design.planet_glyph_scale.toString())
+    params.set('design_inner_ring_scale', design.inner_ring_scale.toString())
+    params.set('design_background_image_scale', design.background_image_scale.toString())
+    params.set('design_background_image_dx', design.background_image_dx.toString())
+    params.set('design_background_image_dy', design.background_image_dy.toString())
+    return params
+  }
+
   useEffect(() => {
+    setLayoutReady(false)
     if (!selectedId) {
       queueMicrotask(() => {
         setSelectedFrameDetail(null)
         setMeta(null)
         setChartSvgBase('')
         setHasSavedFit(false)
+        layoutOverridesRef.current = {}
+        setLayoutReady(false)
       })
       return
     }
@@ -74,18 +175,17 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           setSelectedFrameDetail(null)
           setMeta(null)
           setChartSvgBase('')
+          setLayoutReady(false)
         })
         return
       }
       const chartMetaUrl = `${apiBase}/api/charts/${chartId}/chart_only/meta`
       const layoutUrl = `${apiBase}/api/charts/${chartId}/layout`
-      const svgUrl = `${apiBase}/api/charts/${chartId}/render_chart.svg`
       Promise.all([
         fetchJsonAuthWith(chartMetaUrl),
         fetchJsonIfOkAuthWith(layoutUrl),
-        fetchTextIfOkAuthWith(svgUrl),
       ])
-        .then(([chartMeta, layoutData, svgText]) => {
+        .then(([chartMeta, layoutData]) => {
           setSelectedFrameDetail(null)
           const metaData = chartMeta as ChartMeta
           setMeta(metaData)
@@ -98,13 +198,14 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           }
           const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
           const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
-          const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle })
+          const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
+          const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle, design })
           if (lastLayoutKeyRef.current !== layoutKey) {
             lastLayoutKeyRef.current = layoutKey
-            onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle })
+            layoutOverridesRef.current = nextOverrides
+            onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle, design })
           }
-          const inner = svgText ? extractChartInner(svgText as string) : ''
-          setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
+          setLayoutReady(true)
         })
         .catch((err) => setError(String(err)))
       return
@@ -117,19 +218,12 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
     const layoutUrl = chartId
       ? `${apiBase}/api/charts/${chartId}/frames/${selectedId}/layout`
       : null
-    const svgUrl = chartId
-      ? `${apiBase}/api/charts/${chartId}/render.svg?${new URLSearchParams({
-          frame_id: selectedId,
-        }).toString()}`
-      : null
-
     Promise.all([
       fetchJsonAuthWith(frameDetailUrl),
       chartMetaUrl ? fetchJsonIfOkAuthWith(chartMetaUrl) : Promise.resolve(null),
       layoutUrl ? fetchJsonIfOkAuthWith(layoutUrl) : Promise.resolve({ overrides: {} }),
-      svgUrl ? fetchTextIfOkAuthWith(svgUrl) : Promise.resolve(''),
     ])
-      .then(([frameDetail, chartMeta, layoutData, svgText]) => {
+      .then(([frameDetail, chartMeta, layoutData]) => {
         const detail = frameDetail as FrameDetail
         setSelectedFrameDetail(detail)
         const templateMeta = detail.template_metadata_json
@@ -145,16 +239,51 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         }
         const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
         const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
-        const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle })
+        const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
+        const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle, design })
         if (lastLayoutKeyRef.current !== layoutKey) {
           lastLayoutKeyRef.current = layoutKey
-          onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle })
+          layoutOverridesRef.current = nextOverrides
+          onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle, design })
         }
-        const inner = svgText ? extractChartInner(svgText as string) : ''
-        setChartSvgBase(stripOverrideTransforms(inner, nextOverrides))
+        setLayoutReady(true)
       })
       .catch((err) => setError(String(err)))
-  }, [apiBase, chartId, fetchJsonAuthWith, fetchJsonIfOkAuthWith, fetchTextIfOkAuthWith, isChartOnly, jwt, selectedId])
+  }, [apiBase, chartId, fetchJsonAuthWith, fetchJsonIfOkAuthWith, isChartOnly, jwt, selectedId])
+
+  useEffect(() => {
+    if (!layoutReady) {
+      return
+    }
+    if (!chartId) {
+      setChartSvgBase('')
+      return
+    }
+    if (!selectedId) {
+      setChartSvgBase('')
+      return
+    }
+    const params = buildDesignParams(normalizeDesign(designPreview))
+    if (isChartOnly) {
+      const svgUrl = `${apiBase}/api/charts/${chartId}/render_chart.svg?${params.toString()}`
+      fetchTextIfOkAuthWith(svgUrl)
+        .then((svgText) => {
+          const inner = svgText ? extractChartInner(svgText as string) : ''
+          setChartSvgBase(stripOverrideTransforms(inner, layoutOverridesRef.current))
+        })
+        .catch((err) => setError(String(err)))
+      return
+    }
+    const frameParams = new URLSearchParams(params)
+    frameParams.set('frame_id', selectedId)
+    const svgUrl = `${apiBase}/api/charts/${chartId}/render.svg?${frameParams.toString()}`
+    fetchTextIfOkAuthWith(svgUrl)
+      .then((svgText) => {
+        const inner = svgText ? extractChartInner(svgText as string) : ''
+        setChartSvgBase(stripOverrideTransforms(inner, layoutOverridesRef.current))
+      })
+      .catch((err) => setError(String(err)))
+  }, [apiBase, chartId, designPreview, fetchTextIfOkAuthWith, isChartOnly, layoutReady, selectedId])
 
   const clearStatus = () => {
     setStatus('')

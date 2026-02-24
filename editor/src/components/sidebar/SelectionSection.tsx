@@ -1,6 +1,7 @@
 import CollapsibleSection from '../CollapsibleSection'
 
 type SelectionSectionProps = {
+  wrapInSection?: boolean
   selectedElement: string
   selectableGroups: { label: string; items: { id: string; label: string }[] }[]
   onSelectedElementChange: (value: string) => void
@@ -12,6 +13,9 @@ type SelectionSectionProps = {
   chartLinesColor: string
   onChartLinesColorChange: (color: string) => void
   onClearChartLinesColor: () => void
+  chartBackgroundColor: string
+  onChartBackgroundColorChange: (color: string) => void
+  onClearChartBackgroundColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
   outlineColor: string
@@ -21,6 +25,7 @@ type SelectionSectionProps = {
 }
 
 function SelectionSection({
+  wrapInSection = true,
   selectedElement,
   selectableGroups,
   onSelectedElementChange,
@@ -32,6 +37,9 @@ function SelectionSection({
   chartLinesColor,
   onChartLinesColorChange,
   onClearChartLinesColor,
+  chartBackgroundColor,
+  onChartBackgroundColorChange,
+  onClearChartBackgroundColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
   outlineColor,
@@ -39,8 +47,8 @@ function SelectionSection({
   frameMaskCutoff,
   onFrameMaskCutoffChange,
 }: SelectionSectionProps) {
-  return (
-    <CollapsibleSection title="Selection" persistKey="selection">
+  const content = (
+    <>
       <label className="field">
         Select element
         <select
@@ -72,6 +80,20 @@ function SelectionSection({
           </button>
         </div>
         <div className="hint">Applies to inner/outer rings + cusp lines.</div>
+      </label>
+      <label className="field">
+        Chart background color
+        <div className="color-row">
+          <input
+            type="color"
+            value={chartBackgroundColor || '#ffffff'}
+            onChange={(event) => onChartBackgroundColorChange(event.target.value)}
+          />
+          <button type="button" className="secondary" onClick={onClearChartBackgroundColor}>
+            Clear
+          </button>
+        </div>
+        <div className="hint">Applies to the chart background circle.</div>
       </label>
       <label className="field">
         Selected element color
@@ -127,6 +149,16 @@ function SelectionSection({
         <div className="hint">{frameMaskCutoff}</div>
       </label>
       <div className="selection">{selectedElement || 'None'}</div>
+    </>
+  )
+
+  if (!wrapInSection) {
+    return content
+  }
+
+  return (
+    <CollapsibleSection title="Selection" persistKey="selection">
+      {content}
     </CollapsibleSection>
   )
 }

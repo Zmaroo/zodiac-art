@@ -2,16 +2,15 @@
 
 This document is for automated coding agents working in this repo.
 Keep changes small, focused, and aligned with existing conventions.
-
 ## Quick Facts
 - Primary language: Python 3.11 (conda env in `environment.yml`).
-- Linting: ruff. Tests: pytest.
+- Linting: ruff (line length 100, exclude `output/` and `storage/`).
+- Tests: pytest (default `-ra`, tests in `tests/`).
 - CLI entry point: `zodiac_art/main.py` (runs an example when no args).
 - API entry point: `zodiac_art/api/app.py` (FastAPI).
 - Config defaults: `zodiac_art/config.py` with env overrides.
 - Ephemeral chart sessions use Redis when `REDIS_URL` is set.
 - Frames live in `frames/`; outputs written to `output/`.
-
 ## Repo Layout
 - `zodiac_art/`: package source.
 - `zodiac_art/api/`: API entry and routes.
@@ -20,7 +19,6 @@ Keep changes small, focused, and aligned with existing conventions.
 - `frames/`: frame metadata (`.json`) and art (`.png`).
 - `output/`: generated SVG/PNG artifacts.
 - `environment.yml`: conda environment definition.
-
 ## Build / Run / Test Commands
 ### Environment Setup
 ```bash
@@ -63,22 +61,24 @@ ruff check .
 ruff format .
 ```
 
+Optional autofix:
+```bash
+ruff check . --fix
+```
+
 ### Tests (All)
 ```bash
 pytest
 ```
 
 ### Tests (Single)
-Use pytest node IDs:
+Use pytest node IDs, file paths, or `-k`:
 ```bash
 pytest tests/test_config.py::test_build_database_url_from_pg_env
 pytest tests/test_session_storage.py::test_session_round_trip
+pytest tests/test_session_storage.py -k round_trip
+pytest -k "session and round_trip" -vv
 ```
-
-### Build Artifacts
-No separate build step. Running the CLI produces:
-- SVG output in `output/`
-- PNG output in `output/`
 
 ## Code Style Guidelines
 ### Imports
@@ -89,7 +89,7 @@ No separate build step. Running the CLI produces:
 
 ### Formatting
 - Use 4-space indentation.
-- Keep lines reasonably short and avoid excessive wrapping.
+- Keep lines reasonably short (100 chars) and avoid excessive wrapping.
 - Use f-strings for string interpolation.
 - Use double quotes for user-facing messages and f-strings.
 - Keep docstrings concise and one-line when possible.
@@ -116,11 +116,6 @@ No separate build step. Running the CLI produces:
 - Let exceptions propagate to `main`, which prints a single-line error.
 - Prefer clear, user-facing error text for CLI usage.
 - Avoid swallowing exceptions unless retrying or adding context.
-
-### Testing
-- Prefer small unit tests over end-to-end unless needed.
-- Use deterministic inputs; avoid time-based or random behavior.
-- Keep fixtures local to test modules unless widely reused.
 
 ### Data and Paths
 - Use `pathlib.Path` for filesystem paths.

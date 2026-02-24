@@ -13,9 +13,43 @@ from zodiac_art.api.rendering import (
     render_chart_png,
     render_chart_svg,
 )
-from zodiac_art.api.validators import validate_chart_id, validate_glyph_outline_color
+from zodiac_art.api.validators import (
+    normalize_design_settings,
+    validate_chart_id,
+    validate_glyph_outline_color,
+)
 
 router = APIRouter()
+
+
+def _design_override_from_query(
+    layer_order: str | None,
+    sign_glyph_scale: float | None,
+    planet_glyph_scale: float | None,
+    inner_ring_scale: float | None,
+    background_image_scale: float | None,
+    background_image_dx: float | None,
+    background_image_dy: float | None,
+) -> dict | None:
+    payload: dict[str, object] = {}
+    if layer_order:
+        payload["layer_order"] = [part.strip() for part in layer_order.split(",") if part.strip()]
+    if sign_glyph_scale is not None:
+        payload["sign_glyph_scale"] = sign_glyph_scale
+    if planet_glyph_scale is not None:
+        payload["planet_glyph_scale"] = planet_glyph_scale
+    if inner_ring_scale is not None:
+        payload["inner_ring_scale"] = inner_ring_scale
+    if background_image_scale is not None:
+        payload["background_image_scale"] = background_image_scale
+    if background_image_dx is not None:
+        payload["background_image_dx"] = background_image_dx
+    if background_image_dy is not None:
+        payload["background_image_dy"] = background_image_dy
+    if not payload:
+        return None
+    normalized = normalize_design_settings(payload)
+    return normalized or None
 
 
 @router.get("/api/charts/{chart_id}/render.svg")
@@ -25,6 +59,13 @@ async def render_svg(
     frame_id: str | None = None,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_layer_order: str | None = None,
+    design_sign_glyph_scale: float | None = None,
+    design_planet_glyph_scale: float | None = None,
+    design_inner_ring_scale: float | None = None,
+    design_background_image_scale: float | None = None,
+    design_background_image_dx: float | None = None,
+    design_background_image_dy: float | None = None,
     user: AuthUser = Depends(require_user),
 ) -> Response:
     validate_chart_id(chart_id)
@@ -38,12 +79,22 @@ async def render_svg(
     assert frame_id is not None
     if not await frame_exists(request, frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
+    design_override = _design_override_from_query(
+        design_layer_order,
+        design_sign_glyph_scale,
+        design_planet_glyph_scale,
+        design_inner_ring_scale,
+        design_background_image_scale,
+        design_background_image_dx,
+        design_background_image_dy,
+    )
     result = await render_chart_svg(
         get_storage(request),
         record,
         frame_id,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        design_override=design_override,
     )
     etag = compute_etag(result.svg)
     headers = render_cache_headers("interactive", etag)
@@ -58,16 +109,33 @@ async def render_chart_only_svg_endpoint(
     chart_id: str,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_layer_order: str | None = None,
+    design_sign_glyph_scale: float | None = None,
+    design_planet_glyph_scale: float | None = None,
+    design_inner_ring_scale: float | None = None,
+    design_background_image_scale: float | None = None,
+    design_background_image_dx: float | None = None,
+    design_background_image_dy: float | None = None,
     user: AuthUser = Depends(require_user),
 ) -> Response:
     validate_chart_id(chart_id)
     validate_glyph_outline_color(glyph_outline_color)
     record = await load_chart_for_user(request, chart_id, user.user_id)
+    design_override = _design_override_from_query(
+        design_layer_order,
+        design_sign_glyph_scale,
+        design_planet_glyph_scale,
+        design_inner_ring_scale,
+        design_background_image_scale,
+        design_background_image_dx,
+        design_background_image_dy,
+    )
     result = await render_chart_only_svg(
         get_storage(request),
         record,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        design_override=design_override,
     )
     etag = compute_etag(result.svg)
     headers = render_cache_headers("interactive", etag)
@@ -84,6 +152,13 @@ async def render_png(
     size: int | None = None,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_layer_order: str | None = None,
+    design_sign_glyph_scale: float | None = None,
+    design_planet_glyph_scale: float | None = None,
+    design_inner_ring_scale: float | None = None,
+    design_background_image_scale: float | None = None,
+    design_background_image_dx: float | None = None,
+    design_background_image_dy: float | None = None,
     user: AuthUser = Depends(require_user),
 ) -> Response:
     validate_chart_id(chart_id)
@@ -99,6 +174,15 @@ async def render_png(
         raise HTTPException(status_code=404, detail="Frame not found")
     if size is not None and size <= 0:
         raise HTTPException(status_code=400, detail="size must be positive")
+    design_override = _design_override_from_query(
+        design_layer_order,
+        design_sign_glyph_scale,
+        design_planet_glyph_scale,
+        design_inner_ring_scale,
+        design_background_image_scale,
+        design_background_image_dx,
+        design_background_image_dy,
+    )
     png_bytes = await render_chart_png(
         get_storage(request),
         record,
@@ -106,6 +190,7 @@ async def render_png(
         max_size=size,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        design_override=design_override,
     )
     etag = compute_etag(png_bytes)
     headers = render_cache_headers("interactive", etag)
@@ -121,6 +206,13 @@ async def render_chart_only_png_endpoint(
     size: int | None = None,
     glyph_glow: bool = False,
     glyph_outline_color: str | None = None,
+    design_layer_order: str | None = None,
+    design_sign_glyph_scale: float | None = None,
+    design_planet_glyph_scale: float | None = None,
+    design_inner_ring_scale: float | None = None,
+    design_background_image_scale: float | None = None,
+    design_background_image_dx: float | None = None,
+    design_background_image_dy: float | None = None,
     user: AuthUser = Depends(require_user),
 ) -> Response:
     validate_chart_id(chart_id)
@@ -128,12 +220,22 @@ async def render_chart_only_png_endpoint(
     record = await load_chart_for_user(request, chart_id, user.user_id)
     if size is not None and size <= 0:
         raise HTTPException(status_code=400, detail="size must be positive")
+    design_override = _design_override_from_query(
+        design_layer_order,
+        design_sign_glyph_scale,
+        design_planet_glyph_scale,
+        design_inner_ring_scale,
+        design_background_image_scale,
+        design_background_image_dx,
+        design_background_image_dy,
+    )
     png_bytes = await render_chart_only_png(
         get_storage(request),
         record,
         max_size=size,
         glyph_glow=glyph_glow,
         glyph_outline_color=glyph_outline_color,
+        design_override=design_override,
     )
     etag = compute_etag(png_bytes)
     headers = render_cache_headers("interactive", etag)

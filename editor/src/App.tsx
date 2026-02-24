@@ -3,6 +3,7 @@ import './App.css'
 import Canvas from './components/Canvas'
 import Sidebar from './components/Sidebar'
 import { applyOverrides, stripElementById } from './utils/svg'
+import { apiFetch, readApiError } from './api/client'
 import { useChartBackground } from './hooks/useChartBackground'
 import { useAuth } from './hooks/useAuth'
 import { useFrames } from './hooks/useFrames'
@@ -23,10 +24,22 @@ import { usePersistedState } from './hooks/usePersistedState'
 import { useExport } from './hooks/useExport'
 import { useEditorDerived } from './hooks/useEditorDerived'
 import { useEditorActions } from './hooks/useEditorActions'
+import { useDebouncedValue } from './hooks/useDebouncedValue'
 import { createInitialEditorState, editorReducer } from './state/editorReducer'
-import type { ChartFit, FrameCircle, Offset } from './types'
+import type { ChartFit, DesignSettings, FrameCircle, LayerOrderKey, Offset } from './types'
 
 const defaultChartFit: ChartFit = { dx: 0, dy: 0, scale: 1, rotation_deg: 0 }
+const defaultDesign: DesignSettings = {
+  layer_order: ['background', 'frame', 'chart_background_image', 'chart'],
+  layer_opacity: {},
+  background_image_path: null,
+  background_image_scale: 1,
+  background_image_dx: 0,
+  background_image_dy: 0,
+  sign_glyph_scale: 1,
+  planet_glyph_scale: 1,
+  inner_ring_scale: 1,
+}
 const CHART_ONLY_ID = '__chart_only__'
 const CHART_BACKGROUND_ID = 'chart.background'
 
@@ -87,15 +100,18 @@ function App() {
   })
   const [editorState, dispatch] = useReducer(
     editorReducer,
-    createInitialEditorState(defaultChartFit)
+    createInitialEditorState(defaultChartFit, defaultDesign)
   )
-  const { chartFit, userAdjustedFit, overrides, selectedElement } = editorState
+  const { chartFit, userAdjustedFit, overrides, selectedElement, design } = editorState
   const chartLinesColor = overrides['chart.lines']?.color ?? ''
   const [showFrameCircleDebug, setShowFrameCircleDebug] = useState(false)
   const [selectionOutlineColor, setSelectionOutlineColor] = usePersistedState(
     'zodiac_editor.glyphOutlineColor',
     '#ffffff'
   )
+  const [backgroundImageError, setBackgroundImageError] = useState('')
+  const [backgroundImageStatus, setBackgroundImageStatus] = useState('')
+  const [backgroundImageUploading, setBackgroundImageUploading] = useState(false)
   const [frameMaskCutoff, setFrameMaskCutoff] = usePersistedState(
     'zodiac_editor.frameMaskCutoff',
     252,
@@ -140,11 +156,22 @@ function App() {
 
   const isChartOnly = selectedId === CHART_ONLY_ID
 
-  const handleLayoutLoaded = (result: { fit: ChartFit; overrides: Record<string, Offset>; frameCircle: FrameCircle | null }) => {
-    dispatch({ type: 'LOAD_LAYOUT', fit: result.fit, overrides: result.overrides })
+  const handleLayoutLoaded = (result: {
+    fit: ChartFit
+    overrides: Record<string, Offset>
+    frameCircle: FrameCircle | null
+    design: DesignSettings
+  }) => {
+    dispatch({
+      type: 'LOAD_LAYOUT',
+      fit: result.fit,
+      overrides: result.overrides,
+      design: result.design,
+    })
     setFrameCircle(result.frameCircle)
   }
 
+  const debouncedDesign = useDebouncedValue(design, 400)
   const {
     meta,
     selectedFrameDetail,
@@ -157,6 +184,8 @@ function App() {
     chartId,
     selectedId,
     isChartOnly,
+    designPreview: debouncedDesign,
+    defaultDesign,
     onLayoutLoaded: handleLayoutLoaded,
   })
 
@@ -192,6 +221,44 @@ function App() {
     return applyOverrides(base, overrides)
   }, [chartBackgroundColor, chartSvgBase, overrides])
 
+  const ensureRequiredLayers = (layerOrder: DesignSettings['layer_order']) => {
+    const required: LayerOrderKey[] = ['background', 'frame', 'chart']
+    const deduped = layerOrder.filter((layer, index) => layerOrder.indexOf(layer) === index)
+    const withRequired = [...deduped]
+    required.forEach((layer) => {
+      if (!withRequired.includes(layer)) {
+        withRequired.push(layer)
+      }
+    })
+    return withRequired
+  }
+
+  const ensureLayerOrder = (layerOrder: DesignSettings['layer_order'], layer: LayerOrderKey) => {
+    if (layerOrder.includes(layer)) {
+      return layerOrder
+    }
+    const chartIndex = layerOrder.indexOf('chart')
+    if (chartIndex >= 0) {
+      return [...layerOrder.slice(0, chartIndex), layer, ...layerOrder.slice(chartIndex)]
+    }
+    return [...layerOrder, layer]
+  }
+
+  const updateDesign = (next: Partial<DesignSettings>) => {
+    let nextDesign = { ...design, ...next }
+    nextDesign = {
+      ...nextDesign,
+      layer_order: ensureRequiredLayers(nextDesign.layer_order),
+    }
+    if (nextDesign.background_image_path) {
+      nextDesign = {
+        ...nextDesign,
+        layer_order: ensureLayerOrder(nextDesign.layer_order, 'chart_background_image'),
+      }
+    }
+    dispatch({ type: 'SET_DESIGN', design: nextDesign })
+  }
+
   const {
     selectableGroups,
     selectableIds,
@@ -206,6 +273,7 @@ function App() {
     meta,
     overrides,
     selectedElement,
+    hasBackgroundImage: Boolean(design.background_image_path),
     dispatch,
   })
 
@@ -226,13 +294,16 @@ function App() {
   const { onPointerDown, onPointerMove, onPointerUp } = useChartInteraction({
     chartFit,
     overrides,
+    design,
+    selectedElement,
+    updateDesign,
     svgRef,
     chartRootRef,
     dispatch,
     radialMoveEnabled,
   })
 
-  const { saveAll, autoFix } = useLayoutActions({
+  const { saveAll } = useLayoutActions({
     apiBase,
     jwt,
     chartId,
@@ -241,6 +312,7 @@ function App() {
     meta,
     chartFit,
     overrides,
+    design,
     frameCircle,
     setError,
     setStatus,
@@ -263,7 +335,7 @@ function App() {
 
   useEffect(() => {
     if (isChartOnly && !chartId) {
-      dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {} })
+      dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
       setFrameCircle(null)
     }
   }, [chartId, isChartOnly, setFrameCircle])
@@ -318,7 +390,7 @@ function App() {
     setLongitude(-74.006)
     setChartId('')
     setChartName('')
-    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {} })
+    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
     setFrameCircle(null)
     setStatus('')
     setError('')
@@ -338,7 +410,7 @@ function App() {
     setLongitude(-74.006)
     setChartId('')
     setChartName('')
-    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {} })
+    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
     setFrameCircle(null)
     setStatus('')
     setError('')
@@ -361,7 +433,6 @@ function App() {
     handleAutoFit,
     handleResetToSavedFit,
     handleSaveAllClick,
-    handleAutoFixClick,
     handleResetView,
   } = useEditorActions({
     isChartOnly,
@@ -373,7 +444,6 @@ function App() {
     setStatus,
     clearActionsMessages,
     saveAll,
-    autoFix,
   })
 
   // error/status aggregated for debug panel
@@ -494,6 +564,132 @@ function App() {
     dispatch({ type: 'APPLY_COLOR', targets: ['chart.lines'], color: null })
   }
 
+  const handleChartFitChange = (next: ChartFit) => {
+    dispatch({ type: 'SET_CHART_FIT', fit: next, userAdjusted: true })
+  }
+
+
+  const handleLayerOrderChange = (value: DesignSettings['layer_order']) => {
+    updateDesign({ layer_order: value })
+  }
+
+  const handleLayerOpacityChange = (layer: LayerOrderKey, value: number) => {
+    updateDesign({ layer_opacity: { ...design.layer_opacity, [layer]: value } })
+  }
+
+  const handleSignGlyphScaleChange = (value: number) => {
+    updateDesign({ sign_glyph_scale: value })
+  }
+
+  const handlePlanetGlyphScaleChange = (value: number) => {
+    updateDesign({ planet_glyph_scale: value })
+  }
+
+  const handleInnerRingScaleChange = (value: number) => {
+    updateDesign({ inner_ring_scale: value })
+  }
+
+  const handleBackgroundImageScaleChange = (value: number) => {
+    updateDesign({ background_image_scale: value })
+  }
+
+  const handleBackgroundImageDxChange = (value: number) => {
+    updateDesign({ background_image_dx: value })
+  }
+
+  const handleBackgroundImageDyChange = (value: number) => {
+    updateDesign({ background_image_dy: value })
+  }
+
+  const handleChartBackgroundColorChange = (value: string) => {
+    dispatch({ type: 'APPLY_COLOR', targets: [CHART_BACKGROUND_ID], color: value })
+  }
+
+  const handleChartBackgroundColorClear = () => {
+    dispatch({ type: 'APPLY_COLOR', targets: [CHART_BACKGROUND_ID], color: null })
+  }
+
+  const backgroundImageUrl = useMemo(() => {
+    if (!design.background_image_path) {
+      return ''
+    }
+    const cleaned = design.background_image_path.replace(/^\/+/, '')
+    return `${apiBase}/static/storage/${cleaned}`
+  }, [apiBase, design.background_image_path])
+
+  const handleBackgroundImageUpload = async (file: File | null) => {
+    if (!file) {
+      return
+    }
+    if (!jwt) {
+      setBackgroundImageError('Login required to upload background images.')
+      setBackgroundImageStatus('')
+      return
+    }
+    if (!chartId) {
+      setBackgroundImageError('Chart ID is required to upload a background image.')
+      setBackgroundImageStatus('')
+      return
+    }
+    setBackgroundImageUploading(true)
+    setBackgroundImageError('')
+    setBackgroundImageStatus('Uploading background image...')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await apiFetch(`${apiBase}/api/charts/${chartId}/design/background_image`, jwt, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!response.ok) {
+        const detail = await readApiError(response)
+        setBackgroundImageError(detail ?? 'Failed to upload background image.')
+        setBackgroundImageStatus('')
+        return
+      }
+      const data = (await response.json()) as { path: string }
+      updateDesign({
+        background_image_path: data.path,
+        background_image_scale: 1,
+        background_image_dx: 0,
+        background_image_dy: 0,
+      })
+      setBackgroundImageStatus('Background image uploaded.')
+    } finally {
+      setBackgroundImageUploading(false)
+    }
+  }
+
+  const handleBackgroundImageClear = async () => {
+    if (!jwt || !chartId) {
+      updateDesign({
+        background_image_path: null,
+        background_image_scale: 1,
+        background_image_dx: 0,
+        background_image_dy: 0,
+      })
+      return
+    }
+    setBackgroundImageError('')
+    setBackgroundImageStatus('Removing background image...')
+    const response = await apiFetch(`${apiBase}/api/charts/${chartId}/design/background_image`, jwt, {
+      method: 'DELETE',
+    })
+    if (!response.ok) {
+      const detail = await readApiError(response)
+      setBackgroundImageError(detail ?? 'Failed to remove background image.')
+      setBackgroundImageStatus('')
+      return
+    }
+    updateDesign({
+      background_image_path: null,
+      background_image_scale: 1,
+      background_image_dx: 0,
+      background_image_dy: 0,
+    })
+    setBackgroundImageStatus('Background image removed.')
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -566,6 +762,27 @@ function App() {
         onUploadFileChange={handleUploadFileChange}
         onUploadGlobalChange={handleUploadGlobalChange}
         onUploadFrame={handleUploadFrame}
+        chartFit={chartFit}
+        onChartFitChange={handleChartFitChange}
+        design={design}
+        onLayerOrderChange={handleLayerOrderChange}
+        onLayerOpacityChange={handleLayerOpacityChange}
+        backgroundImagePath={design.background_image_path ?? null}
+        backgroundImageUrl={backgroundImageUrl}
+        backgroundImageError={backgroundImageError}
+        backgroundImageStatus={backgroundImageStatus}
+        backgroundImageUploading={backgroundImageUploading}
+        onBackgroundImageUpload={handleBackgroundImageUpload}
+        onBackgroundImageClear={handleBackgroundImageClear}
+        backgroundImageScale={design.background_image_scale}
+        backgroundImageDx={design.background_image_dx}
+        backgroundImageDy={design.background_image_dy}
+        onBackgroundImageScaleChange={handleBackgroundImageScaleChange}
+        onBackgroundImageDxChange={handleBackgroundImageDxChange}
+        onBackgroundImageDyChange={handleBackgroundImageDyChange}
+        onSignGlyphScaleChange={handleSignGlyphScaleChange}
+        onPlanetGlyphScaleChange={handlePlanetGlyphScaleChange}
+        onInnerRingScaleChange={handleInnerRingScaleChange}
         selectedElement={selectedElement}
         selectableGroups={selectableGroups}
         onSelectedElementChange={setSelectedElement}
@@ -577,6 +794,9 @@ function App() {
         chartLinesColor={chartLinesColor}
         onChartLinesColorChange={handleChartLinesColorChange}
         onClearChartLinesColor={handleChartLinesColorClear}
+        chartBackgroundColor={chartBackgroundColor}
+        onChartBackgroundColorChange={handleChartBackgroundColorChange}
+        onClearChartBackgroundColor={handleChartBackgroundColorClear}
         radialMoveEnabled={radialMoveEnabled}
         onRadialMoveEnabledChange={setRadialMoveEnabled}
         outlineColor={selectionOutlineColor}
@@ -593,7 +813,6 @@ function App() {
         resetToSavedEnabled={resetToSavedEnabled}
         debugItems={debugItems}
         onSaveAll={handleSaveAllClick}
-        onAutoFix={handleAutoFixClick}
         onExport={handleExport}
         exportFormat={exportFormat}
         onExportFormatChange={setExportFormat}
@@ -608,6 +827,12 @@ function App() {
         chartId={chartId}
         isChartOnly={isChartOnly}
         chartBackgroundColor={chartBackgroundColor}
+        layerOrder={design.layer_order}
+        layerOpacity={design.layer_opacity}
+        backgroundImageUrl={backgroundImageUrl}
+        backgroundImageScale={design.background_image_scale}
+        backgroundImageDx={design.background_image_dx}
+        backgroundImageDy={design.background_image_dy}
         showChartBackground={Boolean(chartBackgroundColor)}
         frameMaskCutoff={frameMaskCutoff}
         frameCircle={frameCircle}
