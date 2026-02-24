@@ -2,7 +2,7 @@ import { useState, type ChangeEvent } from 'react'
 import CollapsibleSection from '../CollapsibleSection'
 import NumberField from '../NumberField'
 import SelectionSection from './SelectionSection'
-import type { ChartFit, DesignSettings, LayerOrderKey } from '../../types'
+import type { ActiveSelectionLayer, ChartFit, DesignSettings, LayerOrderKey } from '../../types'
 
 type DesignSectionProps = {
   chartFit: ChartFit
@@ -10,6 +10,9 @@ type DesignSectionProps = {
   design: DesignSettings
   onLayerOrderChange: (value: LayerOrderKey[]) => void
   onLayerOpacityChange: (layer: LayerOrderKey, value: number) => void
+  hasFrame: boolean
+  hasChartBackground: boolean
+  hasBackgroundImage: boolean
   backgroundImagePath: string | null
   backgroundImageUrl: string
   backgroundImageError: string
@@ -29,6 +32,8 @@ type DesignSectionProps = {
   selectedElement: string
   selectableGroups: { label: string; items: { id: string; label: string }[] }[]
   onSelectedElementChange: (value: string) => void
+  activeSelectionLayer: ActiveSelectionLayer
+  onActiveSelectionLayerChange: (value: ActiveSelectionLayer) => void
   selectionColor: string
   selectionColorMixed: boolean
   selectionEnabled: boolean
@@ -42,8 +47,6 @@ type DesignSectionProps = {
   onClearChartBackgroundColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
-  outlineColor: string
-  onOutlineColorChange: (value: string) => void
   frameMaskCutoff: number
   onFrameMaskCutoffChange: (value: number) => void
 }
@@ -55,12 +58,26 @@ const LAYER_LABELS: Record<LayerOrderKey, string> = {
   frame: 'Frame',
 }
 
+const LAYER_SELECTION_IDS: Partial<Record<LayerOrderKey, string>> = {
+  background: 'chart.background',
+  chart_background_image: 'chart.background_image',
+}
+
+const LAYER_ACTIVE_KEYS: Partial<Record<LayerOrderKey, ActiveSelectionLayer>> = {
+  background: 'background',
+  chart_background_image: 'background_image',
+  chart: 'chart',
+}
+
 function DesignSection({
   chartFit,
   onChartFitChange,
   design,
   onLayerOrderChange,
   onLayerOpacityChange,
+  hasFrame,
+  hasChartBackground,
+  hasBackgroundImage,
   backgroundImagePath,
   backgroundImageUrl,
   backgroundImageError,
@@ -80,6 +97,8 @@ function DesignSection({
   selectedElement,
   selectableGroups,
   onSelectedElementChange,
+  activeSelectionLayer,
+  onActiveSelectionLayerChange,
   selectionColor,
   selectionColorMixed,
   selectionEnabled,
@@ -93,22 +112,45 @@ function DesignSection({
   onClearChartBackgroundColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
-  outlineColor,
-  onOutlineColorChange,
   frameMaskCutoff,
   onFrameMaskCutoffChange,
 }: DesignSectionProps) {
   const [showAdvanced, setShowAdvanced] = useState(
     () => localStorage.getItem('zodiac_editor.designAdvanced') === 'true'
   )
-  const moveLayer = (index: number, direction: -1 | 1) => {
-    const next = [...design.layer_order]
+  const isLayerVisible = (layerKey: LayerOrderKey) => {
+    if (layerKey === 'chart') {
+      return true
+    }
+    if (layerKey === 'background') {
+      return hasChartBackground
+    }
+    if (layerKey === 'frame') {
+      return hasFrame
+    }
+    if (layerKey === 'chart_background_image') {
+      return hasBackgroundImage
+    }
+    return true
+  }
+
+  const visibleLayerOrder = design.layer_order.filter(isLayerVisible)
+
+  const moveLayer = (order: LayerOrderKey[], index: number, direction: -1 | 1) => {
     const target = index + direction
-    if (target < 0 || target >= next.length) {
+    if (target < 0 || target >= order.length) {
       return
     }
-    const [removed] = next.splice(index, 1)
-    next.splice(target, 0, removed)
+    const layerId = order[index]
+    const swapId = order[target]
+    const next = [...design.layer_order]
+    const fromIndex = next.indexOf(layerId)
+    const toIndex = next.indexOf(swapId)
+    if (fromIndex < 0 || toIndex < 0) {
+      return
+    }
+    next[fromIndex] = swapId
+    next[toIndex] = layerId
     onLayerOrderChange(next)
   }
   const handleBackgroundImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -118,56 +160,9 @@ function DesignSection({
   }
   return (
     <CollapsibleSection title="Design" persistKey="design">
-      <div className="subsection-title">Layering</div>
-      <div className="layer-stack">
-        {design.layer_order.map((layerKey, index) => {
-          const opacity = design.layer_opacity?.[layerKey] ?? 1
-          return (
-            <div className="layer-row" key={layerKey}>
-              <div className="layer-row-header">
-                <span className="layer-label">{LAYER_LABELS[layerKey]}</span>
-                <div className="layer-controls">
-                  <button
-                    type="button"
-                    className="layer-button"
-                    onClick={() => moveLayer(index, -1)}
-                    disabled={index === 0}
-                    aria-label="Move layer up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="layer-button"
-                    onClick={() => moveLayer(index, 1)}
-                    disabled={index === design.layer_order.length - 1}
-                    aria-label="Move layer down"
-                  >
-                    ↓
-                  </button>
-                </div>
-              </div>
-              <label className="field layer-opacity">
-                Opacity
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={opacity}
-                  onChange={(event) =>
-                    onLayerOpacityChange(layerKey, Number(event.target.value))
-                  }
-                />
-                <div className="hint">{Math.round(opacity * 100)}%</div>
-              </label>
-            </div>
-          )
-        })}
-      </div>
       <div className="subsection-title">Background image</div>
       <label className="field">
-        Upload PNG
+        Upload PNG for chart background if desired
         <input
           type="file"
           accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -252,6 +247,82 @@ function DesignSection({
           <div className="hint">Drag to move. Shift+drag to scale. Alt+drag to rotate.</div>
         </>
       ) : null}
+      <div className="subsection-title">Layering (top → bottom)</div>
+      <div className="layer-stack">
+        {[...visibleLayerOrder].reverse().map((layerKey, index, order) => {
+          const opacity = design.layer_opacity?.[layerKey] ?? 1
+          const selectionId = LAYER_SELECTION_IDS[layerKey]
+          const activeKey = LAYER_ACTIVE_KEYS[layerKey]
+          const isActiveLayer = Boolean(activeKey && activeSelectionLayer === activeKey)
+          const isSelected = Boolean(selectionId && selectionId === selectedElement)
+          const handleLayerActivate = () => {
+            if (!activeKey) {
+              return
+            }
+            const next = activeSelectionLayer === activeKey ? 'auto' : activeKey
+            onActiveSelectionLayerChange(next)
+            if (selectionId && next !== 'auto') {
+              onSelectedElementChange(selectionId)
+            }
+          }
+          return (
+            <div
+              className={`layer-row${isActiveLayer ? ' active-layer' : ''}${isSelected ? ' active' : ''}`}
+              key={layerKey}
+            >
+              <div className="layer-row-header">
+                {activeKey ? (
+                  <button
+                    type="button"
+                    className={`layer-label-button${isActiveLayer ? ' active-layer' : ''}`}
+                    onClick={handleLayerActivate}
+                    aria-label={`Activate ${LAYER_LABELS[layerKey]} layer`}
+                  >
+                    {LAYER_LABELS[layerKey]}
+                  </button>
+                ) : (
+                  <span className="layer-label">{LAYER_LABELS[layerKey]}</span>
+                )}
+                {isActiveLayer ? <span className="layer-active">Active layer</span> : null}
+                <div className="layer-controls">
+                  <button
+                    type="button"
+                    className="layer-button"
+                    onClick={() => moveLayer(order, index, -1)}
+                    disabled={index === 0}
+                    aria-label="Move layer up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="layer-button"
+                    onClick={() => moveLayer(order, index, 1)}
+                    disabled={index === order.length - 1}
+                    aria-label="Move layer down"
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+              <label className="field layer-opacity">
+                Opacity
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={opacity}
+                  onChange={(event) =>
+                    onLayerOpacityChange(layerKey, Number(event.target.value))
+                  }
+                />
+                <div className="hint">{Math.round(opacity * 100)}%</div>
+              </label>
+            </div>
+          )
+        })}
+      </div>
       <div className="subsection-title">Rings + Glyphs</div>
       <label className="field">
         Sign glyph size
@@ -308,8 +379,6 @@ function DesignSection({
         onClearChartBackgroundColor={onClearChartBackgroundColor}
         radialMoveEnabled={radialMoveEnabled}
         onRadialMoveEnabledChange={onRadialMoveEnabledChange}
-        outlineColor={outlineColor}
-        onOutlineColorChange={onOutlineColorChange}
         frameMaskCutoff={frameMaskCutoff}
         onFrameMaskCutoffChange={onFrameMaskCutoffChange}
       />

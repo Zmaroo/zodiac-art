@@ -6,7 +6,15 @@ import FramesSection from './sidebar/FramesSection'
 import UploadFrameSection from './sidebar/UploadFrameSection'
 import DebugSection from './sidebar/DebugSection'
 import DesignSection from './sidebar/DesignSection'
-import type { ChartFit, ChartListItem, DesignSettings, FrameEntry, LayerOrderKey, User } from '../types'
+import type {
+  ActiveSelectionLayer,
+  ChartFit,
+  ChartListItem,
+  DesignSettings,
+  FrameEntry,
+  LayerOrderKey,
+  User,
+} from '../types'
 
 type SidebarProps = {
   accountError: string
@@ -77,6 +85,9 @@ type SidebarProps = {
   design: DesignSettings
   onLayerOrderChange: (value: LayerOrderKey[]) => void
   onLayerOpacityChange: (layer: LayerOrderKey, value: number) => void
+  hasFrame: boolean
+  hasChartBackground: boolean
+  hasBackgroundImage: boolean
   backgroundImagePath: string | null
   backgroundImageUrl: string
   backgroundImageError: string
@@ -96,6 +107,8 @@ type SidebarProps = {
   selectedElement: string
   selectableGroups: { label: string; items: { id: string; label: string }[] }[]
   onSelectedElementChange: (value: string) => void
+  activeSelectionLayer: ActiveSelectionLayer
+  onActiveSelectionLayerChange: (value: ActiveSelectionLayer) => void
   selectionColor: string
   selectionColorMixed: boolean
   selectionEnabled: boolean
@@ -109,8 +122,6 @@ type SidebarProps = {
   onClearChartBackgroundColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
-  outlineColor: string
-  onOutlineColorChange: (value: string) => void
   frameMaskCutoff: number
   onFrameMaskCutoffChange: (value: number) => void
   showFrameCircleDebug: boolean
@@ -193,6 +204,9 @@ function Sidebar({
   design,
   onLayerOrderChange,
   onLayerOpacityChange,
+  hasFrame,
+  hasChartBackground,
+  hasBackgroundImage,
   backgroundImagePath,
   backgroundImageUrl,
   backgroundImageError,
@@ -212,6 +226,8 @@ function Sidebar({
   selectedElement,
   selectableGroups,
   onSelectedElementChange,
+  activeSelectionLayer,
+  onActiveSelectionLayerChange,
   selectionColor,
   selectionColorMixed,
   selectionEnabled,
@@ -225,8 +241,6 @@ function Sidebar({
   onClearChartBackgroundColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
-  outlineColor,
-  onOutlineColorChange,
   frameMaskCutoff,
   onFrameMaskCutoffChange,
   showFrameCircleDebug,
@@ -377,6 +391,9 @@ function Sidebar({
             design={design}
             onLayerOrderChange={onLayerOrderChange}
             onLayerOpacityChange={onLayerOpacityChange}
+            hasFrame={hasFrame}
+            hasChartBackground={hasChartBackground}
+            hasBackgroundImage={hasBackgroundImage}
             backgroundImagePath={backgroundImagePath}
             backgroundImageUrl={backgroundImageUrl}
             backgroundImageError={backgroundImageError}
@@ -396,6 +413,8 @@ function Sidebar({
             selectedElement={selectedElement}
             selectableGroups={selectableGroups}
             onSelectedElementChange={onSelectedElementChange}
+            activeSelectionLayer={activeSelectionLayer}
+            onActiveSelectionLayerChange={onActiveSelectionLayerChange}
             selectionColor={selectionColor}
             selectionColorMixed={selectionColorMixed}
             selectionEnabled={selectionEnabled}
@@ -409,8 +428,6 @@ function Sidebar({
             onClearChartBackgroundColor={onClearChartBackgroundColor}
             radialMoveEnabled={radialMoveEnabled}
             onRadialMoveEnabledChange={onRadialMoveEnabledChange}
-            outlineColor={outlineColor}
-            onOutlineColorChange={onOutlineColorChange}
             frameMaskCutoff={frameMaskCutoff}
             onFrameMaskCutoffChange={onFrameMaskCutoffChange}
           />

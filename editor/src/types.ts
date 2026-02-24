@@ -60,6 +60,8 @@ export type FrameCircle = {
 
 export type LayerOrderKey = 'background' | 'frame' | 'chart' | 'chart_background_image'
 
+export type ActiveSelectionLayer = 'auto' | 'chart' | 'background' | 'background_image'
+
 export type DesignSettings = {
   layer_order: LayerOrderKey[]
   layer_opacity: Record<string, number>

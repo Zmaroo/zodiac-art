@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { formatSelectionLabel } from '../utils/glyphs'
 import { isDraggableElement } from '../utils/format'
-import type { Offset, ChartMeta } from '../types'
+import type { ActiveSelectionLayer, Offset, ChartMeta } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
 const CHART_BACKGROUND_ID = 'chart.background'
@@ -56,10 +56,6 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
     const idSet = new Set(ids)
     if (meta) {
       idSet.add('chartRoot')
-      idSet.add(CHART_BACKGROUND_ID)
-    }
-    if (hasBackgroundImage) {
-      idSet.add(BACKGROUND_IMAGE_ID)
     }
     const uniqueIds = Array.from(idSet).sort()
     const groups = {
@@ -71,7 +67,7 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
     }
     uniqueIds.forEach((id) => {
       const item = { id, label: formatSelectionLabel(id) }
-      if (id === 'chartRoot' || id === CHART_BACKGROUND_ID) {
+      if (id === 'chartRoot') {
         groups.Chart.push(item)
       } else if (id === 'asc.marker') {
         groups.Ascendant.push(item)
@@ -82,6 +78,12 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
       } else {
         groups.Other.push(item)
       }
+    })
+    const chartOrder = new Map([['chartRoot', 0]])
+    groups.Chart.sort((a, b) => {
+      const aRank = chartOrder.get(a.id) ?? 999
+      const bRank = chartOrder.get(b.id) ?? 999
+      return aRank - bRank
     })
     const grouped = Object.entries(groups)
       .filter(([, items]) => items.length > 0)
@@ -159,6 +161,23 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
 
   const setSelectedElement = (value: string) => {
     dispatch({ type: 'SET_SELECTED_ELEMENT', id: value })
+    let nextLayer: ActiveSelectionLayer = 'auto'
+    if (
+      value &&
+      (value === 'chartRoot' ||
+        value === BULK_ALL ||
+        value === BULK_PLANETS ||
+        value === BULK_SIGNS ||
+        value === BULK_GLYPHS ||
+        isDraggableElement(value))
+    ) {
+      nextLayer = 'chart'
+    } else if (value === CHART_BACKGROUND_ID) {
+      nextLayer = 'background'
+    } else if (value === BACKGROUND_IMAGE_ID) {
+      nextLayer = 'background_image'
+    }
+    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: nextLayer })
   }
 
   const applySelectionColor = (color: string | null) => {

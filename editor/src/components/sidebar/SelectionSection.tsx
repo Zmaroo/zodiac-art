@@ -18,8 +18,6 @@ type SelectionSectionProps = {
   onClearChartBackgroundColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
-  outlineColor: string
-  onOutlineColorChange: (value: string) => void
   frameMaskCutoff: number
   onFrameMaskCutoffChange: (value: number) => void
 }
@@ -42,8 +40,6 @@ function SelectionSection({
   onClearChartBackgroundColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
-  outlineColor,
-  onOutlineColorChange,
   frameMaskCutoff,
   onFrameMaskCutoffChange,
 }: SelectionSectionProps) {
@@ -118,23 +114,6 @@ function SelectionSection({
           onChange={(event) => onRadialMoveEnabledChange(event.target.checked)}
           disabled={!selectionEnabled}
         />
-      </label>
-      <label className="field">
-        Selection outline color
-        <div className="color-row">
-          <input
-            type="color"
-            value={outlineColor}
-            onChange={(event) => onOutlineColorChange(event.target.value)}
-          />
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => onOutlineColorChange('#ffffff')}
-          >
-            Reset
-          </button>
-        </div>
       </label>
       <label className="field">
         Frame mask cutoff

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef } from 'react'
 import type { PointerEvent, RefObject } from 'react'
 import { useMaskedFrame } from '../hooks/useMaskedFrame'
-import type { ChartMeta, FrameCircle, FrameDetail, LayerOrderKey } from '../types'
+import type { ActiveSelectionLayer, ChartMeta, FrameCircle, FrameDetail, LayerOrderKey } from '../types'
 
 type CanvasProps = {
   meta: ChartMeta | null
@@ -17,6 +17,7 @@ type CanvasProps = {
   backgroundImageScale: number
   backgroundImageDx: number
   backgroundImageDy: number
+  activeSelectionLayer: ActiveSelectionLayer
   frameMaskCutoff: number
   showChartBackground: boolean
   frameCircle: FrameCircle | null
@@ -43,6 +44,7 @@ function Canvas({
   backgroundImageScale,
   backgroundImageDx,
   backgroundImageDy,
+  activeSelectionLayer,
   frameMaskCutoff,
   showChartBackground,
   frameCircle,
@@ -60,7 +62,7 @@ function Canvas({
   const debugCy = frameCircle ? frameCircle.cyNorm * (meta?.canvas.height ?? 0) : 0
   const debugR = frameCircle ? frameCircle.rNorm * (meta?.canvas.width ?? 0) : 0
   const frameUrl = selectedFrameDetail ? `${apiBase}${selectedFrameDetail.image_url}` : ''
-  const showMaskedFrame = Boolean(selectedFrameDetail && meta)
+  const showMaskedFrame = Boolean(selectedFrameDetail && meta && frameMaskCutoff < 255)
   const showCircleBackground = showChartBackground
   const maskCenter = frameCircle
     ? {
@@ -79,7 +81,6 @@ function Canvas({
     frameMaskCutoff
   )
   const frameHref = showMaskedFrame ? maskedFrameUrl || frameUrl : frameUrl
-  const clipId = 'chartBackgroundImageClip'
 
   useEffect(() => {
     if (!isChartOnly || !meta || !chartId) {
@@ -122,6 +123,7 @@ function Canvas({
       y={0}
       width={meta?.canvas.width ?? 0}
       height={meta?.canvas.height ?? 0}
+      pointerEvents="none"
     />
   ) : null
   const chartLayer = (
@@ -130,7 +132,12 @@ function Canvas({
     </g>
   )
   const backgroundImageLayer = backgroundImageUrl ? (
-    <g id="chartBackgroundImageRoot" clipPath={`url(#${clipId})`}>
+    <g
+      id="chartBackgroundImageRoot"
+      pointerEvents={
+        activeSelectionLayer === 'chart' || activeSelectionLayer === 'background' ? 'none' : 'auto'
+      }
+    >
       <image
         id="chart.background_image"
         href={backgroundImageUrl}
@@ -159,17 +166,6 @@ function Canvas({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
-          {backgroundImageUrl ? (
-            <defs>
-              <clipPath id={clipId}>
-                <circle
-                  cx={meta.chart.center.x}
-                  cy={meta.chart.center.y}
-                  r={meta.chart.ring_outer}
-                />
-              </clipPath>
-            </defs>
-          ) : null}
           {layerOrder.map((key) => {
             const layer = layers[key]
             if (!layer) {

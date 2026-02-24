@@ -14,7 +14,6 @@ import { useFrameCircle } from './hooks/useFrameCircle'
 import { useSelection } from './hooks/useSelection'
 import { useEditorMessages } from './hooks/useEditorMessages'
 import { useAutoDismissMessage } from './hooks/useAutoDismissMessage'
-import { useSelectionHighlight } from './hooks/useSelectionHighlight'
 import { useChartTransform } from './hooks/useChartTransform'
 import { useAutoFit } from './hooks/useAutoFit'
 import { useChartInteraction } from './hooks/useChartInteraction'
@@ -26,7 +25,14 @@ import { useEditorDerived } from './hooks/useEditorDerived'
 import { useEditorActions } from './hooks/useEditorActions'
 import { useDebouncedValue } from './hooks/useDebouncedValue'
 import { createInitialEditorState, editorReducer } from './state/editorReducer'
-import type { ChartFit, DesignSettings, FrameCircle, LayerOrderKey, Offset } from './types'
+import type {
+  ActiveSelectionLayer,
+  ChartFit,
+  DesignSettings,
+  FrameCircle,
+  LayerOrderKey,
+  Offset,
+} from './types'
 
 const defaultChartFit: ChartFit = { dx: 0, dy: 0, scale: 1, rotation_deg: 0 }
 const defaultDesign: DesignSettings = {
@@ -102,13 +108,10 @@ function App() {
     editorReducer,
     createInitialEditorState(defaultChartFit, defaultDesign)
   )
-  const { chartFit, userAdjustedFit, overrides, selectedElement, design } = editorState
+  const { chartFit, userAdjustedFit, overrides, selectedElement, activeSelectionLayer, design } =
+    editorState
   const chartLinesColor = overrides['chart.lines']?.color ?? ''
   const [showFrameCircleDebug, setShowFrameCircleDebug] = useState(false)
-  const [selectionOutlineColor, setSelectionOutlineColor] = usePersistedState(
-    'zodiac_editor.glyphOutlineColor',
-    '#ffffff'
-  )
   const [backgroundImageError, setBackgroundImageError] = useState('')
   const [backgroundImageStatus, setBackgroundImageStatus] = useState('')
   const [backgroundImageUploading, setBackgroundImageUploading] = useState(false)
@@ -152,7 +155,6 @@ function App() {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const chartBackgroundRef = useRef<SVGGElement | null>(null)
   const chartRootRef = useRef<SVGGElement | null>(null)
-  const highlightElementsRef = useRef<Element[]>([])
 
   const isChartOnly = selectedId === CHART_ONLY_ID
 
@@ -279,14 +281,6 @@ function App() {
 
   const { computeFitFromCircle, resetToSavedEnabled } = useEditorDerived({ meta })
 
-  useSelectionHighlight({
-    selectedElement,
-    svgRef,
-    chartSvg,
-    bulkIds: Object.values(bulkIds),
-    outlineColor: selectionOutlineColor,
-    highlightElementsRef,
-  })
 
   useChartTransform({ chartFit, meta, chartSvg, chartRootRef, chartBackgroundRef })
   useAutoFit({ isChartOnly, meta, frameCircle, userAdjustedFit, dispatch })
@@ -296,6 +290,7 @@ function App() {
     overrides,
     design,
     selectedElement,
+    activeSelectionLayer,
     updateDesign,
     svgRef,
     chartRootRef,
@@ -609,6 +604,10 @@ function App() {
     dispatch({ type: 'APPLY_COLOR', targets: [CHART_BACKGROUND_ID], color: null })
   }
 
+  const handleActiveSelectionLayerChange = (layer: ActiveSelectionLayer) => {
+    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer })
+  }
+
   const backgroundImageUrl = useMemo(() => {
     if (!design.background_image_path) {
       return ''
@@ -661,13 +660,19 @@ function App() {
   }
 
   const handleBackgroundImageClear = async () => {
+    const previous = {
+      path: design.background_image_path ?? null,
+      scale: design.background_image_scale,
+      dx: design.background_image_dx,
+      dy: design.background_image_dy,
+    }
+    updateDesign({
+      background_image_path: null,
+      background_image_scale: 1,
+      background_image_dx: 0,
+      background_image_dy: 0,
+    })
     if (!jwt || !chartId) {
-      updateDesign({
-        background_image_path: null,
-        background_image_scale: 1,
-        background_image_dx: 0,
-        background_image_dy: 0,
-      })
       return
     }
     setBackgroundImageError('')
@@ -679,14 +684,14 @@ function App() {
       const detail = await readApiError(response)
       setBackgroundImageError(detail ?? 'Failed to remove background image.')
       setBackgroundImageStatus('')
+      updateDesign({
+        background_image_path: previous.path,
+        background_image_scale: previous.scale,
+        background_image_dx: previous.dx,
+        background_image_dy: previous.dy,
+      })
       return
     }
-    updateDesign({
-      background_image_path: null,
-      background_image_scale: 1,
-      background_image_dx: 0,
-      background_image_dy: 0,
-    })
     setBackgroundImageStatus('Background image removed.')
   }
 
@@ -767,6 +772,9 @@ function App() {
         design={design}
         onLayerOrderChange={handleLayerOrderChange}
         onLayerOpacityChange={handleLayerOpacityChange}
+        hasFrame={Boolean(selectedFrameDetail)}
+        hasChartBackground={Boolean(chartBackgroundColor)}
+        hasBackgroundImage={Boolean(design.background_image_path)}
         backgroundImagePath={design.background_image_path ?? null}
         backgroundImageUrl={backgroundImageUrl}
         backgroundImageError={backgroundImageError}
@@ -786,6 +794,8 @@ function App() {
         selectedElement={selectedElement}
         selectableGroups={selectableGroups}
         onSelectedElementChange={setSelectedElement}
+        activeSelectionLayer={activeSelectionLayer}
+        onActiveSelectionLayerChange={handleActiveSelectionLayerChange}
         selectionColor={selectionColor}
         selectionColorMixed={selectionColorMixed}
         selectionEnabled={selectionEnabled}
@@ -799,8 +809,6 @@ function App() {
         onClearChartBackgroundColor={handleChartBackgroundColorClear}
         radialMoveEnabled={radialMoveEnabled}
         onRadialMoveEnabledChange={setRadialMoveEnabled}
-        outlineColor={selectionOutlineColor}
-        onOutlineColorChange={setSelectionOutlineColor}
         frameMaskCutoff={frameMaskCutoff}
         onFrameMaskCutoffChange={setFrameMaskCutoff}
         showFrameCircleDebug={showFrameCircleDebug}
@@ -833,6 +841,7 @@ function App() {
         backgroundImageScale={design.background_image_scale}
         backgroundImageDx={design.background_image_dx}
         backgroundImageDy={design.background_image_dy}
+        activeSelectionLayer={activeSelectionLayer}
         showChartBackground={Boolean(chartBackgroundColor)}
         frameMaskCutoff={frameMaskCutoff}
         frameCircle={frameCircle}

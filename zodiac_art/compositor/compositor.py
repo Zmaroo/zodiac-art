@@ -46,21 +46,15 @@ def _background_image_layer(
     scale: float,
     dx: float,
     dy: float,
-    clip_id: str = "chartBackgroundImageClip",
 ) -> tuple[str, str]:
     href = _encode_image_to_data_uri(image_path) if embed_data_uri else image_path.as_posix()
-    defs_markup = (
-        f"<clipPath id='{clip_id}'>"
-        f"<circle cx='{meta.chart_center_x}' cy='{meta.chart_center_y}' r='{meta.ring_outer}' />"
-        "</clipPath>"
-    )
     layer_markup = (
-        f"<g clip-path='url(#{clip_id})'>"
+        "<g>"
         f"<image href='{href}' x='{dx:.3f}' y='{dy:.3f}' "
         f"width='{meta.canvas_width * scale:.3f}' height='{meta.canvas_height * scale:.3f}' />"
         "</g>"
     )
-    return defs_markup, layer_markup
+    return "", layer_markup
 
 
 def _local_name(tag: str) -> str:
@@ -145,11 +139,10 @@ def compose_svg(
     rotate_group = f"rotate({meta.rotation_deg} {meta.chart_center_x} {meta.chart_center_y})"
     if layer_opacity is None:
         layer_opacity = {}
-    background_image_defs = ""
     background_image_markup = None
     if background_image_path is not None:
         scale, dx, dy = background_image_transform or (1.0, 0.0, 0.0)
-        background_image_defs, background_image_markup = _background_image_layer(
+        _, background_image_markup = _background_image_layer(
             background_image_path,
             meta,
             embed_frame_data_uri,
@@ -174,11 +167,6 @@ def compose_svg(
         if opacity is not None and 0 <= opacity <= 1 and opacity != 1:
             layer = f"<g opacity='{opacity:.3f}'>{layer}</g>"
         layer_blocks.append(layer)
-    if background_image_defs:
-        if defs_markup:
-            defs_markup = defs_markup.replace("</defs>", f"{background_image_defs}</defs>")
-        else:
-            defs_markup = f"<defs>{background_image_defs}</defs>"
     return (
         f"<svg xmlns='http://www.w3.org/2000/svg' "
         f"width='{meta.canvas_width}' height='{meta.canvas_height}'>"

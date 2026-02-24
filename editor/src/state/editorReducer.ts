@@ -1,4 +1,4 @@
-import type { ChartFit, DesignSettings, Offset } from '../types'
+import type { ActiveSelectionLayer, ChartFit, DesignSettings, Offset } from '../types'
 
 export type EditorState = {
   chartFit: ChartFit
@@ -10,6 +10,7 @@ export type EditorState = {
   design: DesignSettings
   initialDesign: DesignSettings
   selectedElement: string
+  activeSelectionLayer: ActiveSelectionLayer
 }
 
 export type EditorAction =
@@ -20,6 +21,7 @@ export type EditorAction =
   | { type: 'SET_DESIGN'; design: DesignSettings; setInitial?: boolean }
   | { type: 'APPLY_COLOR'; targets: string[]; color: string | null }
   | { type: 'SET_SELECTED_ELEMENT'; id: string }
+  | { type: 'SET_ACTIVE_SELECTION_LAYER'; layer: ActiveSelectionLayer }
   | { type: 'CLEAR_SELECTION' }
   | { type: 'RESET_TO_INITIAL' }
   | { type: 'RESET_TO_SAVED' }
@@ -38,6 +40,7 @@ export function createInitialEditorState(defaultFit: ChartFit, defaultDesign: De
     design: defaultDesign,
     initialDesign: defaultDesign,
     selectedElement: '',
+    activeSelectionLayer: 'auto',
   }
 }
 
@@ -54,6 +57,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         design: action.design,
         initialDesign: action.design,
         selectedElement: '',
+        activeSelectionLayer: 'auto',
       }
     case 'SET_CHART_FIT':
       return {
@@ -105,6 +109,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         selectedElement: action.id,
       }
+    case 'SET_ACTIVE_SELECTION_LAYER':
+      return {
+        ...state,
+        activeSelectionLayer: action.layer,
+      }
     case 'CLEAR_SELECTION':
       return {
         ...state,
@@ -117,6 +126,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         overrides: state.initialOverrides,
         design: state.initialDesign,
         selectedElement: '',
+        activeSelectionLayer: 'auto',
         userAdjustedFit: false,
       }
     case 'RESET_TO_SAVED':

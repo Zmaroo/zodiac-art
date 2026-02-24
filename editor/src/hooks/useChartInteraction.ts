@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { PointerEvent } from 'react'
-import type { ChartFit, DesignSettings, DragState, Offset } from '../types'
+import type { ActiveSelectionLayer, ChartFit, DesignSettings, DragState, Offset } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 import { isDraggableElement } from '../utils/format'
 import { toNodePoint, toSvgPoint } from '../utils/geometry'
@@ -10,6 +10,7 @@ type UseChartInteractionParams = {
   overrides: Record<string, Offset>
   design: DesignSettings
   selectedElement: string
+  activeSelectionLayer: ActiveSelectionLayer
   updateDesign: (next: Partial<DesignSettings>) => void
   svgRef: React.RefObject<SVGSVGElement | null>
   chartRootRef: React.RefObject<SVGGElement | null>
@@ -29,6 +30,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     overrides,
     design,
     selectedElement,
+    activeSelectionLayer,
     updateDesign,
     svgRef,
     chartRootRef,
@@ -37,6 +39,13 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
   } = params
   const [drag, setDrag] = useState<DragState | null>(null)
   const backgroundImageId = 'chart.background_image'
+  const chartBackgroundId = 'chart.background'
+  const chartIsActive = activeSelectionLayer === 'chart'
+  const backgroundIsActive = activeSelectionLayer === 'background'
+  const backgroundImageIsActive = activeSelectionLayer === 'background_image'
+  const allowChartActions = activeSelectionLayer === 'auto' || chartIsActive
+  const allowBackgroundActions = activeSelectionLayer === 'auto' || backgroundIsActive
+  const allowBackgroundImageActions = activeSelectionLayer === 'auto' || backgroundImageIsActive
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (!svgRef.current || !chartRootRef.current) {
@@ -51,7 +60,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     const point = labelElement && chartRootRef.current
       ? toNodePoint(event, chartRootRef.current)
       : toSvgPoint(event, svgRef.current)
-    if (labelElement) {
+    if (labelElement && allowChartActions) {
       const id = labelElement.getAttribute('id') || ''
       if (isDraggableElement(id)) {
         const theta = Number(labelElement.getAttribute('data-theta'))
@@ -71,6 +80,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     }
 
     if (
+      allowBackgroundImageActions &&
       design.background_image_path &&
       (backgroundImageElement || selectedElement === backgroundImageId)
     ) {
@@ -90,7 +100,28 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       return
     }
 
-    if (chartElement || chartBackgroundElement) {
+    if (allowBackgroundImageActions && design.background_image_path && event.shiftKey && event.altKey) {
+      dispatch({ type: 'SET_SELECTED_ELEMENT', id: backgroundImageId })
+      setDrag({
+        mode: 'background-image-scale',
+        startPoint: point,
+        startFit: chartFit,
+        backgroundImage: {
+          scale: design.background_image_scale,
+          dx: design.background_image_dx,
+          dy: design.background_image_dy,
+        },
+      })
+      svgRef.current.setPointerCapture(event.pointerId)
+      return
+    }
+
+    if (chartBackgroundElement && backgroundIsActive) {
+      dispatch({ type: 'SET_SELECTED_ELEMENT', id: chartBackgroundId })
+      return
+    }
+
+    if (allowChartActions && (chartElement || chartBackgroundElement)) {
       const mode = event.shiftKey
         ? 'chart-scale'
         : event.altKey
@@ -153,8 +184,25 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       return
     }
     if (drag.mode === 'background-image-scale' && drag.backgroundImage) {
-      const nextScale = Math.max(0.1, drag.backgroundImage.scale * (1 + dx / 300))
-      updateDesign({ background_image_scale: nextScale })
+      const baseWidth = svgRef.current.viewBox.baseVal.width || svgRef.current.clientWidth
+      const baseHeight = svgRef.current.viewBox.baseVal.height || svgRef.current.clientHeight
+      const startScale = drag.backgroundImage.scale
+      const startDx = drag.backgroundImage.dx
+      const startDy = drag.backgroundImage.dy
+      const startWidth = baseWidth * startScale
+      const startHeight = baseHeight * startScale
+      const centerX = startDx + startWidth / 2
+      const centerY = startDy + startHeight / 2
+      const nextScale = Math.max(0.1, startScale * (1 + dx / 300))
+      const nextWidth = baseWidth * nextScale
+      const nextHeight = baseHeight * nextScale
+      const nextDx = centerX - nextWidth / 2
+      const nextDy = centerY - nextHeight / 2
+      updateDesign({
+        background_image_scale: nextScale,
+        background_image_dx: nextDx,
+        background_image_dy: nextDy,
+      })
       return
     }
     if (drag.mode === 'label' && drag.labelId && drag.startOffset) {
