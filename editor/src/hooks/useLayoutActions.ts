@@ -96,14 +96,15 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
     if (!meta || !selectedId) {
       return
     }
+    const chartFitPayload = {
+      dx: round(chartFit.dx),
+      dy: round(chartFit.dy),
+      scale: round(chartFit.scale),
+      rotation_deg: round(chartFit.rotation_deg),
+    }
     const metaPayload = {
       ...meta,
-      chart_fit: {
-        dx: round(chartFit.dx),
-        dy: round(chartFit.dy),
-        scale: round(chartFit.scale),
-        rotation_deg: round(chartFit.rotation_deg),
-      },
+      chart_fit: chartFitPayload,
     }
     const layoutPayload = {
       overrides: Object.fromEntries(
@@ -114,6 +115,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
       ),
       frame_circle: frameCircle ?? undefined,
       design,
+      chart_fit: chartFitPayload,
     }
     const metaResponse = await apiFetchWithAuth(
       `${apiBase}/api/charts/${chartId}/frames/${selectedId}/metadata`,

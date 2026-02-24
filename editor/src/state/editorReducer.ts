@@ -18,7 +18,13 @@ export type EditorState = {
 }
 
 export type EditorAction =
-  | { type: 'LOAD_LAYOUT'; fit: ChartFit; overrides: Record<string, Offset>; design: DesignSettings }
+  | {
+      type: 'LOAD_LAYOUT'
+      fit: ChartFit
+      overrides: Record<string, Offset>
+      design: DesignSettings
+      userAdjustedFit: boolean
+    }
   | {
       type: 'APPLY_DRAFT'
       fit: ChartFit
@@ -73,6 +79,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         chartFit: action.fit,
         savedFit: action.fit,
         initialFit: action.fit,
+        userAdjustedFit: action.userAdjustedFit,
         overrides: action.overrides,
         initialOverrides: action.overrides,
         design: action.design,

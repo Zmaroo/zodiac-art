@@ -109,6 +109,7 @@ export type LayoutFile = {
   overrides?: Record<string, Offset>
   frame_circle?: FrameCircle
   design?: Partial<DesignSettings>
+  chart_fit?: Partial<ChartFit>
 }
 
 export type DragState = {

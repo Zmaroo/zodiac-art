@@ -313,8 +313,10 @@ class PostgresStorage:
         if row is None:
             return None
         if isinstance(row, str):
-            return json.loads(row)
-        return dict(row)
+            meta = json.loads(row)
+        else:
+            meta = dict(row)
+        return meta
 
     async def load_chart_layout(self, chart_id: str, frame_id: str) -> dict | None:
         chart_uuid = self._validate_uuid(chart_id)
@@ -331,8 +333,10 @@ class PostgresStorage:
         if row is None:
             return None
         if isinstance(row, str):
-            return json.loads(row)
-        return dict(row)
+            layout = json.loads(row)
+        else:
+            layout = dict(row)
+        return layout
 
     async def load_chart_fit(self, chart_id: str) -> dict | None:
         chart_uuid = self._validate_uuid(chart_id)

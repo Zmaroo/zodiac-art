@@ -16,6 +16,7 @@ type LayoutLoadResult = {
   overrides: Record<string, Offset>
   frameCircle: FrameCircle | null
   design: DesignSettings
+  userAdjustedFit: boolean
 }
 
 type UseChartSvgParams = {
@@ -192,12 +193,15 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           const metaData = chartMeta as ChartMeta
           setMeta(metaData)
           setHasSavedFit(Boolean(metaData?.chart_fit))
+          const layoutFit = (layoutData as LayoutFile | null)?.chart_fit
+          const fitSource = layoutFit ?? metaData.chart_fit
           const fit = {
-            dx: metaData.chart_fit?.dx ?? 0,
-            dy: metaData.chart_fit?.dy ?? 0,
-            scale: metaData.chart_fit?.scale ?? 1,
-            rotation_deg: metaData.chart_fit?.rotation_deg ?? 0,
+            dx: fitSource?.dx ?? 0,
+            dy: fitSource?.dy ?? 0,
+            scale: fitSource?.scale ?? 1,
+            rotation_deg: fitSource?.rotation_deg ?? 0,
           }
+          const userAdjustedFit = Boolean(layoutFit || metaData.chart_fit)
           const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
           const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
           const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
@@ -205,7 +209,13 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           if (lastLayoutKeyRef.current !== layoutKey) {
             lastLayoutKeyRef.current = layoutKey
             layoutOverridesRef.current = nextOverrides
-            onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle, design })
+            onLayoutLoadedRef.current({
+              fit,
+              overrides: nextOverrides,
+              frameCircle,
+              design,
+              userAdjustedFit,
+            })
           }
           setLayoutReady(true)
         })
@@ -233,12 +243,15 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         const metaData = chartMetaData || (templateMeta as ChartMeta)
         setMeta(metaData)
         setHasSavedFit(Boolean(chartMetaData?.chart_fit))
+        const layoutFit = (layoutData as LayoutFile | null)?.chart_fit
+        const fitSource = layoutFit ?? metaData.chart_fit
         const fit = {
-          dx: metaData.chart_fit?.dx ?? 0,
-          dy: metaData.chart_fit?.dy ?? 0,
-          scale: metaData.chart_fit?.scale ?? 1,
-          rotation_deg: metaData.chart_fit?.rotation_deg ?? 0,
+          dx: fitSource?.dx ?? 0,
+          dy: fitSource?.dy ?? 0,
+          scale: fitSource?.scale ?? 1,
+          rotation_deg: fitSource?.rotation_deg ?? 0,
         }
+        const userAdjustedFit = Boolean(layoutFit || chartMetaData?.chart_fit)
         const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
         const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
         const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
@@ -246,7 +259,13 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         if (lastLayoutKeyRef.current !== layoutKey) {
           lastLayoutKeyRef.current = layoutKey
           layoutOverridesRef.current = nextOverrides
-          onLayoutLoadedRef.current({ fit, overrides: nextOverrides, frameCircle, design })
+          onLayoutLoadedRef.current({
+            fit,
+            overrides: nextOverrides,
+            frameCircle,
+            design,
+            userAdjustedFit,
+          })
         }
         setLayoutReady(true)
       })

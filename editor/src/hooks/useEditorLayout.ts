@@ -8,6 +8,7 @@ type LayoutResult = {
   overrides: Record<string, Offset>
   frameCircle: FrameCircle | null
   design: DesignSettings
+  userAdjustedFit: boolean
 }
 
 type UseEditorLayoutParams = {
@@ -55,7 +56,13 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
       return
     }
     layoutAppliedRef.current = true
-    dispatch({ type: 'LOAD_LAYOUT', fit: result.fit, overrides: result.overrides, design: result.design })
+    dispatch({
+      type: 'LOAD_LAYOUT',
+      fit: result.fit,
+      overrides: result.overrides,
+      design: result.design,
+      userAdjustedFit: result.userAdjustedFit,
+    })
     setFrameCircle(result.frameCircle)
   }
 

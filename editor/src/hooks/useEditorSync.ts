@@ -13,6 +13,7 @@ type UseEditorSyncResult = {
   syncStatus: string
   syncEnabled: boolean
   handleSyncNow: () => Promise<void>
+  syncInFlight: boolean
 }
 
 export function useEditorSync(params: UseEditorSyncParams): UseEditorSyncResult {
@@ -23,6 +24,7 @@ export function useEditorSync(params: UseEditorSyncParams): UseEditorSyncResult 
     draftKey,
   } = params
   const [syncStatus, setSyncStatus] = useState('')
+  const [syncInFlight, setSyncInFlight] = useState(false)
   const syncInFlightRef = useRef(false)
   const syncEnabled = Boolean(jwt && doc.chart_id && (doc.is_chart_only || doc.frame_id))
 
@@ -55,12 +57,14 @@ export function useEditorSync(params: UseEditorSyncParams): UseEditorSyncResult 
         return
       }
       syncInFlightRef.current = true
+      setSyncInFlight(true)
       setSyncStatus('Syncing...')
       try {
         await saveAll()
         setSyncStatus('Synced')
       } finally {
         syncInFlightRef.current = false
+        setSyncInFlight(false)
       }
     }, 2500)
     return () => window.clearTimeout(timeout)
@@ -80,14 +84,16 @@ export function useEditorSync(params: UseEditorSyncParams): UseEditorSyncResult 
       return
     }
     syncInFlightRef.current = true
+    setSyncInFlight(true)
     setSyncStatus('Syncing...')
     try {
       await saveAll()
       setSyncStatus('Synced')
     } finally {
       syncInFlightRef.current = false
+      setSyncInFlight(false)
     }
   }
 
-  return { syncStatus, syncEnabled, handleSyncNow }
+  return { syncStatus, syncEnabled, handleSyncNow, syncInFlight }
 }

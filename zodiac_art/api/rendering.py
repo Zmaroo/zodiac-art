@@ -290,12 +290,16 @@ async def _build_frame_render_context(
     overrides = _overrides_from_layout(layout)
     frame_circle = _frame_circle_from_layout(layout, image_size)
 
-    chart_fit = ChartFit(
-        dx=meta.chart_fit_dx,
-        dy=meta.chart_fit_dy,
-        scale=meta.chart_fit_scale,
-        rotation_deg=meta.chart_fit_rotation_deg,
-    )
+    layout_fit = layout.get("chart_fit") if isinstance(layout, dict) else None
+    if isinstance(layout_fit, dict):
+        chart_fit = _chart_fit_from_payload(layout_fit)
+    else:
+        chart_fit = ChartFit(
+            dx=meta.chart_fit_dx,
+            dy=meta.chart_fit_dy,
+            scale=meta.chart_fit_scale,
+            rotation_deg=meta.chart_fit_rotation_deg,
+        )
     design = _design_from_layout(layout, design_override)
     settings = _build_settings(meta, config, design)
     metadata_path = await storage.template_meta_path(frame_id)

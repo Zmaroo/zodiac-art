@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChartDetail, ChartListItem } from '../types'
 import { apiFetch, readApiError } from '../api/client'
 
@@ -51,6 +51,7 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
   const [chartName, setChartName] = useState('')
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const lastLoadedChartIdRef = useRef('')
 
   const apiFetchWithAuth = useCallback(
     (url: string, init: RequestInit = {}) => apiFetch(url, jwt, init),
@@ -116,31 +117,46 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
     loadCharts()
   }
 
-  const selectChart = async (chartIdToLoad: string) => {
-    if (!jwt) {
-      setError('Login required to load charts.')
+  const selectChart = useCallback(
+    async (chartIdToLoad: string) => {
+      if (!jwt) {
+        setError('Login required to load charts.')
+        return
+      }
+      lastLoadedChartIdRef.current = chartIdToLoad
+      setError('')
+      const response = await apiFetchWithAuth(`${apiBase}/api/charts/${chartIdToLoad}`)
+      if (!response.ok) {
+        const detail = await readApiError(response)
+        setError(detail ?? 'Failed to load chart.')
+        return
+      }
+      const data = (await response.json()) as ChartDetail
+      setChartId(data.chart_id)
+      setBirthDate(data.birth_date)
+      setBirthTime(data.birth_time)
+      setLatitude(data.latitude)
+      setLongitude(data.longitude)
+      setChartName(data.name ?? '')
+      if (data.default_frame_id) {
+        setSelectedId(data.default_frame_id)
+      } else {
+        setSelectedId('__chart_only__')
+      }
+    },
+    [apiBase, apiFetchWithAuth, jwt, setBirthDate, setBirthTime, setLatitude, setLongitude, setSelectedId]
+  )
+
+  useEffect(() => {
+    if (!jwt || !chartId) {
       return
     }
-    setError('')
-    const response = await apiFetchWithAuth(`${apiBase}/api/charts/${chartIdToLoad}`)
-    if (!response.ok) {
-      const detail = await readApiError(response)
-      setError(detail ?? 'Failed to load chart.')
+    if (lastLoadedChartIdRef.current === chartId) {
       return
     }
-    const data = (await response.json()) as ChartDetail
-    setChartId(data.chart_id)
-    setBirthDate(data.birth_date)
-    setBirthTime(data.birth_time)
-    setLatitude(data.latitude)
-    setLongitude(data.longitude)
-    setChartName(data.name ?? '')
-    if (data.default_frame_id) {
-      setSelectedId(data.default_frame_id)
-    } else {
-      setSelectedId('__chart_only__')
-    }
-  }
+    lastLoadedChartIdRef.current = chartId
+    selectChart(chartId).catch(() => undefined)
+  }, [chartId, jwt, selectChart])
 
   const clearStatus = () => {
     setStatus('')

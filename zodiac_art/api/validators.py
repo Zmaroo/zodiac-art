@@ -182,6 +182,11 @@ def validate_layout_payload(payload: dict) -> dict:
                 raise HTTPException(status_code=400, detail="frame_circle values must be numbers")
             normalized_circle[key] = float(value)
     result = {"version": version, "overrides": normalized_overrides}
+    chart_fit = payload.get("chart_fit")
+    if chart_fit is not None:
+        if not isinstance(chart_fit, dict):
+            raise HTTPException(status_code=400, detail="chart_fit must be an object")
+        result["chart_fit"] = validate_chart_fit_payload(chart_fit)
     design = normalize_design_settings(payload.get("design"))
     if design:
         result["design"] = design

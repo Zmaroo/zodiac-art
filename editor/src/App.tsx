@@ -387,7 +387,7 @@ function App() {
     dispatch,
   })
 
-  const { syncStatus, syncEnabled, handleSyncNow } = useEditorSync({
+  const { syncStatus, syncEnabled, handleSyncNow, syncInFlight } = useEditorSync({
     jwt,
     doc: editorDoc,
     saveAll,
@@ -716,6 +716,7 @@ function App() {
       canRedo,
       onSyncNow: handleSyncNow,
       syncEnabled,
+      syncInFlight,
       onExport: handleExport,
       exportFormat,
       onExportFormatChange: setExportFormat,

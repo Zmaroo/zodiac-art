@@ -201,6 +201,12 @@ async def save_metadata(
         image_size = image.size
     validate_meta(payload, image_size)
     await storage.save_chart_meta(chart_id, frame_id, payload)
+    if isinstance(chart_fit, dict):
+        layout = await storage.load_chart_layout(chart_id, frame_id)
+        layout_payload = dict(layout) if isinstance(layout, dict) else {}
+        layout_payload["chart_fit"] = validate_chart_fit_payload(chart_fit)
+        validated_layout = validate_layout_payload(layout_payload)
+        await storage.save_chart_layout(chart_id, frame_id, validated_layout)
     return {"status": "ok"}
 
 
@@ -234,6 +240,10 @@ async def save_layout(
     if not await frame_exists(request, frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
     validated = validate_layout_payload(payload)
+    if "chart_fit" not in validated:
+        existing = await get_storage(request).load_chart_layout(chart_id, frame_id)
+        if isinstance(existing, dict) and "chart_fit" in existing:
+            validated["chart_fit"] = existing["chart_fit"]
     await get_storage(request).save_chart_layout(chart_id, frame_id, validated)
     return {"status": "ok"}
 
