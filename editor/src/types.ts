@@ -76,6 +76,35 @@ export type DesignSettings = {
 
 export type Offset = { dx?: number; dy?: number; dr?: number; dt?: number; color?: string }
 
+export type EditorDraft = {
+  key: string
+  chart_id: string
+  frame_id: string | null
+  is_chart_only: boolean
+  chart_fit: ChartFit
+  overrides: Record<string, Offset>
+  design: DesignSettings
+  frame_circle: FrameCircle | null
+  client_version: number
+  server_version: number
+  last_saved_at: number | null
+  last_synced_at: number | null
+}
+
+export type EditorDoc = {
+  chart_id: string
+  frame_id: string | null
+  is_chart_only: boolean
+  chart_fit: ChartFit
+  overrides: Record<string, Offset>
+  design: DesignSettings
+  frame_circle: FrameCircle | null
+  client_version: number
+  server_version: number
+  last_saved_at: number | null
+  last_synced_at: number | null
+}
+
 export type LayoutFile = {
   overrides?: Record<string, Offset>
   frame_circle?: FrameCircle

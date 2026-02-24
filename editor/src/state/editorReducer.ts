@@ -1,4 +1,4 @@
-import type { ActiveSelectionLayer, ChartFit, DesignSettings, Offset } from '../types'
+import type { ActiveSelectionLayer, ChartFit, DesignSettings, FrameCircle, Offset } from '../types'
 
 export type EditorState = {
   chartFit: ChartFit
@@ -11,10 +11,25 @@ export type EditorState = {
   initialDesign: DesignSettings
   selectedElement: string
   activeSelectionLayer: ActiveSelectionLayer
+  clientVersion: number
+  serverVersion: number
+  lastSavedAt: number | null
+  lastSyncedAt: number | null
 }
 
 export type EditorAction =
   | { type: 'LOAD_LAYOUT'; fit: ChartFit; overrides: Record<string, Offset>; design: DesignSettings }
+  | {
+      type: 'APPLY_DRAFT'
+      fit: ChartFit
+      overrides: Record<string, Offset>
+      design: DesignSettings
+      frameCircle: FrameCircle | null
+      clientVersion: number
+      serverVersion: number
+      lastSavedAt: number | null
+      lastSyncedAt: number | null
+    }
   | { type: 'SET_CHART_FIT'; fit: ChartFit; userAdjusted: boolean; setInitial?: boolean }
   | { type: 'SET_SAVED_FIT'; fit: ChartFit }
   | { type: 'SET_OVERRIDES'; overrides: Record<string, Offset>; setInitial?: boolean }
@@ -22,6 +37,8 @@ export type EditorAction =
   | { type: 'APPLY_COLOR'; targets: string[]; color: string | null }
   | { type: 'SET_SELECTED_ELEMENT'; id: string }
   | { type: 'SET_ACTIVE_SELECTION_LAYER'; layer: ActiveSelectionLayer }
+  | { type: 'MARK_SYNCED'; version: number; savedAt: number }
+  | { type: 'APPLY_SNAPSHOT'; snapshot: { chartFit: ChartFit; overrides: Record<string, Offset>; design: DesignSettings } }
   | { type: 'CLEAR_SELECTION' }
   | { type: 'RESET_TO_INITIAL' }
   | { type: 'RESET_TO_SAVED' }
@@ -41,6 +58,10 @@ export function createInitialEditorState(defaultFit: ChartFit, defaultDesign: De
     initialDesign: defaultDesign,
     selectedElement: '',
     activeSelectionLayer: 'auto',
+    clientVersion: 0,
+    serverVersion: 0,
+    lastSavedAt: null,
+    lastSyncedAt: null,
   }
 }
 
@@ -58,6 +79,28 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         initialDesign: action.design,
         selectedElement: '',
         activeSelectionLayer: 'auto',
+        clientVersion: 0,
+        serverVersion: 0,
+        lastSavedAt: null,
+        lastSyncedAt: null,
+      }
+    case 'APPLY_DRAFT':
+      return {
+        ...state,
+        chartFit: action.fit,
+        savedFit: action.fit,
+        initialFit: action.fit,
+        overrides: action.overrides,
+        initialOverrides: action.overrides,
+        design: action.design,
+        initialDesign: action.design,
+        selectedElement: '',
+        activeSelectionLayer: 'auto',
+        userAdjustedFit: true,
+        clientVersion: action.clientVersion,
+        serverVersion: action.serverVersion,
+        lastSavedAt: action.lastSavedAt,
+        lastSyncedAt: action.lastSyncedAt,
       }
     case 'SET_CHART_FIT':
       return {
@@ -65,6 +108,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         chartFit: action.fit,
         userAdjustedFit: action.userAdjusted,
         initialFit: action.setInitial ? action.fit : state.initialFit,
+        clientVersion: state.clientVersion + 1,
       }
     case 'SET_SAVED_FIT':
       return {
@@ -76,12 +120,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         overrides: action.overrides,
         initialOverrides: action.setInitial ? action.overrides : state.initialOverrides,
+        clientVersion: state.clientVersion + 1,
       }
     case 'SET_DESIGN':
       return {
         ...state,
         design: action.design,
         initialDesign: action.setInitial ? action.design : state.initialDesign,
+        clientVersion: state.clientVersion + 1,
       }
     case 'APPLY_COLOR': {
       const next = { ...state.overrides }
@@ -102,6 +148,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         overrides: next,
+        clientVersion: state.clientVersion + 1,
       }
     }
     case 'SET_SELECTED_ELEMENT':
@@ -113,6 +160,22 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         activeSelectionLayer: action.layer,
+      }
+    case 'MARK_SYNCED':
+      return {
+        ...state,
+        serverVersion: Math.max(state.serverVersion, action.version),
+        lastSavedAt: action.savedAt,
+        lastSyncedAt: action.savedAt,
+      }
+    case 'APPLY_SNAPSHOT':
+      return {
+        ...state,
+        chartFit: action.snapshot.chartFit,
+        overrides: action.snapshot.overrides,
+        design: action.snapshot.design,
+        userAdjustedFit: true,
+        clientVersion: state.clientVersion + 1,
       }
     case 'CLEAR_SELECTION':
       return {

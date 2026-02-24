@@ -4,51 +4,61 @@ import NumberField from '../NumberField'
 import SelectionSection from './SelectionSection'
 import type { ActiveSelectionLayer, ChartFit, DesignSettings, LayerOrderKey } from '../../types'
 
-type DesignSectionProps = {
-  chartFit: ChartFit
-  onChartFitChange: (next: ChartFit) => void
-  design: DesignSettings
-  onLayerOrderChange: (value: LayerOrderKey[]) => void
-  onLayerOpacityChange: (layer: LayerOrderKey, value: number) => void
-  hasFrame: boolean
-  hasChartBackground: boolean
-  hasBackgroundImage: boolean
-  backgroundImagePath: string | null
-  backgroundImageUrl: string
-  backgroundImageError: string
-  backgroundImageStatus: string
-  backgroundImageUploading: boolean
-  onBackgroundImageUpload: (file: File | null) => void
-  onBackgroundImageClear: () => void
-  backgroundImageScale: number
-  backgroundImageDx: number
-  backgroundImageDy: number
-  onBackgroundImageScaleChange: (value: number) => void
-  onBackgroundImageDxChange: (value: number) => void
-  onBackgroundImageDyChange: (value: number) => void
-  onSignGlyphScaleChange: (value: number) => void
-  onPlanetGlyphScaleChange: (value: number) => void
-  onInnerRingScaleChange: (value: number) => void
-  selectedElement: string
-  selectableGroups: { label: string; items: { id: string; label: string }[] }[]
-  onSelectedElementChange: (value: string) => void
-  activeSelectionLayer: ActiveSelectionLayer
-  onActiveSelectionLayerChange: (value: ActiveSelectionLayer) => void
-  selectionColor: string
-  selectionColorMixed: boolean
-  selectionEnabled: boolean
-  onColorChange: (color: string) => void
-  onClearColor: () => void
-  chartLinesColor: string
-  onChartLinesColorChange: (color: string) => void
-  onClearChartLinesColor: () => void
-  chartBackgroundColor: string
-  onChartBackgroundColorChange: (color: string) => void
-  onClearChartBackgroundColor: () => void
-  radialMoveEnabled: boolean
-  onRadialMoveEnabledChange: (value: boolean) => void
-  frameMaskCutoff: number
-  onFrameMaskCutoffChange: (value: number) => void
+export type DesignSectionProps = {
+  chartFit: {
+    value: ChartFit
+    onChange: (next: ChartFit) => void
+  }
+  layering: {
+    design: DesignSettings
+    onLayerOrderChange: (value: LayerOrderKey[]) => void
+    onLayerOpacityChange: (layer: LayerOrderKey, value: number) => void
+    hasFrame: boolean
+    hasChartBackground: boolean
+    hasBackgroundImage: boolean
+  }
+  backgroundImage: {
+    path: string | null
+    url: string
+    error: string
+    status: string
+    uploading: boolean
+    onUpload: (file: File | null) => void
+    onClear: () => void
+    scale: number
+    dx: number
+    dy: number
+    onScaleChange: (value: number) => void
+    onDxChange: (value: number) => void
+    onDyChange: (value: number) => void
+  }
+  glyphScale: {
+    onSignGlyphScaleChange: (value: number) => void
+    onPlanetGlyphScaleChange: (value: number) => void
+    onInnerRingScaleChange: (value: number) => void
+  }
+  selection: {
+    selectedElement: string
+    selectableGroups: { label: string; items: { id: string; label: string }[] }[]
+    onSelectedElementChange: (value: string) => void
+    activeSelectionLayer: ActiveSelectionLayer
+    onActiveSelectionLayerChange: (value: ActiveSelectionLayer) => void
+    selectionColor: string
+    selectionColorMixed: boolean
+    selectionEnabled: boolean
+    onColorChange: (color: string) => void
+    onClearColor: () => void
+    chartLinesColor: string
+    onChartLinesColorChange: (color: string) => void
+    onClearChartLinesColor: () => void
+    chartBackgroundColor: string
+    onChartBackgroundColorChange: (color: string) => void
+    onClearChartBackgroundColor: () => void
+    radialMoveEnabled: boolean
+    onRadialMoveEnabledChange: (value: boolean) => void
+    frameMaskCutoff: number
+    onFrameMaskCutoffChange: (value: number) => void
+  }
 }
 
 const LAYER_LABELS: Record<LayerOrderKey, string> = {
@@ -67,52 +77,7 @@ const LAYER_ACTIVE_KEYS: Partial<Record<LayerOrderKey, ActiveSelectionLayer>> = 
   chart: 'chart',
 }
 
-function DesignSection({
-  chartFit,
-  onChartFitChange,
-  design,
-  onLayerOrderChange,
-  onLayerOpacityChange,
-  hasFrame,
-  hasChartBackground,
-  hasBackgroundImage,
-  backgroundImagePath,
-  backgroundImageUrl,
-  backgroundImageError,
-  backgroundImageStatus,
-  backgroundImageUploading,
-  onBackgroundImageUpload,
-  onBackgroundImageClear,
-  backgroundImageScale,
-  backgroundImageDx,
-  backgroundImageDy,
-  onBackgroundImageScaleChange,
-  onBackgroundImageDxChange,
-  onBackgroundImageDyChange,
-  onSignGlyphScaleChange,
-  onPlanetGlyphScaleChange,
-  onInnerRingScaleChange,
-  selectedElement,
-  selectableGroups,
-  onSelectedElementChange,
-  activeSelectionLayer,
-  onActiveSelectionLayerChange,
-  selectionColor,
-  selectionColorMixed,
-  selectionEnabled,
-  onColorChange,
-  onClearColor,
-  chartLinesColor,
-  onChartLinesColorChange,
-  onClearChartLinesColor,
-  chartBackgroundColor,
-  onChartBackgroundColorChange,
-  onClearChartBackgroundColor,
-  radialMoveEnabled,
-  onRadialMoveEnabledChange,
-  frameMaskCutoff,
-  onFrameMaskCutoffChange,
-}: DesignSectionProps) {
+function DesignSection({ chartFit, layering, backgroundImage, glyphScale, selection }: DesignSectionProps) {
   const [showAdvanced, setShowAdvanced] = useState(
     () => localStorage.getItem('zodiac_editor.designAdvanced') === 'true'
   )
@@ -121,18 +86,18 @@ function DesignSection({
       return true
     }
     if (layerKey === 'background') {
-      return hasChartBackground
+      return layering.hasChartBackground
     }
     if (layerKey === 'frame') {
-      return hasFrame
+      return layering.hasFrame
     }
     if (layerKey === 'chart_background_image') {
-      return hasBackgroundImage
+      return layering.hasBackgroundImage
     }
     return true
   }
 
-  const visibleLayerOrder = design.layer_order.filter(isLayerVisible)
+  const visibleLayerOrder = layering.design.layer_order.filter(isLayerVisible)
 
   const moveLayer = (order: LayerOrderKey[], index: number, direction: -1 | 1) => {
     const target = index + direction
@@ -141,7 +106,7 @@ function DesignSection({
     }
     const layerId = order[index]
     const swapId = order[target]
-    const next = [...design.layer_order]
+    const next = [...layering.design.layer_order]
     const fromIndex = next.indexOf(layerId)
     const toIndex = next.indexOf(swapId)
     if (fromIndex < 0 || toIndex < 0) {
@@ -149,11 +114,11 @@ function DesignSection({
     }
     next[fromIndex] = swapId
     next[toIndex] = layerId
-    onLayerOrderChange(next)
+    layering.onLayerOrderChange(next)
   }
   const handleBackgroundImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
-    onBackgroundImageUpload(file)
+    backgroundImage.onUpload(file)
     event.target.value = ''
   }
   return (
@@ -165,24 +130,24 @@ function DesignSection({
           type="file"
           accept="image/png,image/jpeg,image/jpg,image/webp"
           onChange={handleBackgroundImageChange}
-          disabled={backgroundImageUploading}
+          disabled={backgroundImage.uploading}
         />
       </label>
-      {backgroundImagePath ? (
+      {backgroundImage.path ? (
         <div className="layer-image-preview">
-          {backgroundImageUrl ? (
-            <img src={backgroundImageUrl} alt="Chart background" />
+          {backgroundImage.url ? (
+            <img src={backgroundImage.url} alt="Chart background" />
           ) : null}
-          <button type="button" className="secondary" onClick={onBackgroundImageClear}>
+          <button type="button" className="secondary" onClick={backgroundImage.onClear}>
             Remove image
           </button>
         </div>
       ) : (
         <div className="hint">No background image uploaded.</div>
       )}
-      {backgroundImageError ? <div className="inline-error">{backgroundImageError}</div> : null}
-      {backgroundImageStatus ? (
-        <div className="inline-status">{backgroundImageStatus}</div>
+      {backgroundImage.error ? <div className="inline-error">{backgroundImage.error}</div> : null}
+      {backgroundImage.status ? (
+        <div className="inline-status">{backgroundImage.status}</div>
       ) : null}
       <label className="field checkbox">
         Show advanced controls
@@ -201,45 +166,45 @@ function DesignSection({
           <div className="subsection-title">Background image transform</div>
           <NumberField
             label="scale"
-            value={backgroundImageScale}
+            value={backgroundImage.scale}
             step={0.05}
-            onChange={onBackgroundImageScaleChange}
+            onChange={backgroundImage.onScaleChange}
           />
           <NumberField
             label="x"
-            value={backgroundImageDx}
+            value={backgroundImage.dx}
             step={1}
-            onChange={onBackgroundImageDxChange}
+            onChange={backgroundImage.onDxChange}
           />
           <NumberField
             label="y"
-            value={backgroundImageDy}
+            value={backgroundImage.dy}
             step={1}
-            onChange={onBackgroundImageDyChange}
+            onChange={backgroundImage.onDyChange}
           />
           <div className="subsection-title">Chart Fit</div>
           <NumberField
             label="dx"
-            value={chartFit.dx}
-            onChange={(value) => onChartFitChange({ ...chartFit, dx: value })}
+            value={chartFit.value.dx}
+            onChange={(value) => chartFit.onChange({ ...chartFit.value, dx: value })}
           />
           <NumberField
             label="dy"
-            value={chartFit.dy}
-            onChange={(value) => onChartFitChange({ ...chartFit, dy: value })}
+            value={chartFit.value.dy}
+            onChange={(value) => chartFit.onChange({ ...chartFit.value, dy: value })}
           />
           <NumberField
             label="scale"
-            value={chartFit.scale}
+            value={chartFit.value.scale}
             step={0.01}
-            onChange={(value) => onChartFitChange({ ...chartFit, scale: value })}
+            onChange={(value) => chartFit.onChange({ ...chartFit.value, scale: value })}
           />
           <NumberField
             label="rotation"
-            value={chartFit.rotation_deg}
+            value={chartFit.value.rotation_deg}
             step={0.5}
             onChange={(value) =>
-              onChartFitChange({ ...chartFit, rotation_deg: value })
+              chartFit.onChange({ ...chartFit.value, rotation_deg: value })
             }
           />
           <div className="hint">Drag to move. Shift+drag to scale. Alt+drag to rotate.</div>
@@ -248,19 +213,20 @@ function DesignSection({
       <div className="subsection-title">Layering (top → bottom)</div>
       <div className="layer-stack">
         {[...visibleLayerOrder].reverse().map((layerKey, index, order) => {
-          const opacity = design.layer_opacity?.[layerKey] ?? 1
+          const opacity = layering.design.layer_opacity?.[layerKey] ?? 1
           const selectionId = LAYER_SELECTION_IDS[layerKey]
           const activeKey = LAYER_ACTIVE_KEYS[layerKey]
-          const isActiveLayer = Boolean(activeKey && activeSelectionLayer === activeKey)
-          const isSelected = Boolean(selectionId && selectionId === selectedElement)
+          const isActiveLayer = Boolean(activeKey && selection.activeSelectionLayer === activeKey)
+          const isSelected = Boolean(selectionId && selectionId === selection.selectedElement)
           const handleLayerActivate = () => {
             if (!activeKey) {
               return
             }
-            const next = activeSelectionLayer === activeKey ? 'auto' : activeKey
-            onActiveSelectionLayerChange(next)
+            const next =
+              selection.activeSelectionLayer === activeKey ? 'auto' : activeKey
+            selection.onActiveSelectionLayerChange(next)
             if (selectionId && next !== 'auto') {
-              onSelectedElementChange(selectionId)
+              selection.onSelectedElementChange(selectionId)
             }
           }
           return (
@@ -311,10 +277,10 @@ function DesignSection({
                   max={1}
                   step={0.01}
                   value={opacity}
-                  onChange={(event) =>
-                    onLayerOpacityChange(layerKey, Number(event.target.value))
-                  }
-                />
+                    onChange={(event) =>
+                      layering.onLayerOpacityChange(layerKey, Number(event.target.value))
+                    }
+                  />
                 <div className="hint">{Math.round(opacity * 100)}%</div>
               </label>
             </div>
@@ -329,10 +295,10 @@ function DesignSection({
           min={0.7}
           max={1.3}
           step={0.01}
-          value={design.sign_glyph_scale}
-          onChange={(event) => onSignGlyphScaleChange(Number(event.target.value))}
+          value={layering.design.sign_glyph_scale}
+          onChange={(event) => glyphScale.onSignGlyphScaleChange(Number(event.target.value))}
         />
-        <div className="hint">{design.sign_glyph_scale.toFixed(2)}</div>
+        <div className="hint">{layering.design.sign_glyph_scale.toFixed(2)}</div>
       </label>
       <label className="field">
         Planet glyph size
@@ -341,10 +307,10 @@ function DesignSection({
           min={0.7}
           max={1.3}
           step={0.01}
-          value={design.planet_glyph_scale}
-          onChange={(event) => onPlanetGlyphScaleChange(Number(event.target.value))}
+          value={layering.design.planet_glyph_scale}
+          onChange={(event) => glyphScale.onPlanetGlyphScaleChange(Number(event.target.value))}
         />
-        <div className="hint">{design.planet_glyph_scale.toFixed(2)}</div>
+        <div className="hint">{layering.design.planet_glyph_scale.toFixed(2)}</div>
       </label>
       <label className="field">
         Inner ring scale
@@ -353,32 +319,32 @@ function DesignSection({
           min={0.85}
           max={1.15}
           step={0.01}
-          value={design.inner_ring_scale}
-          onChange={(event) => onInnerRingScaleChange(Number(event.target.value))}
+          value={layering.design.inner_ring_scale}
+          onChange={(event) => glyphScale.onInnerRingScaleChange(Number(event.target.value))}
         />
-        <div className="hint">{design.inner_ring_scale.toFixed(2)}</div>
+        <div className="hint">{layering.design.inner_ring_scale.toFixed(2)}</div>
       </label>
       <div className="subsection-title">Selection</div>
       <SelectionSection
         wrapInSection={false}
-        selectedElement={selectedElement}
-        selectableGroups={selectableGroups}
-        onSelectedElementChange={onSelectedElementChange}
-        selectionColor={selectionColor}
-        selectionColorMixed={selectionColorMixed}
-        selectionEnabled={selectionEnabled}
-        onColorChange={onColorChange}
-        onClearColor={onClearColor}
-        chartLinesColor={chartLinesColor}
-        onChartLinesColorChange={onChartLinesColorChange}
-        onClearChartLinesColor={onClearChartLinesColor}
-        chartBackgroundColor={chartBackgroundColor}
-        onChartBackgroundColorChange={onChartBackgroundColorChange}
-        onClearChartBackgroundColor={onClearChartBackgroundColor}
-        radialMoveEnabled={radialMoveEnabled}
-        onRadialMoveEnabledChange={onRadialMoveEnabledChange}
-        frameMaskCutoff={frameMaskCutoff}
-        onFrameMaskCutoffChange={onFrameMaskCutoffChange}
+        selectedElement={selection.selectedElement}
+        selectableGroups={selection.selectableGroups}
+        onSelectedElementChange={selection.onSelectedElementChange}
+        selectionColor={selection.selectionColor}
+        selectionColorMixed={selection.selectionColorMixed}
+        selectionEnabled={selection.selectionEnabled}
+        onColorChange={selection.onColorChange}
+        onClearColor={selection.onClearColor}
+        chartLinesColor={selection.chartLinesColor}
+        onChartLinesColorChange={selection.onChartLinesColorChange}
+        onClearChartLinesColor={selection.onClearChartLinesColor}
+        chartBackgroundColor={selection.chartBackgroundColor}
+        onChartBackgroundColorChange={selection.onChartBackgroundColorChange}
+        onClearChartBackgroundColor={selection.onClearChartBackgroundColor}
+        radialMoveEnabled={selection.radialMoveEnabled}
+        onRadialMoveEnabledChange={selection.onRadialMoveEnabledChange}
+        frameMaskCutoff={selection.frameMaskCutoff}
+        onFrameMaskCutoffChange={selection.onFrameMaskCutoffChange}
       />
     </CollapsibleSection>
   )

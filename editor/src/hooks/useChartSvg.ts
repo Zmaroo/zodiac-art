@@ -69,7 +69,7 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
     onLayoutLoadedRef.current = onLayoutLoaded
   }, [onLayoutLoaded])
 
-  const normalizeDesign = (design?: Partial<DesignSettings> | null) => {
+  const normalizeDesign = useCallback((design?: Partial<DesignSettings> | null) => {
     const requiredLayers: Array<DesignSettings['layer_order'][number]> = [
       'background',
       'frame',
@@ -130,9 +130,9 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
       planet_glyph_scale: design?.planet_glyph_scale ?? defaultDesign.planet_glyph_scale,
       inner_ring_scale: design?.inner_ring_scale ?? defaultDesign.inner_ring_scale,
     }
-  }
+  }, [defaultDesign])
 
-  const buildDesignParams = (design: DesignSettings) => {
+  const buildDesignParams = useCallback((design: DesignSettings) => {
     const requiredLayers: Array<DesignSettings['layer_order'][number]> = [
       'background',
       'frame',
@@ -150,10 +150,12 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
     params.set('design_background_image_dx', design.background_image_dx.toString())
     params.set('design_background_image_dy', design.background_image_dy.toString())
     return params
-  }
+  }, [defaultDesign])
 
   useEffect(() => {
-    setLayoutReady(false)
+    queueMicrotask(() => {
+      setLayoutReady(false)
+    })
     if (!selectedId) {
       queueMicrotask(() => {
         setSelectedFrameDetail(null)
@@ -249,18 +251,31 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         setLayoutReady(true)
       })
       .catch((err) => setError(String(err)))
-  }, [apiBase, chartId, fetchJsonAuthWith, fetchJsonIfOkAuthWith, isChartOnly, jwt, selectedId])
+  }, [
+    apiBase,
+    chartId,
+    fetchJsonAuthWith,
+    fetchJsonIfOkAuthWith,
+    isChartOnly,
+    jwt,
+    normalizeDesign,
+    selectedId,
+  ])
 
   useEffect(() => {
     if (!layoutReady) {
       return
     }
     if (!chartId) {
-      setChartSvgBase('')
+      queueMicrotask(() => {
+        setChartSvgBase('')
+      })
       return
     }
     if (!selectedId) {
-      setChartSvgBase('')
+      queueMicrotask(() => {
+        setChartSvgBase('')
+      })
       return
     }
     const params = buildDesignParams(normalizeDesign(designPreview))
@@ -283,7 +298,17 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         setChartSvgBase(stripOverrideTransforms(inner, layoutOverridesRef.current))
       })
       .catch((err) => setError(String(err)))
-  }, [apiBase, chartId, designPreview, fetchTextIfOkAuthWith, isChartOnly, layoutReady, selectedId])
+  }, [
+    apiBase,
+    buildDesignParams,
+    chartId,
+    designPreview,
+    fetchTextIfOkAuthWith,
+    isChartOnly,
+    layoutReady,
+    normalizeDesign,
+    selectedId,
+  ])
 
   const clearStatus = () => {
     setStatus('')

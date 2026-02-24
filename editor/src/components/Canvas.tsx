@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useRef } from 'react'
-import type { PointerEvent, RefObject } from 'react'
+import type { PointerEvent, ReactElement, RefObject } from 'react'
 import { useMaskedFrame } from '../hooks/useMaskedFrame'
 import type { ActiveSelectionLayer, ChartMeta, FrameCircle, FrameDetail, LayerOrderKey } from '../types'
 
-type CanvasProps = {
+export type CanvasProps = {
   meta: ChartMeta | null
   selectedFrameDetail: FrameDetail | null
   apiBase: string
@@ -146,7 +146,7 @@ function Canvas({
       />
     </g>
   ) : null
-  const layers: Record<LayerOrderKey, JSX.Element | null> = {
+  const layers: Record<LayerOrderKey, ReactElement | null> = {
     background: backgroundLayer,
     frame: frameLayer,
     chart_background_image: backgroundImageLayer,

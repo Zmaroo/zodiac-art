@@ -14,6 +14,7 @@ type UseLayoutActionsParams = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frameCircle: FrameCircle | null
+  clientVersion: number
   setError: (value: string) => void
   setStatus: (value: string) => void
   dispatch: (action: EditorAction) => void
@@ -31,6 +32,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
     overrides,
     design,
     frameCircle,
+    clientVersion,
     setError,
     setStatus,
     dispatch,
@@ -86,6 +88,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
         return
       }
       dispatch({ type: 'SET_SAVED_FIT', fit: chartFit })
+      dispatch({ type: 'MARK_SYNCED', version: clientVersion, savedAt: Date.now() })
       setError('')
       setStatus('Saved chart-only layout.')
       return
@@ -141,6 +144,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
       return
     }
     dispatch({ type: 'SET_SAVED_FIT', fit: chartFit })
+    dispatch({ type: 'MARK_SYNCED', version: clientVersion, savedAt: Date.now() })
     setError('')
     setStatus('Saved metadata and layout.')
   }

@@ -5,254 +5,198 @@ import CreateChartSection from './sidebar/CreateChartSection'
 import FramesSection from './sidebar/FramesSection'
 import UploadFrameSection from './sidebar/UploadFrameSection'
 import DebugSection from './sidebar/DebugSection'
-import DesignSection from './sidebar/DesignSection'
-import type {
-  ActiveSelectionLayer,
-  ChartFit,
-  ChartListItem,
-  DesignSettings,
-  FrameEntry,
-  LayerOrderKey,
-  User,
-} from '../types'
+import DesignSection, { type DesignSectionProps } from './sidebar/DesignSection'
+import type { ChartListItem, FrameEntry, User } from '../types'
 
-type SidebarProps = {
-  accountError: string
-  accountStatus: string
-  chartsError: string
-  chartsStatus: string
-  createChartError: string
-  createChartStatus: string
-  framesError: string
-  framesStatus: string
-  uploadError: string
-  uploadStatus: string
-  actionsError: string
-  actionsStatus: string
-  onClearAccountMessages: () => void
-  onClearChartsMessages: () => void
-  onClearCreateChartMessages: () => void
-  onClearFramesMessages: () => void
-  onClearUploadMessages: () => void
-  user: User | null
-  authEmail: string
-  authPassword: string
-  onAuthEmailChange: (value: string) => void
-  onAuthPasswordChange: (value: string) => void
-  onLogin: () => void
-  onRegister: () => void
-  onLogout: () => void
-  charts: ChartListItem[]
-  chartId: string
-  onSelectChart: (chartId: string) => void
-  onChartIdChange: (value: string) => void
-  chartName: string
-  birthDate: string
-  birthTime: string
-  latitude: number
-  longitude: number
-  onChartNameChange: (value: string) => void
-  onBirthDateChange: (value: string) => void
-  onBirthTimeChange: (value: string) => void
-  onLatitudeChange: (value: number) => void
-  onLongitudeChange: (value: number) => void
-  onCreateChart: () => void
-  onResetSession: () => void
-  onFactoryReset: () => void
-  onResetView: () => void
-  onAutoFit: () => void
-  onResetToSavedFit: () => void
-  resetToSavedEnabled: boolean
-  autoFitEnabled: boolean
-  frameSearch: string
-  onFrameSearchChange: (value: string) => void
-  selectedId: string
-  onSelectedIdChange: (value: string) => void
-  filteredFrames: FrameEntry[]
-  chartOnlyId: string
-  uploadName: string
-  uploadTags: string
-  uploadGlobal: boolean
-  uploading: boolean
-  userIsAdmin: boolean
-  onUploadNameChange: (value: string) => void
-  onUploadTagsChange: (value: string) => void
-  onUploadFileChange: (file: File | null) => void
-  onUploadGlobalChange: (value: boolean) => void
-  onUploadFrame: () => void
-  chartFit: ChartFit
-  onChartFitChange: (value: ChartFit) => void
-  design: DesignSettings
-  onLayerOrderChange: (value: LayerOrderKey[]) => void
-  onLayerOpacityChange: (layer: LayerOrderKey, value: number) => void
-  hasFrame: boolean
-  hasChartBackground: boolean
-  hasBackgroundImage: boolean
-  backgroundImagePath: string | null
-  backgroundImageUrl: string
-  backgroundImageError: string
-  backgroundImageStatus: string
-  backgroundImageUploading: boolean
-  onBackgroundImageUpload: (file: File | null) => void
-  onBackgroundImageClear: () => void
-  backgroundImageScale: number
-  backgroundImageDx: number
-  backgroundImageDy: number
-  onBackgroundImageScaleChange: (value: number) => void
-  onBackgroundImageDxChange: (value: number) => void
-  onBackgroundImageDyChange: (value: number) => void
-  onSignGlyphScaleChange: (value: number) => void
-  onPlanetGlyphScaleChange: (value: number) => void
-  onInnerRingScaleChange: (value: number) => void
-  selectedElement: string
-  selectableGroups: { label: string; items: { id: string; label: string }[] }[]
-  onSelectedElementChange: (value: string) => void
-  activeSelectionLayer: ActiveSelectionLayer
-  onActiveSelectionLayerChange: (value: ActiveSelectionLayer) => void
-  selectionColor: string
-  selectionColorMixed: boolean
-  selectionEnabled: boolean
-  onColorChange: (color: string) => void
-  onClearColor: () => void
-  chartLinesColor: string
-  onChartLinesColorChange: (value: string) => void
-  onClearChartLinesColor: () => void
-  chartBackgroundColor: string
-  onChartBackgroundColorChange: (value: string) => void
-  onClearChartBackgroundColor: () => void
-  radialMoveEnabled: boolean
-  onRadialMoveEnabledChange: (value: boolean) => void
-  frameMaskCutoff: number
-  onFrameMaskCutoffChange: (value: number) => void
-  showFrameCircleDebug: boolean
-  onShowFrameCircleDebugChange: (value: boolean) => void
-  debugItems: { label: string; value: string }[]
-  onSaveAll: () => void
-  onExport: () => void
-  exportFormat: 'png' | 'svg'
-  onExportFormatChange: (value: 'png' | 'svg') => void
-  exportEnabled: boolean
-  exportDisabledTitle: string
+export type SidebarProps = {
+  messages: {
+    accountError: string
+    accountStatus: string
+    chartsError: string
+    chartsStatus: string
+    createChartError: string
+    createChartStatus: string
+    framesError: string
+    framesStatus: string
+    uploadError: string
+    uploadStatus: string
+    actionsError: string
+    actionsStatus: string
+    draftStatus: string
+    syncStatus: string
+  }
+  clears: {
+    onClearAccountMessages: () => void
+    onClearChartsMessages: () => void
+    onClearCreateChartMessages: () => void
+    onClearFramesMessages: () => void
+    onClearUploadMessages: () => void
+  }
+  account: {
+    user: User | null
+    authEmail: string
+    authPassword: string
+    onAuthEmailChange: (value: string) => void
+    onAuthPasswordChange: (value: string) => void
+    onLogin: () => void
+    onRegister: () => void
+    onLogout: () => void
+  }
+  charts: {
+    charts: ChartListItem[]
+    chartId: string
+    onSelectChart: (chartId: string) => void
+    onChartIdChange: (value: string) => void
+    chartName: string
+    birthDate: string
+    birthTime: string
+    latitude: number
+    longitude: number
+    onChartNameChange: (value: string) => void
+    onBirthDateChange: (value: string) => void
+    onBirthTimeChange: (value: string) => void
+    onLatitudeChange: (value: number) => void
+    onLongitudeChange: (value: number) => void
+    onCreateChart: () => void
+    onResetSession: () => void
+    onFactoryReset: () => void
+    onResetView: () => void
+    onAutoFit: () => void
+    onResetToSavedFit: () => void
+    resetToSavedEnabled: boolean
+    autoFitEnabled: boolean
+  }
+  frames: {
+    frameSearch: string
+    onFrameSearchChange: (value: string) => void
+    selectedId: string
+    onSelectedIdChange: (value: string) => void
+    filteredFrames: FrameEntry[]
+    chartOnlyId: string
+  }
+  upload: {
+    uploadName: string
+    uploadTags: string
+    uploadGlobal: boolean
+    uploading: boolean
+    userIsAdmin: boolean
+    onUploadNameChange: (value: string) => void
+    onUploadTagsChange: (value: string) => void
+    onUploadFileChange: (file: File | null) => void
+    onUploadGlobalChange: (value: boolean) => void
+    onUploadFrame: () => void
+  }
+  design: {
+    sectionProps: DesignSectionProps
+  }
+  actions: {
+    onSaveAll: () => void
+    onUndo: () => void
+    onRedo: () => void
+    canUndo: boolean
+    canRedo: boolean
+    onSyncNow: () => void
+    syncEnabled: boolean
+    onExport: () => void
+    exportFormat: 'png' | 'svg'
+    onExportFormatChange: (value: 'png' | 'svg') => void
+    exportEnabled: boolean
+    exportDisabledTitle: string
+  }
+  debug: {
+    debugItems: { label: string; value: string }[]
+    showFrameCircleDebug: boolean
+    onShowFrameCircleDebugChange: (value: boolean) => void
+  }
 }
 
-function Sidebar({
-  accountError,
-  accountStatus,
-  chartsError,
-  chartsStatus,
-  createChartError,
-  createChartStatus,
-  framesError,
-  framesStatus,
-  uploadError,
-  uploadStatus,
-  actionsError,
-  actionsStatus,
-  onClearAccountMessages,
-  onClearChartsMessages,
-  onClearCreateChartMessages,
-  onClearFramesMessages,
-  onClearUploadMessages,
-  user,
-  authEmail,
-  authPassword,
-  onAuthEmailChange,
-  onAuthPasswordChange,
-  onLogin,
-  onRegister,
-  onLogout,
-  charts,
-  chartId,
-  onSelectChart,
-  onChartIdChange,
-  chartName,
-  birthDate,
-  birthTime,
-  latitude,
-  longitude,
-  onChartNameChange,
-  onBirthDateChange,
-  onBirthTimeChange,
-  onLatitudeChange,
-  onLongitudeChange,
-  onCreateChart,
-  onResetSession,
-  onFactoryReset,
-  onResetView,
-  onAutoFit,
-  onResetToSavedFit,
-  resetToSavedEnabled,
-  autoFitEnabled,
-  frameSearch,
-  onFrameSearchChange,
-  selectedId,
-  onSelectedIdChange,
-  filteredFrames,
-  chartOnlyId,
-  uploadName,
-  uploadTags,
-  uploadGlobal,
-  uploading,
-  userIsAdmin,
-  onUploadNameChange,
-  onUploadTagsChange,
-  onUploadFileChange,
-  onUploadGlobalChange,
-  onUploadFrame,
-  chartFit,
-  onChartFitChange,
-  design,
-  onLayerOrderChange,
-  onLayerOpacityChange,
-  hasFrame,
-  hasChartBackground,
-  hasBackgroundImage,
-  backgroundImagePath,
-  backgroundImageUrl,
-  backgroundImageError,
-  backgroundImageStatus,
-  backgroundImageUploading,
-  onBackgroundImageUpload,
-  onBackgroundImageClear,
-  backgroundImageScale,
-  backgroundImageDx,
-  backgroundImageDy,
-  onBackgroundImageScaleChange,
-  onBackgroundImageDxChange,
-  onBackgroundImageDyChange,
-  onSignGlyphScaleChange,
-  onPlanetGlyphScaleChange,
-  onInnerRingScaleChange,
-  selectedElement,
-  selectableGroups,
-  onSelectedElementChange,
-  activeSelectionLayer,
-  onActiveSelectionLayerChange,
-  selectionColor,
-  selectionColorMixed,
-  selectionEnabled,
-  onColorChange,
-  onClearColor,
-  chartLinesColor,
-  onChartLinesColorChange,
-  onClearChartLinesColor,
-  chartBackgroundColor,
-  onChartBackgroundColorChange,
-  onClearChartBackgroundColor,
-  radialMoveEnabled,
-  onRadialMoveEnabledChange,
-  frameMaskCutoff,
-  onFrameMaskCutoffChange,
-  showFrameCircleDebug,
-  onShowFrameCircleDebugChange,
-  debugItems,
-  onSaveAll,
-  onExport,
-  exportFormat,
-  onExportFormatChange,
-  exportEnabled,
-  exportDisabledTitle,
-}: SidebarProps) {
+function Sidebar({ messages, clears, account, charts, frames, upload, design, actions, debug }: SidebarProps) {
+  const {
+    accountError,
+    accountStatus,
+    chartsError,
+    chartsStatus,
+    createChartError,
+    createChartStatus,
+    framesError,
+    framesStatus,
+    uploadError,
+    uploadStatus,
+    actionsError,
+    actionsStatus,
+    draftStatus,
+    syncStatus,
+  } = messages
+  const {
+    onClearAccountMessages,
+    onClearChartsMessages,
+    onClearCreateChartMessages,
+    onClearFramesMessages,
+    onClearUploadMessages,
+  } = clears
+  const {
+    user,
+    authEmail,
+    authPassword,
+    onAuthEmailChange,
+    onAuthPasswordChange,
+    onLogin,
+    onRegister,
+    onLogout,
+  } = account
+  const {
+    charts: chartItems,
+    chartId,
+    onSelectChart,
+    onChartIdChange,
+    chartName,
+    birthDate,
+    birthTime,
+    latitude,
+    longitude,
+    onChartNameChange,
+    onBirthDateChange,
+    onBirthTimeChange,
+    onLatitudeChange,
+    onLongitudeChange,
+    onCreateChart,
+    onResetSession,
+    onFactoryReset,
+    onResetView,
+    onAutoFit,
+    onResetToSavedFit,
+    resetToSavedEnabled,
+    autoFitEnabled,
+  } = charts
+  const { frameSearch, onFrameSearchChange, selectedId, onSelectedIdChange, filteredFrames, chartOnlyId } = frames
+  const {
+    uploadName,
+    uploadTags,
+    uploadGlobal,
+    uploading,
+    userIsAdmin,
+    onUploadNameChange,
+    onUploadTagsChange,
+    onUploadFileChange,
+    onUploadGlobalChange,
+    onUploadFrame,
+  } = upload
+  const { sectionProps } = design
+  const {
+    onSaveAll,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
+    onSyncNow,
+    syncEnabled,
+    onExport,
+    exportFormat,
+    onExportFormatChange,
+    exportEnabled,
+    exportDisabledTitle,
+  } = actions
+  const { debugItems, showFrameCircleDebug, onShowFrameCircleDebugChange } = debug
   const [activeTab, setActiveTab] = useState<'main' | 'design'>('main')
   return (
     <aside className="sidebar">
@@ -289,7 +233,7 @@ function Sidebar({
           {accountError ? <div className="inline-error">{accountError}</div> : null}
           {accountStatus ? <div className="inline-status">{accountStatus}</div> : null}
           <ChartsSection
-            charts={charts}
+            charts={chartItems}
             chartId={chartId}
             onSelectChart={onSelectChart}
             onChartIdChange={onChartIdChange}
@@ -355,12 +299,29 @@ function Sidebar({
           ) : null}
           {actionsError ? <div className="inline-error">{actionsError}</div> : null}
           {actionsStatus ? <div className="inline-status">{actionsStatus}</div> : null}
+          {(draftStatus || syncStatus) && (
+            <div className="sync-status">
+              {draftStatus ? <div>{draftStatus}</div> : null}
+              {syncStatus ? <div>{syncStatus}</div> : null}
+            </div>
+          )}
           <div className="actions">
+            <div className="undo-row">
+              <button type="button" className="secondary" onClick={onUndo} disabled={!canUndo}>
+                Undo
+              </button>
+              <button type="button" className="secondary" onClick={onRedo} disabled={!canRedo}>
+                Redo
+              </button>
+            </div>
             <button
               onClick={onSaveAll}
               title="Saves layout + metadata (or chart-only fit) to the server."
             >
               Save changes
+            </button>
+            <button type="button" className="secondary" onClick={onSyncNow} disabled={!syncEnabled}>
+              Sync now
             </button>
             <div className="export-row">
               <select
@@ -385,52 +346,7 @@ function Sidebar({
         </>
       ) : (
         <>
-          <DesignSection
-            chartFit={chartFit}
-            onChartFitChange={onChartFitChange}
-            design={design}
-            onLayerOrderChange={onLayerOrderChange}
-            onLayerOpacityChange={onLayerOpacityChange}
-            hasFrame={hasFrame}
-            hasChartBackground={hasChartBackground}
-            hasBackgroundImage={hasBackgroundImage}
-            backgroundImagePath={backgroundImagePath}
-            backgroundImageUrl={backgroundImageUrl}
-            backgroundImageError={backgroundImageError}
-            backgroundImageStatus={backgroundImageStatus}
-            backgroundImageUploading={backgroundImageUploading}
-            onBackgroundImageUpload={onBackgroundImageUpload}
-            onBackgroundImageClear={onBackgroundImageClear}
-            backgroundImageScale={backgroundImageScale}
-            backgroundImageDx={backgroundImageDx}
-            backgroundImageDy={backgroundImageDy}
-            onBackgroundImageScaleChange={onBackgroundImageScaleChange}
-            onBackgroundImageDxChange={onBackgroundImageDxChange}
-            onBackgroundImageDyChange={onBackgroundImageDyChange}
-            onSignGlyphScaleChange={onSignGlyphScaleChange}
-            onPlanetGlyphScaleChange={onPlanetGlyphScaleChange}
-            onInnerRingScaleChange={onInnerRingScaleChange}
-            selectedElement={selectedElement}
-            selectableGroups={selectableGroups}
-            onSelectedElementChange={onSelectedElementChange}
-            activeSelectionLayer={activeSelectionLayer}
-            onActiveSelectionLayerChange={onActiveSelectionLayerChange}
-            selectionColor={selectionColor}
-            selectionColorMixed={selectionColorMixed}
-            selectionEnabled={selectionEnabled}
-            onColorChange={onColorChange}
-            onClearColor={onClearColor}
-            chartLinesColor={chartLinesColor}
-            onChartLinesColorChange={onChartLinesColorChange}
-            onClearChartLinesColor={onClearChartLinesColor}
-            chartBackgroundColor={chartBackgroundColor}
-            onChartBackgroundColorChange={onChartBackgroundColorChange}
-            onClearChartBackgroundColor={onClearChartBackgroundColor}
-            radialMoveEnabled={radialMoveEnabled}
-            onRadialMoveEnabledChange={onRadialMoveEnabledChange}
-            frameMaskCutoff={frameMaskCutoff}
-            onFrameMaskCutoffChange={onFrameMaskCutoffChange}
-          />
+          <DesignSection {...sectionProps} />
         </>
       )}
     </aside>

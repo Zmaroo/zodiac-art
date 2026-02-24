@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { formatSelectionLabel } from '../utils/glyphs'
 import { isDraggableElement } from '../utils/format'
 import type { ActiveSelectionLayer, Offset, ChartMeta } from '../types'
@@ -16,7 +16,6 @@ type UseSelectionParams = {
   meta: ChartMeta | null
   overrides: Record<string, Offset>
   selectedElement: string
-  hasBackgroundImage: boolean
   dispatch: (action: EditorAction) => void
 }
 
@@ -39,7 +38,7 @@ type UseSelectionResult = {
 }
 
 export function useSelection(params: UseSelectionParams): UseSelectionResult {
-  const { chartSvg, meta, overrides, selectedElement, hasBackgroundImage, dispatch } = params
+  const { chartSvg, meta, overrides, selectedElement, dispatch } = params
 
   const selectableGroups = useMemo(() => {
     if (!chartSvg) {
@@ -95,7 +94,7 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
       { id: BULK_GLYPHS, label: 'All glyphs' },
     ]
     return [{ label: 'Bulk', items: bulkItems }, ...grouped]
-  }, [chartSvg, hasBackgroundImage, meta])
+  }, [chartSvg, meta])
 
   const selectableElements = useMemo(
     () => selectableGroups.flatMap((group) => group.items.map((item) => item.id)),
@@ -158,6 +157,18 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
   }, [overrides, selectionTargets])
 
   const selectionEnabled = selectionTargets.length > 0
+
+  useEffect(() => {
+    if (!selectedElement) {
+      return
+    }
+    const bulkValues = [BULK_ALL, BULK_PLANETS, BULK_SIGNS, BULK_GLYPHS]
+    const layerSelected = selectedElement === BACKGROUND_IMAGE_ID
+    if (!layerSelected && !selectableElements.includes(selectedElement) && !bulkValues.includes(selectedElement)) {
+      dispatch({ type: 'SET_SELECTED_ELEMENT', id: '' })
+      dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'auto' })
+    }
+  }, [dispatch, selectableElements, selectedElement])
 
   const setSelectedElement = (value: string) => {
     dispatch({ type: 'SET_SELECTED_ELEMENT', id: value })

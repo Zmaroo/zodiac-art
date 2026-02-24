@@ -104,6 +104,12 @@
   margin-top: 20px;
 }
 
+.undo-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .actions button {
   padding: 10px 12px;
   border-radius: 8px;
@@ -457,6 +463,12 @@
 .inline-status {
   background: #dce7d3;
   color: #2d4f2a;
+}
+
+.sync-status {
+  font-size: 11px;
+  color: #6b6254;
+  margin-bottom: 10px;
 }
 
 .placeholder {

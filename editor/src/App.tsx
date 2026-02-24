@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import './App.css'
 import Canvas from './components/Canvas'
 import Sidebar from './components/Sidebar'
 import { applyOverrides, stripElementById } from './utils/svg'
-import { apiFetch, readApiError } from './api/client'
 import { useChartBackground } from './hooks/useChartBackground'
 import { useAuth } from './hooks/useAuth'
 import { useFrames } from './hooks/useFrames'
@@ -13,26 +12,33 @@ import { useChartSvg } from './hooks/useChartSvg'
 import { useFrameCircle } from './hooks/useFrameCircle'
 import { useSelection } from './hooks/useSelection'
 import { useEditorMessages } from './hooks/useEditorMessages'
-import { useAutoDismissMessage } from './hooks/useAutoDismissMessage'
 import { useChartTransform } from './hooks/useChartTransform'
 import { useAutoFit } from './hooks/useAutoFit'
 import { useChartInteraction } from './hooks/useChartInteraction'
 import { useLayoutActions } from './hooks/useLayoutActions'
 import { useFrameUploads } from './hooks/useFrameUploads'
 import { usePersistedState } from './hooks/usePersistedState'
+import { useBackgroundImage } from './hooks/useBackgroundImage'
 import { useExport } from './hooks/useExport'
+import { useEditorDrafts } from './hooks/useEditorDrafts'
 import { useEditorDerived } from './hooks/useEditorDerived'
+import { useEditorInputHandlers } from './hooks/useEditorInputHandlers'
+import { useEditorHistory } from './hooks/useEditorHistory'
+import { useEditorLayout } from './hooks/useEditorLayout'
 import { useEditorActions } from './hooks/useEditorActions'
+import { useEditorResetEffects } from './hooks/useEditorResetEffects'
+import { useEditorSessionActions } from './hooks/useEditorSessionActions'
+import { useEditorStatusView } from './hooks/useEditorStatusView'
+import { useDesignSectionViewModel } from './hooks/useDesignSectionViewModel'
+import { useCanvasViewModel } from './hooks/useCanvasViewModel'
+import { useSidebarClears } from './hooks/useSidebarClears'
+import { useSidebarMessages } from './hooks/useSidebarMessages'
+import { useSidebarViewModel } from './hooks/useSidebarViewModel'
+import { useEditorSync } from './hooks/useEditorSync'
 import { useDebouncedValue } from './hooks/useDebouncedValue'
+import { useEditorDoc } from './hooks/useEditorDoc'
 import { createInitialEditorState, editorReducer } from './state/editorReducer'
-import type {
-  ActiveSelectionLayer,
-  ChartFit,
-  DesignSettings,
-  FrameCircle,
-  LayerOrderKey,
-  Offset,
-} from './types'
+import type { ChartFit, DesignSettings, EditorDoc, FrameCircle, LayerOrderKey, Offset } from './types'
 
 const defaultChartFit: ChartFit = { dx: 0, dy: 0, scale: 1, rotation_deg: 0 }
 const defaultDesign: DesignSettings = {
@@ -108,13 +114,20 @@ function App() {
     editorReducer,
     createInitialEditorState(defaultChartFit, defaultDesign)
   )
-  const { chartFit, userAdjustedFit, overrides, selectedElement, activeSelectionLayer, design } =
-    editorState
+  const {
+    chartFit,
+    userAdjustedFit,
+    overrides,
+    selectedElement,
+    activeSelectionLayer,
+    design,
+    clientVersion,
+    serverVersion,
+    lastSavedAt,
+    lastSyncedAt,
+  } = editorState
   const chartLinesColor = overrides['chart.lines']?.color ?? ''
   const [showFrameCircleDebug, setShowFrameCircleDebug] = useState(false)
-  const [backgroundImageError, setBackgroundImageError] = useState('')
-  const [backgroundImageStatus, setBackgroundImageStatus] = useState('')
-  const [backgroundImageUploading, setBackgroundImageUploading] = useState(false)
   const [frameMaskCutoff, setFrameMaskCutoff] = usePersistedState(
     'zodiac_editor.frameMaskCutoff',
     252,
@@ -158,20 +171,26 @@ function App() {
 
   const isChartOnly = selectedId === CHART_ONLY_ID
 
-  const handleLayoutLoaded = (result: {
-    fit: ChartFit
-    overrides: Record<string, Offset>
-    frameCircle: FrameCircle | null
-    design: DesignSettings
-  }) => {
-    dispatch({
-      type: 'LOAD_LAYOUT',
-      fit: result.fit,
-      overrides: result.overrides,
-      design: result.design,
-    })
-    setFrameCircle(result.frameCircle)
-  }
+  const layoutHandlerRef = useRef<
+    (result: {
+      fit: ChartFit
+      overrides: Record<string, Offset>
+      frameCircle: FrameCircle | null
+      design: DesignSettings
+    }) => void
+  >(() => {})
+  const handleLayoutLoadedProxy = useCallback(
+    (result: {
+      fit: ChartFit
+      overrides: Record<string, Offset>
+      frameCircle: FrameCircle | null
+      design: DesignSettings
+    }) => {
+      layoutHandlerRef.current(result)
+    },
+    []
+  )
+
 
   const debouncedDesign = useDebouncedValue(design, 400)
   const {
@@ -188,7 +207,7 @@ function App() {
     isChartOnly,
     designPreview: debouncedDesign,
     defaultDesign,
-    onLayoutLoaded: handleLayoutLoaded,
+    onLayoutLoaded: handleLayoutLoadedProxy,
   })
 
   const {
@@ -206,6 +225,37 @@ function App() {
     selectedFrameDetail,
     overrides,
   })
+
+  const editorDoc: EditorDoc = useEditorDoc({
+    chartId,
+    selectedId,
+    isChartOnly,
+    chartFit,
+    overrides,
+    design,
+    frameCircle,
+    clientVersion,
+    serverVersion,
+    lastSavedAt,
+    lastSyncedAt,
+  })
+
+  const { draftKey, draftStatus, draftInfo, draftState, draftAppliedRef } = useEditorDrafts({
+    doc: editorDoc,
+    dispatch,
+    setFrameCircle,
+  })
+
+  const { handleLayoutLoaded: layoutHandler } = useEditorLayout({
+    draftKey,
+    draftState,
+    draftAppliedRef,
+    dispatch,
+    setFrameCircle,
+  })
+  useEffect(() => {
+    layoutHandlerRef.current = layoutHandler
+  }, [layoutHandler])
 
   const { chartBackgroundColor } = useChartBackground({
     chartSvgBase,
@@ -262,20 +312,34 @@ function App() {
   }
 
   const {
+    backgroundImageUrl,
+    backgroundImageError,
+    backgroundImageStatus,
+    backgroundImageUploading,
+    handleBackgroundImageUpload,
+    handleBackgroundImageClear,
+  } = useBackgroundImage({
+    apiBase,
+    jwt,
+    chartId,
+    design,
+    updateDesign,
+    lastSavedAt,
+    lastSyncedAt,
+  })
+
+  const {
     selectableGroups,
-    selectableIds,
     selectionColor,
     selectionColorMixed,
     selectionEnabled,
-    setSelectedElement,
+    setSelectedElement: setSelectedElementFromSelection,
     applySelectionColor,
-    bulkIds,
   } = useSelection({
     chartSvg,
     meta,
     overrides,
     selectedElement,
-    hasBackgroundImage: Boolean(design.background_image_path),
     dispatch,
   })
 
@@ -298,6 +362,14 @@ function App() {
     radialMoveEnabled,
   })
 
+  const { canUndo, canRedo, undo, redo } = useEditorHistory({
+    chartFit,
+    overrides,
+    design,
+    dispatch,
+    resetKey: draftKey,
+  })
+
   const { saveAll } = useLayoutActions({
     apiBase,
     jwt,
@@ -309,107 +381,33 @@ function App() {
     overrides,
     design,
     frameCircle,
+    clientVersion,
     setError,
     setStatus,
     dispatch,
   })
 
-  useEffect(() => {
-    if (!selectedElement) {
-      return
-    }
-    const bulkValues = Object.values(bulkIds)
-    const layerSelected = selectedElement === 'chart.background_image'
-    if (!layerSelected && !selectableIds.includes(selectedElement) && !bulkValues.includes(selectedElement)) {
-      setSelectedElement('')
-    }
-  }, [bulkIds, selectableIds, selectedElement, setSelectedElement])
+  const { syncStatus, syncEnabled, handleSyncNow } = useEditorSync({
+    jwt,
+    doc: editorDoc,
+    saveAll,
+    draftKey,
+  })
 
-  useEffect(() => {
-    dispatch({ type: 'RESET_USER_ADJUSTED' })
-  }, [chartId, selectedId])
-
-  useEffect(() => {
-    if (isChartOnly && !chartId) {
-      dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
-      setFrameCircle(null)
-    }
-  }, [chartId, isChartOnly, setFrameCircle])
-
-  useEffect(() => {
-    dispatch({ type: 'SET_USER_ADJUSTED', value: hasSavedFit })
-  }, [hasSavedFit])
-
-  const handleCreateChart = async () => {
-    clearChartsMessages()
-    await createChart({ birthDate, birthTime, latitude, longitude })
-  }
-
-  const handleLoginClick = async () => {
-    clearAuthMessages()
-    await login()
-  }
-
-  const handleRegisterClick = async () => {
-    clearAuthMessages()
-    await register()
-  }
-
-  const handleUploadFrame = async () => {
-    clearUploadMessages()
-    await uploadFrame()
-  }
+  useEditorResetEffects({
+    isChartOnly,
+    chartId,
+    selectedId,
+    hasSavedFit,
+    defaultChartFit,
+    defaultDesign,
+    dispatch,
+    setFrameCircle,
+  })
 
   const clearActionsMessages = () => {
     setError('')
     setStatus('')
-  }
-
-  const handleLogout = () => {
-    clearAuthMessages()
-    logout()
-    setChartId('')
-    setChartName('')
-    localStorage.removeItem('zodiac_editor.chartId')
-  }
-
-  const handleResetSession = () => {
-    clearActionsMessages()
-    localStorage.removeItem('zodiac_editor.chartId')
-    localStorage.removeItem('zodiac_editor.birthDate')
-    localStorage.removeItem('zodiac_editor.birthTime')
-    localStorage.removeItem('zodiac_editor.latitude')
-    localStorage.removeItem('zodiac_editor.longitude')
-    setBirthDate('1990-04-12')
-    setBirthTime('08:45')
-    setLatitude(40.7128)
-    setLongitude(-74.006)
-    setChartId('')
-    setChartName('')
-    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
-    setFrameCircle(null)
-    setStatus('')
-    setError('')
-  }
-
-  const handleFactoryReset = () => {
-    clearActionsMessages()
-    Object.keys(localStorage)
-      .filter((key) => key.startsWith('zodiac_editor.'))
-      .forEach((key) => localStorage.removeItem(key))
-    setApiBase(defaultApiBase)
-    setJwt('')
-    setUser(null)
-    setBirthDate('1990-04-12')
-    setBirthTime('08:45')
-    setLatitude(40.7128)
-    setLongitude(-74.006)
-    setChartId('')
-    setChartName('')
-    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
-    setFrameCircle(null)
-    setStatus('')
-    setError('')
   }
 
   const { exportFormat, setExportFormat, exportEnabled, exportDisabledTitle, handleExport } = useExport({
@@ -442,418 +440,327 @@ function App() {
     saveAll,
   })
 
-  // error/status aggregated for debug panel
-  const debugItems = [
-    { label: 'Auth error', value: authError },
-    { label: 'Auth status', value: authStatus },
-    { label: 'Frames error', value: framesError },
-    { label: 'Charts error', value: chartsError },
-    { label: 'Charts status', value: chartsStatus },
-    { label: 'Chart SVG error', value: chartSvgError },
-    { label: 'Frame circle error', value: frameCircleError },
-    { label: 'Frame circle status', value: frameCircleStatus },
-    { label: 'Editor error', value: editorError },
-    { label: 'Editor status', value: editorStatus },
-    { label: 'Upload error', value: uploadError },
-    { label: 'Upload status', value: uploadStatus },
-  ]
+  const {
+    handleAuthEmailChange,
+    handleAuthPasswordChange,
+    clearAuthMessages,
+    handleChartNameChange,
+    handleBirthDateChange,
+    handleBirthTimeChange,
+    handleLatitudeChange,
+    handleLongitudeChange,
+    clearChartsMessages,
+    handleFrameSearchChange,
+    handleSelectedIdChange,
+    handleUploadNameChange,
+    handleUploadTagsChange,
+    handleUploadFileChange,
+    handleUploadGlobalChange,
+    handleChartLinesColorChange,
+    handleChartLinesColorClear,
+    handleChartFitChange,
+    handleLayerOrderChange,
+    handleLayerOpacityChange,
+    handleSignGlyphScaleChange,
+    handlePlanetGlyphScaleChange,
+    handleInnerRingScaleChange,
+    handleBackgroundImageScaleChange,
+    handleBackgroundImageDxChange,
+    handleBackgroundImageDyChange,
+    handleChartBackgroundColorChange,
+    handleChartBackgroundColorClear,
+    handleActiveSelectionLayerChange,
+    setSelectedElement: setSelectedElementFromHandlers,
+  } = useEditorInputHandlers({
+    setAuthEmail,
+    setAuthPassword,
+    clearAuthError,
+    clearAuthStatus,
+    setChartName,
+    setBirthDate,
+    setBirthTime,
+    setLatitude,
+    setLongitude,
+    clearChartsError,
+    clearChartsStatus,
+    setFrameSearch,
+    setSelectedId,
+    clearFramesError,
+    setUploadName,
+    setUploadTags,
+    setUploadFile,
+    setUploadGlobal,
+    clearUploadMessages,
+    dispatch,
+    updateDesign,
+    design,
+    chartBackgroundId: CHART_BACKGROUND_ID,
+    setSelectedElement: setSelectedElementFromSelection,
+  })
 
-  const inlineAuthError = useAutoDismissMessage(authError, 6000)
-  const inlineAuthStatus = useAutoDismissMessage(authStatus, 4000)
-  const inlineChartsError = useAutoDismissMessage(chartsError, 6000)
-  const inlineChartsStatus = useAutoDismissMessage(chartsStatus, 4000)
-  const inlineFramesError = useAutoDismissMessage(framesError || chartSvgError || frameCircleError, 6000)
-  const inlineFramesStatus = useAutoDismissMessage(frameCircleStatus, 4000)
-  const inlineUploadError = useAutoDismissMessage(uploadError, 6000)
-  const inlineUploadStatus = useAutoDismissMessage(uploadStatus, 4000)
-  const inlineActionsError = useAutoDismissMessage(editorError, 6000)
-  const inlineActionsStatus = useAutoDismissMessage(editorStatus, 4000)
+  const {
+    handleCreateChart,
+    handleLoginClick,
+    handleRegisterClick,
+    handleUploadFrame,
+    handleLogout,
+    handleResetSession,
+    handleFactoryReset,
+  } = useEditorSessionActions({
+    birthDate,
+    birthTime,
+    latitude,
+    longitude,
+    setBirthDate,
+    setBirthTime,
+    setLatitude,
+    setLongitude,
+    setChartId,
+    setChartName,
+    setApiBase,
+    setJwt,
+    setUser,
+    createChart,
+    login,
+    register,
+    logout,
+    uploadFrame,
+    clearAuthMessages,
+    clearChartsMessages,
+    clearUploadMessages,
+    clearActionsMessages,
+    defaultApiBase,
+    defaultChartFit,
+    defaultDesign,
+    dispatch,
+    setFrameCircle,
+    setStatus,
+    setError,
+  })
 
-  const handleAuthEmailChange = (value: string) => {
-    setAuthEmail(value)
-    clearAuthError()
-    clearAuthStatus()
-  }
+  const {
+    debugItems,
+    inlineAuthError,
+    inlineAuthStatus,
+    inlineChartsError,
+    inlineChartsStatus,
+    inlineFramesError,
+    inlineFramesStatus,
+    inlineUploadError,
+    inlineUploadStatus,
+    inlineActionsError,
+    inlineActionsStatus,
+  } = useEditorStatusView({
+    authError,
+    authStatus,
+    framesError,
+    chartsError,
+    chartsStatus,
+    chartSvgError,
+    frameCircleError,
+    frameCircleStatus,
+    editorError,
+    editorStatus,
+    uploadError,
+    uploadStatus,
+  })
 
-  const handleAuthPasswordChange = (value: string) => {
-    setAuthPassword(value)
-    clearAuthError()
-    clearAuthStatus()
-  }
+  const sidebarMessages = useSidebarMessages({
+    accountError: inlineAuthError,
+    accountStatus: inlineAuthStatus,
+    chartsError: inlineChartsError,
+    chartsStatus: inlineChartsStatus,
+    createChartError: inlineChartsError,
+    createChartStatus: inlineChartsStatus,
+    framesError: inlineFramesError,
+    framesStatus: inlineFramesStatus,
+    uploadError: inlineUploadError,
+    uploadStatus: inlineUploadStatus,
+    actionsError: inlineActionsError,
+    actionsStatus: inlineActionsStatus,
+    draftStatus: draftStatus || draftInfo,
+    syncStatus,
+  })
 
-  const clearAuthMessages = () => {
-    clearAuthError()
-    clearAuthStatus()
-  }
+  const sidebarClears = useSidebarClears({
+    onClearAccountMessages: () => {
+      clearAuthError()
+      clearAuthStatus()
+    },
+    onClearChartsMessages: () => {
+      clearChartsError()
+      clearChartsStatus()
+    },
+    onClearCreateChartMessages: () => {
+      clearChartsError()
+      clearChartsStatus()
+    },
+    onClearFramesMessages: () => {
+      clearFramesError()
+      clearFrameCircleStatus()
+    },
+    onClearUploadMessages: clearUploadMessages,
+  })
 
-  const handleChartNameChange = (value: string) => {
-    setChartName(value)
-    clearChartsError()
-    clearChartsStatus()
-  }
+  const designSectionProps = useDesignSectionViewModel({
+    chartFit,
+    onChartFitChange: handleChartFitChange,
+    design,
+    onLayerOrderChange: handleLayerOrderChange,
+    onLayerOpacityChange: handleLayerOpacityChange,
+    hasFrame: Boolean(selectedFrameDetail),
+    hasChartBackground: Boolean(chartBackgroundColor),
+    hasBackgroundImage: Boolean(design.background_image_path),
+    backgroundImagePath: design.background_image_path ?? null,
+    backgroundImageUrl,
+    backgroundImageError,
+    backgroundImageStatus,
+    backgroundImageUploading,
+    onBackgroundImageUpload: handleBackgroundImageUpload,
+    onBackgroundImageClear: handleBackgroundImageClear,
+    backgroundImageScale: design.background_image_scale,
+    backgroundImageDx: design.background_image_dx,
+    backgroundImageDy: design.background_image_dy,
+    onBackgroundImageScaleChange: handleBackgroundImageScaleChange,
+    onBackgroundImageDxChange: handleBackgroundImageDxChange,
+    onBackgroundImageDyChange: handleBackgroundImageDyChange,
+    onSignGlyphScaleChange: handleSignGlyphScaleChange,
+    onPlanetGlyphScaleChange: handlePlanetGlyphScaleChange,
+    onInnerRingScaleChange: handleInnerRingScaleChange,
+    selectedElement,
+    selectableGroups,
+    onSelectedElementChange: setSelectedElementFromHandlers,
+    activeSelectionLayer,
+    onActiveSelectionLayerChange: handleActiveSelectionLayerChange,
+    selectionColor,
+    selectionColorMixed,
+    selectionEnabled,
+    onColorChange: (color) => applySelectionColor(color),
+    onClearColor: () => applySelectionColor(null),
+    chartLinesColor,
+    onChartLinesColorChange: handleChartLinesColorChange,
+    onClearChartLinesColor: handleChartLinesColorClear,
+    chartBackgroundColor,
+    onChartBackgroundColorChange: handleChartBackgroundColorChange,
+    onClearChartBackgroundColor: handleChartBackgroundColorClear,
+    radialMoveEnabled,
+    onRadialMoveEnabledChange: setRadialMoveEnabled,
+    frameMaskCutoff,
+    onFrameMaskCutoffChange: setFrameMaskCutoff,
+  })
 
-  const handleBirthDateChange = (value: string) => {
-    setBirthDate(value)
-    clearChartsError()
-    clearChartsStatus()
-  }
+  const sidebarProps = useSidebarViewModel({
+    messages: sidebarMessages,
+    clears: sidebarClears,
+    account: {
+      user,
+      authEmail,
+      authPassword,
+      onAuthEmailChange: handleAuthEmailChange,
+      onAuthPasswordChange: handleAuthPasswordChange,
+      onLogin: handleLoginClick,
+      onRegister: handleRegisterClick,
+      onLogout: handleLogout,
+    },
+    charts: {
+      charts,
+      chartId,
+      onSelectChart: selectChart,
+      onChartIdChange: setChartId,
+      chartName,
+      birthDate,
+      birthTime,
+      latitude,
+      longitude,
+      onChartNameChange: handleChartNameChange,
+      onBirthDateChange: handleBirthDateChange,
+      onBirthTimeChange: handleBirthTimeChange,
+      onLatitudeChange: handleLatitudeChange,
+      onLongitudeChange: handleLongitudeChange,
+      onCreateChart: handleCreateChart,
+      onResetSession: handleResetSession,
+      onFactoryReset: handleFactoryReset,
+      onResetView: handleResetView,
+      onAutoFit: handleAutoFit,
+      onResetToSavedFit: handleResetToSavedFit,
+      resetToSavedEnabled,
+      autoFitEnabled: !isChartOnly && Boolean(meta && frameCircle),
+    },
+    frames: {
+      frameSearch,
+      onFrameSearchChange: handleFrameSearchChange,
+      selectedId,
+      onSelectedIdChange: handleSelectedIdChange,
+      filteredFrames,
+      chartOnlyId: CHART_ONLY_ID,
+    },
+    upload: {
+      uploadName,
+      uploadTags,
+      uploadGlobal,
+      uploading,
+      onUploadNameChange: handleUploadNameChange,
+      onUploadTagsChange: handleUploadTagsChange,
+      onUploadFileChange: handleUploadFileChange,
+      onUploadGlobalChange: handleUploadGlobalChange,
+      onUploadFrame: handleUploadFrame,
+    },
+    design: {
+      sectionProps: designSectionProps,
+    },
+    actions: {
+      onSaveAll: handleSaveAllClick,
+      onUndo: undo,
+      onRedo: redo,
+      canUndo,
+      canRedo,
+      onSyncNow: handleSyncNow,
+      syncEnabled,
+      onExport: handleExport,
+      exportFormat,
+      onExportFormatChange: setExportFormat,
+      exportEnabled,
+      exportDisabledTitle,
+    },
+    debug: {
+      debugItems,
+      showFrameCircleDebug,
+      onShowFrameCircleDebugChange: setShowFrameCircleDebug,
+    },
+  })
 
-  const handleBirthTimeChange = (value: string) => {
-    setBirthTime(value)
-    clearChartsError()
-    clearChartsStatus()
-  }
+  const canvasProps = useCanvasViewModel({
+    meta,
+    selectedFrameDetail,
+    apiBase,
+    chartSvg,
+    chartId,
+    isChartOnly,
+    chartBackgroundColor,
+    layerOrder: design.layer_order,
+    layerOpacity: design.layer_opacity,
+    backgroundImageUrl,
+    backgroundImageScale: design.background_image_scale,
+    backgroundImageDx: design.background_image_dx,
+    backgroundImageDy: design.background_image_dy,
+    activeSelectionLayer,
+    frameMaskCutoff,
+    showChartBackground: Boolean(chartBackgroundColor),
+    frameCircle,
+    showFrameCircleDebug,
+    svgRef,
+    chartBackgroundRef,
+    chartRootRef,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+  })
 
-  const handleLatitudeChange = (value: number) => {
-    setLatitude(value)
-    clearChartsError()
-    clearChartsStatus()
-  }
-
-  const handleLongitudeChange = (value: number) => {
-    setLongitude(value)
-    clearChartsError()
-    clearChartsStatus()
-  }
-
-  const clearChartsMessages = () => {
-    clearChartsError()
-    clearChartsStatus()
-  }
-
-  const handleFrameSearchChange = (value: string) => {
-    setFrameSearch(value)
-    clearFramesError()
-  }
-
-  const handleSelectedIdChange = (value: string) => {
-    setSelectedId(value)
-    clearFramesError()
-  }
-
-
-  const handleUploadNameChange = (value: string) => {
-    setUploadName(value)
-    clearUploadMessages()
-  }
-
-  const handleUploadTagsChange = (value: string) => {
-    setUploadTags(value)
-    clearUploadMessages()
-  }
-
-  const handleUploadFileChange = (value: File | null) => {
-    setUploadFile(value)
-    clearUploadMessages()
-  }
-
-  const handleUploadGlobalChange = (value: boolean) => {
-    setUploadGlobal(value)
-    clearUploadMessages()
-  }
-
-  const handleChartLinesColorChange = (value: string) => {
-    dispatch({ type: 'APPLY_COLOR', targets: ['chart.lines'], color: value })
-  }
-
-  const handleChartLinesColorClear = () => {
-    dispatch({ type: 'APPLY_COLOR', targets: ['chart.lines'], color: null })
-  }
-
-  const handleChartFitChange = (next: ChartFit) => {
-    dispatch({ type: 'SET_CHART_FIT', fit: next, userAdjusted: true })
-  }
-
-
-  const handleLayerOrderChange = (value: DesignSettings['layer_order']) => {
-    updateDesign({ layer_order: value })
-  }
-
-  const handleLayerOpacityChange = (layer: LayerOrderKey, value: number) => {
-    updateDesign({ layer_opacity: { ...design.layer_opacity, [layer]: value } })
-  }
-
-  const handleSignGlyphScaleChange = (value: number) => {
-    updateDesign({ sign_glyph_scale: value })
-  }
-
-  const handlePlanetGlyphScaleChange = (value: number) => {
-    updateDesign({ planet_glyph_scale: value })
-  }
-
-  const handleInnerRingScaleChange = (value: number) => {
-    updateDesign({ inner_ring_scale: value })
-  }
-
-  const handleBackgroundImageScaleChange = (value: number) => {
-    updateDesign({ background_image_scale: value })
-  }
-
-  const handleBackgroundImageDxChange = (value: number) => {
-    updateDesign({ background_image_dx: value })
-  }
-
-  const handleBackgroundImageDyChange = (value: number) => {
-    updateDesign({ background_image_dy: value })
-  }
-
-  const handleChartBackgroundColorChange = (value: string) => {
-    dispatch({ type: 'APPLY_COLOR', targets: [CHART_BACKGROUND_ID], color: value })
-  }
-
-  const handleChartBackgroundColorClear = () => {
-    dispatch({ type: 'APPLY_COLOR', targets: [CHART_BACKGROUND_ID], color: null })
-  }
-
-  const handleActiveSelectionLayerChange = (layer: ActiveSelectionLayer) => {
-    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer })
-  }
-
-  const backgroundImageUrl = useMemo(() => {
-    if (!design.background_image_path) {
-      return ''
-    }
-    const cleaned = design.background_image_path.replace(/^\/+/, '')
-    return `${apiBase}/static/storage/${cleaned}`
-  }, [apiBase, design.background_image_path])
-
-  const handleBackgroundImageUpload = async (file: File | null) => {
-    if (!file) {
-      return
-    }
-    if (!jwt) {
-      setBackgroundImageError('Login required to upload background images.')
-      setBackgroundImageStatus('')
-      return
-    }
-    if (!chartId) {
-      setBackgroundImageError('Chart ID is required to upload a background image.')
-      setBackgroundImageStatus('')
-      return
-    }
-    setBackgroundImageUploading(true)
-    setBackgroundImageError('')
-    setBackgroundImageStatus('Uploading background image...')
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const response = await apiFetch(`${apiBase}/api/charts/${chartId}/design/background_image`, jwt, {
-        method: 'POST',
-        body: formData,
-      })
-      if (!response.ok) {
-        const detail = await readApiError(response)
-        setBackgroundImageError(detail ?? 'Failed to upload background image.')
-        setBackgroundImageStatus('')
-        return
-      }
-      const data = (await response.json()) as { path: string }
-      updateDesign({
-        background_image_path: data.path,
-        background_image_scale: 1,
-        background_image_dx: 0,
-        background_image_dy: 0,
-      })
-      setBackgroundImageStatus('Background image uploaded.')
-    } finally {
-      setBackgroundImageUploading(false)
-    }
-  }
-
-  const handleBackgroundImageClear = async () => {
-    const previous = {
-      path: design.background_image_path ?? null,
-      scale: design.background_image_scale,
-      dx: design.background_image_dx,
-      dy: design.background_image_dy,
-    }
-    updateDesign({
-      background_image_path: null,
-      background_image_scale: 1,
-      background_image_dx: 0,
-      background_image_dy: 0,
-    })
-    if (!jwt || !chartId) {
-      return
-    }
-    setBackgroundImageError('')
-    setBackgroundImageStatus('Removing background image...')
-    const response = await apiFetch(`${apiBase}/api/charts/${chartId}/design/background_image`, jwt, {
-      method: 'DELETE',
-    })
-    if (!response.ok) {
-      const detail = await readApiError(response)
-      setBackgroundImageError(detail ?? 'Failed to remove background image.')
-      setBackgroundImageStatus('')
-      updateDesign({
-        background_image_path: previous.path,
-        background_image_scale: previous.scale,
-        background_image_dx: previous.dx,
-        background_image_dy: previous.dy,
-      })
-      return
-    }
-    setBackgroundImageStatus('Background image removed.')
-  }
 
   return (
     <div className="app">
-      <Sidebar
-        user={user}
-        authEmail={authEmail}
-        authPassword={authPassword}
-        onAuthEmailChange={handleAuthEmailChange}
-        onAuthPasswordChange={handleAuthPasswordChange}
-        onLogin={handleLoginClick}
-        onRegister={handleRegisterClick}
-        onLogout={handleLogout}
-        charts={charts}
-        chartId={chartId}
-        onSelectChart={selectChart}
-        onChartIdChange={setChartId}
-        chartName={chartName}
-        birthDate={birthDate}
-        birthTime={birthTime}
-        latitude={latitude}
-        longitude={longitude}
-        onChartNameChange={handleChartNameChange}
-        onBirthDateChange={handleBirthDateChange}
-        onBirthTimeChange={handleBirthTimeChange}
-        onLatitudeChange={handleLatitudeChange}
-        onLongitudeChange={handleLongitudeChange}
-        onCreateChart={handleCreateChart}
-        onResetSession={handleResetSession}
-        onFactoryReset={handleFactoryReset}
-        onResetView={handleResetView}
-        frameSearch={frameSearch}
-        onFrameSearchChange={handleFrameSearchChange}
-        selectedId={selectedId}
-        onSelectedIdChange={handleSelectedIdChange}
-        filteredFrames={filteredFrames}
-        chartOnlyId={CHART_ONLY_ID}
-        accountError={inlineAuthError}
-        accountStatus={inlineAuthStatus}
-        onClearAccountMessages={() => {
-          clearAuthError()
-          clearAuthStatus()
-        }}
-        chartsError={inlineChartsError}
-        chartsStatus={inlineChartsStatus}
-        onClearChartsMessages={() => {
-          clearChartsError()
-          clearChartsStatus()
-        }}
-        createChartError={inlineChartsError}
-        createChartStatus={inlineChartsStatus}
-        onClearCreateChartMessages={() => {
-          clearChartsError()
-          clearChartsStatus()
-        }}
-        framesError={inlineFramesError}
-        framesStatus={inlineFramesStatus}
-        onClearFramesMessages={() => {
-          clearFramesError()
-          clearFrameCircleStatus()
-        }}
-        uploadName={uploadName}
-        uploadTags={uploadTags}
-        uploadGlobal={uploadGlobal}
-        uploading={uploading}
-        userIsAdmin={Boolean(user?.is_admin)}
-        uploadError={inlineUploadError}
-        uploadStatus={inlineUploadStatus}
-        onClearUploadMessages={clearUploadMessages}
-        onUploadNameChange={handleUploadNameChange}
-        onUploadTagsChange={handleUploadTagsChange}
-        onUploadFileChange={handleUploadFileChange}
-        onUploadGlobalChange={handleUploadGlobalChange}
-        onUploadFrame={handleUploadFrame}
-        chartFit={chartFit}
-        onChartFitChange={handleChartFitChange}
-        design={design}
-        onLayerOrderChange={handleLayerOrderChange}
-        onLayerOpacityChange={handleLayerOpacityChange}
-        hasFrame={Boolean(selectedFrameDetail)}
-        hasChartBackground={Boolean(chartBackgroundColor)}
-        hasBackgroundImage={Boolean(design.background_image_path)}
-        backgroundImagePath={design.background_image_path ?? null}
-        backgroundImageUrl={backgroundImageUrl}
-        backgroundImageError={backgroundImageError}
-        backgroundImageStatus={backgroundImageStatus}
-        backgroundImageUploading={backgroundImageUploading}
-        onBackgroundImageUpload={handleBackgroundImageUpload}
-        onBackgroundImageClear={handleBackgroundImageClear}
-        backgroundImageScale={design.background_image_scale}
-        backgroundImageDx={design.background_image_dx}
-        backgroundImageDy={design.background_image_dy}
-        onBackgroundImageScaleChange={handleBackgroundImageScaleChange}
-        onBackgroundImageDxChange={handleBackgroundImageDxChange}
-        onBackgroundImageDyChange={handleBackgroundImageDyChange}
-        onSignGlyphScaleChange={handleSignGlyphScaleChange}
-        onPlanetGlyphScaleChange={handlePlanetGlyphScaleChange}
-        onInnerRingScaleChange={handleInnerRingScaleChange}
-        selectedElement={selectedElement}
-        selectableGroups={selectableGroups}
-        onSelectedElementChange={setSelectedElement}
-        activeSelectionLayer={activeSelectionLayer}
-        onActiveSelectionLayerChange={handleActiveSelectionLayerChange}
-        selectionColor={selectionColor}
-        selectionColorMixed={selectionColorMixed}
-        selectionEnabled={selectionEnabled}
-        onColorChange={(color) => applySelectionColor(color)}
-        onClearColor={() => applySelectionColor(null)}
-        chartLinesColor={chartLinesColor}
-        onChartLinesColorChange={handleChartLinesColorChange}
-        onClearChartLinesColor={handleChartLinesColorClear}
-        chartBackgroundColor={chartBackgroundColor}
-        onChartBackgroundColorChange={handleChartBackgroundColorChange}
-        onClearChartBackgroundColor={handleChartBackgroundColorClear}
-        radialMoveEnabled={radialMoveEnabled}
-        onRadialMoveEnabledChange={setRadialMoveEnabled}
-        frameMaskCutoff={frameMaskCutoff}
-        onFrameMaskCutoffChange={setFrameMaskCutoff}
-        showFrameCircleDebug={showFrameCircleDebug}
-        onShowFrameCircleDebugChange={setShowFrameCircleDebug}
-        autoFitEnabled={!isChartOnly && Boolean(meta && frameCircle)}
-        onAutoFit={handleAutoFit}
-        onResetToSavedFit={handleResetToSavedFit}
-        actionsError={inlineActionsError}
-        actionsStatus={inlineActionsStatus}
-        resetToSavedEnabled={resetToSavedEnabled}
-        debugItems={debugItems}
-        onSaveAll={handleSaveAllClick}
-        onExport={handleExport}
-        exportFormat={exportFormat}
-        onExportFormatChange={setExportFormat}
-        exportEnabled={exportEnabled}
-        exportDisabledTitle={exportDisabledTitle}
-      />
-      <Canvas
-        meta={meta}
-        selectedFrameDetail={selectedFrameDetail}
-        apiBase={apiBase}
-        chartSvg={chartSvg}
-        chartId={chartId}
-        isChartOnly={isChartOnly}
-        chartBackgroundColor={chartBackgroundColor}
-        layerOrder={design.layer_order}
-        layerOpacity={design.layer_opacity}
-        backgroundImageUrl={backgroundImageUrl}
-        backgroundImageScale={design.background_image_scale}
-        backgroundImageDx={design.background_image_dx}
-        backgroundImageDy={design.background_image_dy}
-        activeSelectionLayer={activeSelectionLayer}
-        showChartBackground={Boolean(chartBackgroundColor)}
-        frameMaskCutoff={frameMaskCutoff}
-        frameCircle={frameCircle}
-        showFrameCircleDebug={showFrameCircleDebug && import.meta.env.DEV}
-        svgRef={svgRef}
-        chartBackgroundRef={chartBackgroundRef}
-        chartRootRef={chartRootRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-      />
+      <Sidebar {...sidebarProps} />
+      <Canvas {...canvasProps} />
     </div>
   )
 }
