@@ -319,7 +319,8 @@ function App() {
       return
     }
     const bulkValues = Object.values(bulkIds)
-    if (!selectableIds.includes(selectedElement) && !bulkValues.includes(selectedElement)) {
+    const layerSelected = selectedElement === 'chart.background_image'
+    if (!layerSelected && !selectableIds.includes(selectedElement) && !bulkValues.includes(selectedElement)) {
       setSelectedElement('')
     }
   }, [bulkIds, selectableIds, selectedElement, setSelectedElement])

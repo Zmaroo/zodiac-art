@@ -134,9 +134,7 @@ function Canvas({
   const backgroundImageLayer = backgroundImageUrl ? (
     <g
       id="chartBackgroundImageRoot"
-      pointerEvents={
-        activeSelectionLayer === 'chart' || activeSelectionLayer === 'background' ? 'none' : 'auto'
-      }
+      pointerEvents={activeSelectionLayer === 'chart' ? 'none' : 'auto'}
     >
       <image
         id="chart.background_image"

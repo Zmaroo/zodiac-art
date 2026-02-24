@@ -199,7 +199,7 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
           const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
           const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
-          const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle, design })
+          const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle })
           if (lastLayoutKeyRef.current !== layoutKey) {
             lastLayoutKeyRef.current = layoutKey
             layoutOverridesRef.current = nextOverrides
@@ -240,7 +240,7 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
         const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
         const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
-        const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle, design })
+        const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle })
         if (lastLayoutKeyRef.current !== layoutKey) {
           lastLayoutKeyRef.current = layoutKey
           layoutOverridesRef.current = nextOverrides

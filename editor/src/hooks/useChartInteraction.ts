@@ -39,12 +39,9 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
   } = params
   const [drag, setDrag] = useState<DragState | null>(null)
   const backgroundImageId = 'chart.background_image'
-  const chartBackgroundId = 'chart.background'
   const chartIsActive = activeSelectionLayer === 'chart'
-  const backgroundIsActive = activeSelectionLayer === 'background'
   const backgroundImageIsActive = activeSelectionLayer === 'background_image'
   const allowChartActions = activeSelectionLayer === 'auto' || chartIsActive
-  const allowBackgroundActions = activeSelectionLayer === 'auto' || backgroundIsActive
   const allowBackgroundImageActions = activeSelectionLayer === 'auto' || backgroundImageIsActive
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
@@ -113,11 +110,6 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
         },
       })
       svgRef.current.setPointerCapture(event.pointerId)
-      return
-    }
-
-    if (chartBackgroundElement && backgroundIsActive) {
-      dispatch({ type: 'SET_SELECTED_ELEMENT', id: chartBackgroundId })
       return
     }
 

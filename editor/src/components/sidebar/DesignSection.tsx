@@ -59,12 +59,10 @@ const LAYER_LABELS: Record<LayerOrderKey, string> = {
 }
 
 const LAYER_SELECTION_IDS: Partial<Record<LayerOrderKey, string>> = {
-  background: 'chart.background',
   chart_background_image: 'chart.background_image',
 }
 
 const LAYER_ACTIVE_KEYS: Partial<Record<LayerOrderKey, ActiveSelectionLayer>> = {
-  background: 'background',
   chart_background_image: 'background_image',
   chart: 'chart',
 }

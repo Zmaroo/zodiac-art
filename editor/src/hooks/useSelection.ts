@@ -172,8 +172,6 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
         isDraggableElement(value))
     ) {
       nextLayer = 'chart'
-    } else if (value === CHART_BACKGROUND_ID) {
-      nextLayer = 'background'
     } else if (value === BACKGROUND_IMAGE_ID) {
       nextLayer = 'background_image'
     }
