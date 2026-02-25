@@ -4,6 +4,7 @@ import { extractChartInner, stripOverrideTransforms } from '../utils/svg'
 import type {
   ChartFit,
   ChartMeta,
+  ChartOccluder,
   DesignSettings,
   FrameCircle,
   FrameDetail,
@@ -17,6 +18,7 @@ type LayoutLoadResult = {
   frameCircle: FrameCircle | null
   design: DesignSettings
   userAdjustedFit: boolean
+  occluders: ChartOccluder[]
 }
 
 type UseChartSvgParams = {
@@ -205,7 +207,13 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
           const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
           const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
-          const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle })
+          const occluders = (layoutData as LayoutFile | null)?.chart_occluders ?? []
+          const layoutKey = JSON.stringify({
+            fit,
+            overrides: nextOverrides,
+            frameCircle,
+            occluders,
+          })
           if (lastLayoutKeyRef.current !== layoutKey) {
             lastLayoutKeyRef.current = layoutKey
             layoutOverridesRef.current = nextOverrides
@@ -215,6 +223,7 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
               frameCircle,
               design,
               userAdjustedFit,
+              occluders,
             })
           }
           setLayoutReady(true)
@@ -255,7 +264,13 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
         const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
         const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
-        const layoutKey = JSON.stringify({ fit, overrides: nextOverrides, frameCircle })
+        const occluders = (layoutData as LayoutFile | null)?.chart_occluders ?? []
+        const layoutKey = JSON.stringify({
+          fit,
+          overrides: nextOverrides,
+          frameCircle,
+          occluders,
+        })
         if (lastLayoutKeyRef.current !== layoutKey) {
           lastLayoutKeyRef.current = layoutKey
           layoutOverridesRef.current = nextOverrides
@@ -265,6 +280,7 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
             frameCircle,
             design,
             userAdjustedFit,
+            occluders,
           })
         }
         setLayoutReady(true)

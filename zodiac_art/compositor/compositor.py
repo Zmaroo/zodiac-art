@@ -115,6 +115,7 @@ def compose_svg(
     background_image_path: Path | None = None,
     background_image_transform: tuple[float, float, float] | None = None,
     meta_override: FrameMeta | None = None,
+    chart_occluders: list[dict] | None = None,
 ) -> str:
     """Compose frame PNG with chart SVG into a single SVG."""
     if layer_order is None:
@@ -150,6 +151,78 @@ def compose_svg(
             dx,
             dy,
         )
+    mask_markup = ""
+    mask_id = "chart-occluder-mask"
+    if chart_occluders:
+        occluder_shapes: list[str] = []
+        for occluder in chart_occluders:
+            if not isinstance(occluder, dict):
+                continue
+            shape = occluder.get("shape")
+            rotation = occluder.get("rotation_deg")
+            rotation_value = float(rotation) if isinstance(rotation, (int, float)) else 0.0
+            if shape == "ellipse":
+                cx = occluder.get("cx")
+                cy = occluder.get("cy")
+                rx = occluder.get("rx")
+                ry = occluder.get("ry")
+                if not isinstance(cx, (int, float)):
+                    continue
+                if not isinstance(cy, (int, float)):
+                    continue
+                if not isinstance(rx, (int, float)):
+                    continue
+                if not isinstance(ry, (int, float)):
+                    continue
+                cx_value = float(cx)
+                cy_value = float(cy)
+                rx_value = float(rx)
+                ry_value = float(ry)
+                transform = (
+                    f" transform='rotate({rotation_value:.3f} {cx_value:.3f} {cy_value:.3f})'"
+                    if rotation_value
+                    else ""
+                )
+                occluder_shapes.append(
+                    f"<ellipse cx='{cx_value:.3f}' cy='{cy_value:.3f}' "
+                    f"rx='{rx_value:.3f}' ry='{ry_value:.3f}' fill='black'{transform} />"
+                )
+            elif shape == "rect":
+                x = occluder.get("x")
+                y = occluder.get("y")
+                width = occluder.get("width")
+                height = occluder.get("height")
+                if not isinstance(x, (int, float)):
+                    continue
+                if not isinstance(y, (int, float)):
+                    continue
+                if not isinstance(width, (int, float)):
+                    continue
+                if not isinstance(height, (int, float)):
+                    continue
+                x_value = float(x)
+                y_value = float(y)
+                width_value = float(width)
+                height_value = float(height)
+                cx = x_value + width_value / 2
+                cy = y_value + height_value / 2
+                transform = (
+                    f" transform='rotate({rotation_value:.3f} {cx:.3f} {cy:.3f})'"
+                    if rotation_value
+                    else ""
+                )
+                occluder_shapes.append(
+                    f"<rect x='{x_value:.3f}' y='{y_value:.3f}' "
+                    f"width='{width_value:.3f}' height='{height_value:.3f}' fill='black'{transform} />"
+                )
+        if occluder_shapes:
+            mask_markup = (
+                f"<defs><mask id='{mask_id}' maskUnits='userSpaceOnUse'>"
+                f"<rect x='0' y='0' width='{meta.canvas_width}' height='{meta.canvas_height}' "
+                f"fill='white' />"
+                f"{''.join(occluder_shapes)}"
+                "</mask></defs>"
+            )
     layer_map = {
         "background": background_markup,
         "chart_background_image": background_image_markup,
@@ -163,6 +236,8 @@ def compose_svg(
             continue
         if key in {"background", "chart", "chart_background_image"}:
             layer = f"<g transform='{rotate_group}'>{layer}</g>"
+        if key in {"background", "chart"} and mask_markup:
+            layer = f"<g mask='url(#{mask_id})'>{layer}</g>"
         opacity = layer_opacity.get(key)
         if opacity is not None and 0 <= opacity <= 1 and opacity != 1:
             layer = f"<g opacity='{opacity:.3f}'>{layer}</g>"
@@ -170,7 +245,7 @@ def compose_svg(
     return (
         f"<svg xmlns='http://www.w3.org/2000/svg' "
         f"width='{meta.canvas_width}' height='{meta.canvas_height}'>"
-        f"{defs_markup}"
+        f"{defs_markup}{mask_markup}"
         f"{''.join(layer_blocks)}"
         "</svg>"
     )

@@ -1,6 +1,7 @@
 import type {
   ActiveSelectionLayer,
   ChartFit,
+  ChartOccluder,
   DesignSettings,
   LayerOrderKey,
 } from '../types'
@@ -31,6 +32,15 @@ type UseDesignSectionViewModelParams = {
   onSignGlyphScaleChange: (value: number) => void
   onPlanetGlyphScaleChange: (value: number) => void
   onInnerRingScaleChange: (value: number) => void
+  occluders: ChartOccluder[]
+  selectedOccluderId: string
+  onSelectOccluder: (id: string) => void
+  onAddOccluderEllipse: () => void
+  onAddOccluderRect: () => void
+  onDeleteOccluder: (id: string) => void
+  onUpdateOccluder: (id: string, next: ChartOccluder) => void
+  onSnapOccluderToChart: () => void
+  canSnapOccluderToChart: boolean
   selectedElement: string
   selectableGroups: { label: string; items: { id: string; label: string }[] }[]
   onSelectedElementChange: (value: string) => void
@@ -88,6 +98,17 @@ export function useDesignSectionViewModel(
       onSignGlyphScaleChange: params.onSignGlyphScaleChange,
       onPlanetGlyphScaleChange: params.onPlanetGlyphScaleChange,
       onInnerRingScaleChange: params.onInnerRingScaleChange,
+    },
+    occluders: {
+      items: params.occluders,
+      selectedId: params.selectedOccluderId,
+      onSelect: params.onSelectOccluder,
+      onAddEllipse: params.onAddOccluderEllipse,
+      onAddRect: params.onAddOccluderRect,
+      onDelete: params.onDeleteOccluder,
+      onUpdate: params.onUpdateOccluder,
+      onSnapToChart: params.onSnapOccluderToChart,
+      canSnap: params.canSnapOccluderToChart,
     },
     selection: {
       selectedElement: params.selectedElement,

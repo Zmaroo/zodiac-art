@@ -74,6 +74,7 @@ class RenderContext:
     frame_circle: FrameCircle | None
     meta: FrameMeta
     design: DesignSettings
+    chart_occluders: list[dict] | None = None
     image_path: Path | None = None
     frame_id: str | None = None
     metadata_path: Path | None = None
@@ -259,6 +260,7 @@ def _render_chart_svg_from_context(
             context.design.background_image_dy,
         ),
         meta_override=context.meta,
+        chart_occluders=context.chart_occluders,
     )
     return RenderResult(
         svg=final_svg, width=context.meta.canvas_width, height=context.meta.canvas_height
@@ -289,6 +291,7 @@ async def _build_frame_render_context(
     layout = await storage.load_chart_layout(chart.chart_id, frame_id) or {"overrides": {}}
     overrides = _overrides_from_layout(layout)
     frame_circle = _frame_circle_from_layout(layout, image_size)
+    chart_occluders = layout.get("chart_occluders") if isinstance(layout, dict) else None
 
     layout_fit = layout.get("chart_fit") if isinstance(layout, dict) else None
     if isinstance(layout_fit, dict):
@@ -319,6 +322,7 @@ async def _build_frame_render_context(
         frame_circle=frame_circle,
         meta=meta,
         design=design,
+        chart_occluders=chart_occluders,
         image_path=image_path,
         frame_id=frame_id,
         metadata_path=metadata_path,
@@ -334,6 +338,7 @@ async def _build_chart_only_context(
 ) -> RenderContext:
     chart_fit_payload = await storage.load_chart_fit(chart.chart_id)
     layout = await storage.load_chart_layout_base(chart.chart_id) or {"overrides": {}}
+    chart_occluders = layout.get("chart_occluders") if isinstance(layout, dict) else None
     meta = _chart_only_meta(chart_fit_payload)
     font_scale = max(0.1, meta.ring_outer / CHART_ONLY_FONT_BASE_RADIUS)
     design = _design_from_layout(layout, design_override)
@@ -355,6 +360,7 @@ async def _build_chart_only_context(
         frame_circle=None,
         meta=meta,
         design=design,
+        chart_occluders=chart_occluders,
         image_path=None,
         cache_key=cache_key,
     )

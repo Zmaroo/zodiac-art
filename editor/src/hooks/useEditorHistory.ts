@@ -1,12 +1,13 @@
 import { useEffect } from 'react'
 import { useUndoRedo } from './useUndoRedo'
-import type { ChartFit, DesignSettings, Offset } from '../types'
+import type { ChartFit, ChartOccluder, DesignSettings, Offset } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
 type UseEditorHistoryParams = {
   chartFit: ChartFit
   overrides: Record<string, Offset>
   design: DesignSettings
+  occluders: ChartOccluder[]
   dispatch: (action: EditorAction) => void
   resetKey: string
 }
@@ -19,11 +20,12 @@ type UseEditorHistoryResult = {
 }
 
 export function useEditorHistory(params: UseEditorHistoryParams): UseEditorHistoryResult {
-  const { chartFit, overrides, design, dispatch, resetKey } = params
+  const { chartFit, overrides, design, occluders, dispatch, resetKey } = params
   const { canUndo, canRedo, undo, redo } = useUndoRedo({
     chartFit,
     overrides,
     design,
+    occluders,
     dispatch,
     resetKey,
   })

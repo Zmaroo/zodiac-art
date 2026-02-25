@@ -31,7 +31,14 @@ export function useEditorResetEffects(params: UseEditorResetEffectsParams) {
 
   useEffect(() => {
     if (isChartOnly && !chartId) {
-      dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
+      dispatch({
+        type: 'LOAD_LAYOUT',
+        fit: defaultChartFit,
+        overrides: {},
+        design: defaultDesign,
+        userAdjustedFit: false,
+        occluders: [],
+      })
       setFrameCircle(null)
     }
   }, [chartId, defaultChartFit, defaultDesign, dispatch, isChartOnly, setFrameCircle])

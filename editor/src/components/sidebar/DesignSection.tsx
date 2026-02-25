@@ -2,7 +2,13 @@ import { useState, type ChangeEvent } from 'react'
 import CollapsibleSection from '../CollapsibleSection'
 import NumberField from '../NumberField'
 import SelectionSection from './SelectionSection'
-import type { ActiveSelectionLayer, ChartFit, DesignSettings, LayerOrderKey } from '../../types'
+import type {
+  ActiveSelectionLayer,
+  ChartFit,
+  ChartOccluder,
+  DesignSettings,
+  LayerOrderKey,
+} from '../../types'
 
 export type DesignSectionProps = {
   chartFit: {
@@ -36,6 +42,17 @@ export type DesignSectionProps = {
     onSignGlyphScaleChange: (value: number) => void
     onPlanetGlyphScaleChange: (value: number) => void
     onInnerRingScaleChange: (value: number) => void
+  }
+  occluders: {
+    items: ChartOccluder[]
+    selectedId: string
+    onSelect: (id: string) => void
+    onAddEllipse: () => void
+    onAddRect: () => void
+    onDelete: (id: string) => void
+    onUpdate: (id: string, next: ChartOccluder) => void
+    onSnapToChart: () => void
+    canSnap: boolean
   }
   selection: {
     selectedElement: string
@@ -77,7 +94,14 @@ const LAYER_ACTIVE_KEYS: Partial<Record<LayerOrderKey, ActiveSelectionLayer>> = 
   chart: 'chart',
 }
 
-function DesignSection({ chartFit, layering, backgroundImage, glyphScale, selection }: DesignSectionProps) {
+function DesignSection({
+  chartFit,
+  layering,
+  backgroundImage,
+  glyphScale,
+  occluders,
+  selection,
+}: DesignSectionProps) {
   const [showAdvanced, setShowAdvanced] = useState(
     () => localStorage.getItem('zodiac_editor.designAdvanced') === 'true'
   )
@@ -98,6 +122,8 @@ function DesignSection({ chartFit, layering, backgroundImage, glyphScale, select
   }
 
   const visibleLayerOrder = layering.design.layer_order.filter(isLayerVisible)
+  const activeOccluder = occluders.items.find((item) => item.id === occluders.selectedId) ?? null
+  const occluderLayerActive = selection.activeSelectionLayer === 'occluder'
 
   const moveLayer = (order: LayerOrderKey[], index: number, direction: -1 | 1) => {
     const target = index + direction
@@ -210,6 +236,140 @@ function DesignSection({ chartFit, layering, backgroundImage, glyphScale, select
           <div className="hint">Drag to move. Shift+drag to scale. Alt+drag to rotate.</div>
         </>
       ) : null}
+      <div className="subsection-title">Chart Occluders</div>
+      <div className="button-grid">
+        <button type="button" className="secondary" onClick={occluders.onAddEllipse}>
+          Add ellipse
+        </button>
+        <button type="button" className="secondary" onClick={occluders.onAddRect}>
+          Add rectangle
+        </button>
+      </div>
+      <label className="field">
+        Select occluder
+        <select
+          value={occluders.selectedId}
+          onChange={(event) => occluders.onSelect(event.target.value)}
+        >
+          <option value="">None</option>
+          {occluders.items.map((item, index) => (
+            <option key={item.id} value={item.id}>
+              {item.shape} {index + 1}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field checkbox">
+        Edit occluders on canvas
+        <input
+          type="checkbox"
+          checked={occluderLayerActive}
+          onChange={(event) =>
+            selection.onActiveSelectionLayerChange(event.target.checked ? 'occluder' : 'auto')
+          }
+        />
+      </label>
+      {activeOccluder ? (
+        <>
+          {activeOccluder.shape === 'ellipse' ? (
+            <>
+              <NumberField
+                label="cx"
+                value={activeOccluder.cx}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, cx: value })
+                }
+              />
+              <NumberField
+                label="cy"
+                value={activeOccluder.cy}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, cy: value })
+                }
+              />
+              <NumberField
+                label="rx"
+                value={activeOccluder.rx}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, rx: value })
+                }
+              />
+              <NumberField
+                label="ry"
+                value={activeOccluder.ry}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, ry: value })
+                }
+              />
+            </>
+          ) : (
+            <>
+              <NumberField
+                label="x"
+                value={activeOccluder.x}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, x: value })
+                }
+              />
+              <NumberField
+                label="y"
+                value={activeOccluder.y}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, y: value })
+                }
+              />
+              <NumberField
+                label="width"
+                value={activeOccluder.width}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, width: value })
+                }
+              />
+              <NumberField
+                label="height"
+                value={activeOccluder.height}
+                step={1}
+                onChange={(value) =>
+                  occluders.onUpdate(activeOccluder.id, { ...activeOccluder, height: value })
+                }
+              />
+            </>
+          )}
+          <NumberField
+            label="rotation"
+            value={activeOccluder.rotation_deg ?? 0}
+            step={1}
+            onChange={(value) =>
+              occluders.onUpdate(activeOccluder.id, { ...activeOccluder, rotation_deg: value })
+            }
+          />
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => occluders.onDelete(activeOccluder.id)}
+          >
+            Delete occluder
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={occluders.onSnapToChart}
+            disabled={!occluders.canSnap}
+          >
+            Snap to chart circle
+          </button>
+          <div className="hint">Use the occluder layer to drag shapes on canvas.</div>
+        </>
+      ) : (
+        <div className="hint">Add an occluder to hide chart areas under the frame.</div>
+      )}
       <div className="subsection-title">Layering (top → bottom)</div>
       <div className="layer-stack">
         {[...visibleLayerOrder].reverse().map((layerKey, index, order) => {

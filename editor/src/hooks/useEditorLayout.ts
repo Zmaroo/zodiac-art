@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react'
 import type { MutableRefObject } from 'react'
-import type { ChartFit, DesignSettings, EditorDraft, FrameCircle, Offset } from '../types'
+import type {
+  ChartFit,
+  ChartOccluder,
+  DesignSettings,
+  EditorDraft,
+  FrameCircle,
+  Offset,
+} from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
 type LayoutResult = {
@@ -9,6 +16,7 @@ type LayoutResult = {
   frameCircle: FrameCircle | null
   design: DesignSettings
   userAdjustedFit: boolean
+  occluders: ChartOccluder[]
 }
 
 type UseEditorLayoutParams = {
@@ -42,6 +50,7 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
           overrides: draftState.overrides,
           design: draftState.design,
           frameCircle: draftState.frame_circle,
+          occluders: draftState.chart_occluders ?? [],
           clientVersion: draftState.client_version,
           serverVersion: draftState.server_version,
           lastSavedAt: draftState.last_saved_at,
@@ -62,6 +71,7 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
       overrides: result.overrides,
       design: result.design,
       userAdjustedFit: result.userAdjustedFit,
+      occluders: result.occluders,
     })
     setFrameCircle(result.frameCircle)
   }

@@ -1,6 +1,6 @@
 import { apiFetch, readApiError } from '../api/client'
 import { normalizeOverride, round } from '../utils/format'
-import type { ChartFit, ChartMeta, DesignSettings, FrameCircle, Offset } from '../types'
+import type { ChartFit, ChartMeta, ChartOccluder, DesignSettings, FrameCircle, Offset } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
 type UseLayoutActionsParams = {
@@ -14,6 +14,7 @@ type UseLayoutActionsParams = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frameCircle: FrameCircle | null
+  chartOccluders: ChartOccluder[]
   clientVersion: number
   setError: (value: string) => void
   setStatus: (value: string) => void
@@ -32,6 +33,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
     overrides,
     design,
     frameCircle,
+    chartOccluders,
     clientVersion,
     setError,
     setStatus,
@@ -64,6 +66,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
           ])
         ),
         design,
+        chart_occluders: chartOccluders,
       }
       const fitResponse = await apiFetchWithAuth(`${apiBase}/api/charts/${chartId}/chart_fit`, {
         method: 'PUT',
@@ -116,6 +119,7 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
       frame_circle: frameCircle ?? undefined,
       design,
       chart_fit: chartFitPayload,
+      chart_occluders: chartOccluders,
     }
     const metaResponse = await apiFetchWithAuth(
       `${apiBase}/api/charts/${chartId}/frames/${selectedId}/metadata`,

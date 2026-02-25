@@ -1,4 +1,11 @@
-import type { ActiveSelectionLayer, ChartFit, DesignSettings, FrameCircle, Offset } from '../types'
+import type {
+  ActiveSelectionLayer,
+  ChartFit,
+  ChartOccluder,
+  DesignSettings,
+  FrameCircle,
+  Offset,
+} from '../types'
 
 export type EditorState = {
   chartFit: ChartFit
@@ -9,6 +16,9 @@ export type EditorState = {
   initialOverrides: Record<string, Offset>
   design: DesignSettings
   initialDesign: DesignSettings
+  chartOccluders: ChartOccluder[]
+  initialChartOccluders: ChartOccluder[]
+  selectedOccluderId: string
   selectedElement: string
   activeSelectionLayer: ActiveSelectionLayer
   clientVersion: number
@@ -24,6 +34,7 @@ export type EditorAction =
       overrides: Record<string, Offset>
       design: DesignSettings
       userAdjustedFit: boolean
+      occluders: ChartOccluder[]
     }
   | {
       type: 'APPLY_DRAFT'
@@ -31,6 +42,7 @@ export type EditorAction =
       overrides: Record<string, Offset>
       design: DesignSettings
       frameCircle: FrameCircle | null
+      occluders: ChartOccluder[]
       clientVersion: number
       serverVersion: number
       lastSavedAt: number | null
@@ -40,11 +52,21 @@ export type EditorAction =
   | { type: 'SET_SAVED_FIT'; fit: ChartFit }
   | { type: 'SET_OVERRIDES'; overrides: Record<string, Offset>; setInitial?: boolean }
   | { type: 'SET_DESIGN'; design: DesignSettings; setInitial?: boolean }
+  | { type: 'SET_OCCLUDERS'; occluders: ChartOccluder[]; setInitial?: boolean }
   | { type: 'APPLY_COLOR'; targets: string[]; color: string | null }
   | { type: 'SET_SELECTED_ELEMENT'; id: string }
+  | { type: 'SET_SELECTED_OCCLUDER'; id: string }
   | { type: 'SET_ACTIVE_SELECTION_LAYER'; layer: ActiveSelectionLayer }
   | { type: 'MARK_SYNCED'; version: number; savedAt: number }
-  | { type: 'APPLY_SNAPSHOT'; snapshot: { chartFit: ChartFit; overrides: Record<string, Offset>; design: DesignSettings } }
+  | {
+      type: 'APPLY_SNAPSHOT'
+      snapshot: {
+        chartFit: ChartFit
+        overrides: Record<string, Offset>
+        design: DesignSettings
+        occluders: ChartOccluder[]
+      }
+    }
   | { type: 'CLEAR_SELECTION' }
   | { type: 'RESET_TO_INITIAL' }
   | { type: 'RESET_TO_SAVED' }
@@ -62,6 +84,9 @@ export function createInitialEditorState(defaultFit: ChartFit, defaultDesign: De
     initialOverrides: {},
     design: defaultDesign,
     initialDesign: defaultDesign,
+    chartOccluders: [],
+    initialChartOccluders: [],
+    selectedOccluderId: '',
     selectedElement: '',
     activeSelectionLayer: 'auto',
     clientVersion: 0,
@@ -84,6 +109,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         initialOverrides: action.overrides,
         design: action.design,
         initialDesign: action.design,
+        chartOccluders: action.occluders,
+        initialChartOccluders: action.occluders,
+        selectedOccluderId: '',
         selectedElement: '',
         activeSelectionLayer: 'auto',
         clientVersion: 0,
@@ -101,6 +129,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         initialOverrides: action.overrides,
         design: action.design,
         initialDesign: action.design,
+        chartOccluders: action.occluders,
+        initialChartOccluders: action.occluders,
+        selectedOccluderId: '',
         selectedElement: '',
         activeSelectionLayer: 'auto',
         userAdjustedFit: true,
@@ -136,6 +167,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         initialDesign: action.setInitial ? action.design : state.initialDesign,
         clientVersion: state.clientVersion + 1,
       }
+    case 'SET_OCCLUDERS':
+      return {
+        ...state,
+        chartOccluders: action.occluders,
+        initialChartOccluders: action.setInitial
+          ? action.occluders
+          : state.initialChartOccluders,
+        clientVersion: state.clientVersion + 1,
+      }
     case 'APPLY_COLOR': {
       const next = { ...state.overrides }
       action.targets.forEach((id) => {
@@ -163,6 +203,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         selectedElement: action.id,
       }
+    case 'SET_SELECTED_OCCLUDER':
+      return {
+        ...state,
+        selectedOccluderId: action.id,
+      }
     case 'SET_ACTIVE_SELECTION_LAYER':
       return {
         ...state,
@@ -181,6 +226,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         chartFit: action.snapshot.chartFit,
         overrides: action.snapshot.overrides,
         design: action.snapshot.design,
+        chartOccluders: action.snapshot.occluders,
         userAdjustedFit: true,
         clientVersion: state.clientVersion + 1,
       }
@@ -195,6 +241,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         chartFit: state.initialFit,
         overrides: state.initialOverrides,
         design: state.initialDesign,
+        chartOccluders: state.initialChartOccluders,
         selectedElement: '',
         activeSelectionLayer: 'auto',
         userAdjustedFit: false,

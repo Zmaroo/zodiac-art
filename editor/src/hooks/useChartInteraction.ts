@@ -1,12 +1,20 @@
 import { useState } from 'react'
 import type { PointerEvent } from 'react'
-import type { ActiveSelectionLayer, ChartFit, DesignSettings, DragState, Offset } from '../types'
+import type {
+  ActiveSelectionLayer,
+  ChartFit,
+  ChartOccluder,
+  DesignSettings,
+  DragState,
+  Offset,
+} from '../types'
 import type { EditorAction } from '../state/editorReducer'
 import { isDraggableElement } from '../utils/format'
 import { toNodePoint, toSvgPoint } from '../utils/geometry'
 
 type UseChartInteractionParams = {
   chartFit: ChartFit
+  chartOccluders: ChartOccluder[]
   overrides: Record<string, Offset>
   design: DesignSettings
   selectedElement: string
@@ -27,6 +35,7 @@ type UseChartInteractionResult = {
 export function useChartInteraction(params: UseChartInteractionParams): UseChartInteractionResult {
   const {
     chartFit,
+    chartOccluders,
     overrides,
     design,
     selectedElement,
@@ -41,8 +50,10 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
   const backgroundImageId = 'chart.background_image'
   const chartIsActive = activeSelectionLayer === 'chart'
   const backgroundImageIsActive = activeSelectionLayer === 'background_image'
+  const occluderIsActive = activeSelectionLayer === 'occluder'
   const allowChartActions = activeSelectionLayer === 'auto' || chartIsActive
   const allowBackgroundImageActions = activeSelectionLayer === 'auto' || backgroundImageIsActive
+  const allowOccluderActions = activeSelectionLayer === 'auto' || occluderIsActive
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (!svgRef.current || !chartRootRef.current) {
@@ -53,13 +64,51 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     const chartElement = target?.closest('#chartRoot') as Element | null
     const chartBackgroundElement = target?.closest('#chartBackgroundRoot') as Element | null
     const backgroundImageElement = target?.closest('#chartBackgroundImageRoot') as Element | null
+    const occluderHandle = target?.closest('[data-occluder-handle]') as Element | null
+    const occluderElement = target?.closest('[data-occluder-id]') as Element | null
 
-    const point = labelElement && chartRootRef.current
-      ? toNodePoint(event, chartRootRef.current)
-      : toSvgPoint(event, svgRef.current)
+    if (occluderHandle && allowOccluderActions) {
+      const occluderId = occluderHandle.getAttribute('data-occluder-id') || ''
+      const handle = occluderHandle.getAttribute('data-occluder-handle') || ''
+      const occluder = chartOccluders.find((item) => item.id === occluderId)
+      if (occluder && handle) {
+        const point = toSvgPoint(event, svgRef.current)
+        dispatch({ type: 'SET_SELECTED_OCCLUDER', id: occluderId })
+        setDrag({
+          mode: 'occluder-resize',
+          startPoint: point,
+          startFit: chartFit,
+          occluderId,
+          occluderStart: occluder,
+          occluderHandle: handle,
+        })
+        svgRef.current.setPointerCapture(event.pointerId)
+        return
+      }
+    }
+
+    if (occluderElement && allowOccluderActions) {
+      const occluderId = occluderElement.getAttribute('data-occluder-id') || ''
+      const occluder = chartOccluders.find((item) => item.id === occluderId)
+      if (occluder) {
+        const point = toSvgPoint(event, svgRef.current)
+        dispatch({ type: 'SET_SELECTED_OCCLUDER', id: occluderId })
+        setDrag({
+          mode: 'occluder-move',
+          startPoint: point,
+          startFit: chartFit,
+          occluderId,
+          occluderStart: occluder,
+        })
+        svgRef.current.setPointerCapture(event.pointerId)
+        return
+      }
+    }
+
     if (labelElement && allowChartActions) {
       const id = labelElement.getAttribute('id') || ''
       if (isDraggableElement(id)) {
+        const point = toNodePoint(event, chartRootRef.current)
         const theta = Number(labelElement.getAttribute('data-theta'))
         const current = overrides[id] || { dx: 0, dy: 0 }
         dispatch({ type: 'SET_SELECTED_ELEMENT', id })
@@ -81,6 +130,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       design.background_image_path &&
       (backgroundImageElement || selectedElement === backgroundImageId)
     ) {
+      const point = toSvgPoint(event, svgRef.current)
       const mode = event.shiftKey ? 'background-image-scale' : 'background-image-move'
       dispatch({ type: 'SET_SELECTED_ELEMENT', id: backgroundImageId })
       setDrag({
@@ -98,6 +148,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     }
 
     if (allowBackgroundImageActions && design.background_image_path && event.shiftKey && event.altKey) {
+      const point = toSvgPoint(event, svgRef.current)
       dispatch({ type: 'SET_SELECTED_ELEMENT', id: backgroundImageId })
       setDrag({
         mode: 'background-image-scale',
@@ -114,6 +165,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     }
 
     if (allowChartActions && (chartElement || chartBackgroundElement)) {
+      const point = toSvgPoint(event, svgRef.current)
       const mode = event.shiftKey
         ? 'chart-scale'
         : event.altKey
@@ -195,6 +247,85 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
         background_image_dx: nextDx,
         background_image_dy: nextDy,
       })
+      return
+    }
+    if (drag.mode === 'occluder-move' && drag.occluderId && drag.occluderStart) {
+      const next = chartOccluders.map((item) => {
+        if (item.id !== drag.occluderId) {
+          return item
+        }
+        if (drag.occluderStart?.shape === 'ellipse') {
+          return {
+            ...drag.occluderStart,
+            cx: drag.occluderStart.cx + dx,
+            cy: drag.occluderStart.cy + dy,
+          }
+        }
+        return {
+          ...drag.occluderStart,
+          x: drag.occluderStart.x + dx,
+          y: drag.occluderStart.y + dy,
+        }
+      })
+      dispatch({ type: 'SET_OCCLUDERS', occluders: next })
+      return
+    }
+    if (drag.mode === 'occluder-resize' && drag.occluderId && drag.occluderStart && drag.occluderHandle) {
+      const minSize = 6
+      const next = chartOccluders.map((item) => {
+        if (item.id !== drag.occluderId) {
+          return item
+        }
+        if (drag.occluderStart.shape === 'ellipse') {
+          let rx = drag.occluderStart.rx
+          let ry = drag.occluderStart.ry
+          if (drag.occluderHandle === 'e') {
+            rx = drag.occluderStart.rx + dx
+          }
+          if (drag.occluderHandle === 'w') {
+            rx = drag.occluderStart.rx - dx
+          }
+          if (drag.occluderHandle === 's') {
+            ry = drag.occluderStart.ry + dy
+          }
+          if (drag.occluderHandle === 'n') {
+            ry = drag.occluderStart.ry - dy
+          }
+          return {
+            ...drag.occluderStart,
+            rx: Math.max(minSize, rx),
+            ry: Math.max(minSize, ry),
+          }
+        }
+        let x = drag.occluderStart.x
+        let y = drag.occluderStart.y
+        let width = drag.occluderStart.width
+        let height = drag.occluderStart.height
+        if (drag.occluderHandle.includes('e')) {
+          width = drag.occluderStart.width + dx
+        }
+        if (drag.occluderHandle.includes('s')) {
+          height = drag.occluderStart.height + dy
+        }
+        if (drag.occluderHandle.includes('w')) {
+          width = drag.occluderStart.width - dx
+          x = drag.occluderStart.x + dx
+        }
+        if (drag.occluderHandle.includes('n')) {
+          height = drag.occluderStart.height - dy
+          y = drag.occluderStart.y + dy
+        }
+        width = Math.max(minSize, width)
+        height = Math.max(minSize, height)
+        return {
+          ...drag.occluderStart,
+          x,
+          y,
+          width,
+          height,
+        }
+      })
+      dispatch({ type: 'SET_OCCLUDERS', occluders: next })
       return
     }
     if (drag.mode === 'label' && drag.labelId && drag.startOffset) {

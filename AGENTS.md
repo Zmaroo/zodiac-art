@@ -5,7 +5,7 @@ Keep changes small, focused, and aligned with existing conventions.
 ## Quick Facts
 - Primary language: Python 3.11 (conda env in `environment.yml`).
 - Linting: ruff (line length 100, exclude `output/` and `storage/`).
-- Tests: pytest (default `-ra`, tests in `tests/`).
+- Tests: pytest (default `-ra`, tests in `tests/`, `pythonpath` includes repo root).
 - CLI entry point: `zodiac_art/main.py` (runs an example when no args).
 - API entry point: `zodiac_art/api/app.py` (FastAPI).
 - Config defaults: `zodiac_art/config.py` with env overrides.
@@ -61,6 +61,8 @@ ruff check .
 ruff format .
 ```
 
+Lint rules are limited to `E`, `F`, and `I` (errors, pyflakes, isort).
+
 Optional autofix:
 ```bash
 ruff check . --fix
@@ -94,6 +96,10 @@ pytest -k "session and round_trip" -vv
 - Use double quotes for user-facing messages and f-strings.
 - Keep docstrings concise and one-line when possible.
 - Avoid reformatting unrelated code.
+
+### Testing
+- Pytest defaults to `-ra`; keep new tests compatible with that output.
+- Tests live in `tests/` and import from the repo root via `pythonpath`.
 
 ### Typing
 - Use `from __future__ import annotations` in modules.

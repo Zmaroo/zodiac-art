@@ -60,7 +60,7 @@ export type FrameCircle = {
 
 export type LayerOrderKey = 'background' | 'frame' | 'chart' | 'chart_background_image'
 
-export type ActiveSelectionLayer = 'auto' | 'chart' | 'background' | 'background_image'
+export type ActiveSelectionLayer = 'auto' | 'chart' | 'background' | 'background_image' | 'occluder'
 
 export type DesignSettings = {
   layer_order: LayerOrderKey[]
@@ -76,6 +76,30 @@ export type DesignSettings = {
 
 export type Offset = { dx?: number; dy?: number; dr?: number; dt?: number; color?: string }
 
+export type ChartOccluderBase = {
+  id: string
+  shape: 'ellipse' | 'rect'
+  rotation_deg?: number
+}
+
+export type ChartOccluderEllipse = ChartOccluderBase & {
+  shape: 'ellipse'
+  cx: number
+  cy: number
+  rx: number
+  ry: number
+}
+
+export type ChartOccluderRect = ChartOccluderBase & {
+  shape: 'rect'
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type ChartOccluder = ChartOccluderEllipse | ChartOccluderRect
+
 export type EditorDraft = {
   key: string
   chart_id: string
@@ -85,6 +109,7 @@ export type EditorDraft = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frame_circle: FrameCircle | null
+  chart_occluders: ChartOccluder[]
   client_version: number
   server_version: number
   last_saved_at: number | null
@@ -99,6 +124,7 @@ export type EditorDoc = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frame_circle: FrameCircle | null
+  chart_occluders: ChartOccluder[]
   client_version: number
   server_version: number
   last_saved_at: number | null
@@ -110,6 +136,7 @@ export type LayoutFile = {
   frame_circle?: FrameCircle
   design?: Partial<DesignSettings>
   chart_fit?: Partial<ChartFit>
+  chart_occluders?: ChartOccluder[]
 }
 
 export type DragState = {
@@ -120,12 +147,17 @@ export type DragState = {
     | 'label'
     | 'background-image-move'
     | 'background-image-scale'
+    | 'occluder-move'
+    | 'occluder-resize'
   startPoint: { x: number; y: number }
   startFit: ChartFit
   labelId?: string
   startOffset?: Offset
   labelTheta?: number
   backgroundImage?: { scale: number; dx: number; dy: number }
+  occluderId?: string
+  occluderStart?: ChartOccluder
+  occluderHandle?: string
 }
 
 export type User = { id: string; email: string; is_admin?: boolean }

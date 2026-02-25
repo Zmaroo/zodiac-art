@@ -192,6 +192,9 @@ def validate_layout_payload(payload: dict) -> dict:
         result["design"] = design
     if normalized_circle is not None:
         result["frame_circle"] = normalized_circle
+    occluders = payload.get("chart_occluders")
+    if occluders is not None:
+        result["chart_occluders"] = _normalize_chart_occluders(occluders)
     return result
 
 
@@ -211,3 +214,80 @@ def validate_glyph_outline_color(color: str | None) -> None:
         raise HTTPException(status_code=400, detail="glyph_outline_color must be a string")
     if not re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})", color):
         raise HTTPException(status_code=400, detail="Invalid glyph_outline_color format")
+
+
+def _normalize_chart_occluders(raw: object) -> list[dict]:
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="chart_occluders must be a list")
+    normalized: list[dict] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail="chart_occluders entries must be objects")
+        occluder_id = item.get("id")
+        shape = item.get("shape")
+        if not isinstance(occluder_id, str) or not occluder_id.strip():
+            raise HTTPException(status_code=400, detail="chart_occluders.id must be a string")
+        if shape not in {"ellipse", "rect"}:
+            raise HTTPException(
+                status_code=400, detail="chart_occluders.shape must be ellipse or rect"
+            )
+        rotation = item.get("rotation_deg")
+        rotation_value = 0.0
+        if rotation is not None:
+            if not isinstance(rotation, (int, float)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="chart_occluders.rotation_deg must be a number",
+                )
+            rotation_value = float(rotation)
+        if shape == "ellipse":
+            cx = item.get("cx")
+            cy = item.get("cy")
+            rx = item.get("rx")
+            ry = item.get("ry")
+            if not isinstance(cx, (int, float)) or not isinstance(cy, (int, float)):
+                raise HTTPException(status_code=400, detail="chart_occluders.cx/cy must be numbers")
+            if not isinstance(rx, (int, float)) or not isinstance(ry, (int, float)):
+                raise HTTPException(status_code=400, detail="chart_occluders.rx/ry must be numbers")
+            if rx <= 0 or ry <= 0:
+                raise HTTPException(
+                    status_code=400, detail="chart_occluders.rx/ry must be positive"
+                )
+            normalized.append(
+                {
+                    "id": occluder_id,
+                    "shape": "ellipse",
+                    "cx": float(cx),
+                    "cy": float(cy),
+                    "rx": float(rx),
+                    "ry": float(ry),
+                    "rotation_deg": rotation_value,
+                }
+            )
+            continue
+        x = item.get("x")
+        y = item.get("y")
+        width = item.get("width")
+        height = item.get("height")
+        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+            raise HTTPException(status_code=400, detail="chart_occluders.x/y must be numbers")
+        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+            raise HTTPException(
+                status_code=400, detail="chart_occluders.width/height must be numbers"
+            )
+        if width <= 0 or height <= 0:
+            raise HTTPException(
+                status_code=400, detail="chart_occluders.width/height must be positive"
+            )
+        normalized.append(
+            {
+                "id": occluder_id,
+                "shape": "rect",
+                "x": float(x),
+                "y": float(y),
+                "width": float(width),
+                "height": float(height),
+                "rotation_deg": rotation_value,
+            }
+        )
+    return normalized
