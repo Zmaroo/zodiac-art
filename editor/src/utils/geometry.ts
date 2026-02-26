@@ -1,4 +1,5 @@
 import type { PointerEvent } from 'react'
+import type { ChartFit, ChartMeta } from '../types'
 
 export function toSvgPoint(event: PointerEvent, svg: SVGSVGElement) {
   const point = svg.createSVGPoint()
@@ -33,4 +34,18 @@ export function polarOffsetToXY(dr: number, dt: number, thetaDeg: number) {
     dx: dr * Math.cos(angle) - dt * Math.sin(angle),
     dy: dr * Math.sin(angle) + dt * Math.cos(angle),
   }
+}
+
+export function buildChartTransform(chartFit: ChartFit, meta: ChartMeta | null) {
+  if (!meta) {
+    return ''
+  }
+  const { x, y } = meta.chart.center
+  return [
+    `translate(${chartFit.dx.toFixed(3)} ${chartFit.dy.toFixed(3)})`,
+    `translate(${x.toFixed(3)} ${y.toFixed(3)})`,
+    `rotate(${chartFit.rotation_deg.toFixed(3)})`,
+    `scale(${chartFit.scale.toFixed(6)})`,
+    `translate(${-x.toFixed(3)} ${-y.toFixed(3)})`,
+  ].join(' ')
 }

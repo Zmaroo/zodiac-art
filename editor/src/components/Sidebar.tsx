@@ -95,9 +95,6 @@ export type SidebarProps = {
     onRedo: () => void
     canUndo: boolean
     canRedo: boolean
-    onSyncNow: () => void
-    syncEnabled: boolean
-    syncInFlight: boolean
     onExport: () => void
     exportFormat: 'png' | 'svg'
     onExportFormatChange: (value: 'png' | 'svg') => void
@@ -189,9 +186,6 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     onRedo,
     canUndo,
     canRedo,
-    onSyncNow,
-    syncEnabled,
-    syncInFlight,
     onExport,
     exportFormat,
     onExportFormatChange,
@@ -329,16 +323,9 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
             >
               Save changes
             </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={onSyncNow}
-              disabled={!syncEnabled || syncInFlight}
-            >
-              {syncInFlight ? 'Syncing...' : 'Sync now'}
-            </button>
             <div className="export-row">
               <select
+                name="export-format"
                 value={exportFormat}
                 onChange={(event) => onExportFormatChange(event.target.value as 'png' | 'svg')}
                 disabled={!exportEnabled}

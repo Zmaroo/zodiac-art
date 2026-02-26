@@ -22,16 +22,20 @@ function FramesSection({
 }: FramesSectionProps) {
   return (
     <CollapsibleSection title="Frames" persistKey="frames" onToggle={onClearMessages}>
-      <label className="field">
+      <label className="field" htmlFor="frame-search">
         Search frames
         <input
           type="text"
+          id="frame-search"
+          name="frame-search"
           value={frameSearch}
           onChange={(event) => onFrameSearchChange(event.target.value)}
           placeholder="Name or tag..."
         />
       </label>
       <select
+        name="frame-select"
+        aria-label="Select frame"
         value={selectedId}
         onChange={(event) => onSelectedIdChange(event.target.value)}
         className="frame-select"

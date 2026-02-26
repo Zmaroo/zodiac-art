@@ -94,6 +94,11 @@ def get_dev_mode() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def get_dev_tools_enabled() -> bool:
+    value = os.environ.get("ZODIAC_DEV_TOOLS", "0").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def get_jwt_secret() -> str | None:
     return os.environ.get("JWT_SECRET")
 

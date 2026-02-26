@@ -52,6 +52,27 @@ _BACKGROUND_IMAGE_TYPES = {
 }
 
 
+def _merge_layout_payload(existing: dict | None, payload: dict) -> dict:
+    base = dict(existing) if isinstance(existing, dict) else {}
+    merged = {**base, **payload}
+    validated = validate_layout_payload(merged)
+    if "frame_circle" in payload and payload.get("frame_circle") is None:
+        validated["frame_circle"] = None
+    if "chart_fit" in payload and payload.get("chart_fit") is None:
+        validated.pop("chart_fit", None)
+    if "design" in payload and payload.get("design") is None:
+        validated.pop("design", None)
+    if "chart_occluders" in payload and payload.get("chart_occluders") is None:
+        validated.pop("chart_occluders", None)
+    if "frame_mask_cutoff" in payload and payload.get("frame_mask_cutoff") is None:
+        validated.pop("frame_mask_cutoff", None)
+    if "frame_mask_offwhite_boost" in payload and payload.get("frame_mask_offwhite_boost") is None:
+        validated.pop("frame_mask_offwhite_boost", None)
+    if "overrides" in payload and payload.get("overrides") is None:
+        validated["overrides"] = {}
+    return validated
+
+
 def _chart_design_dir(chart_id: str) -> Path:
     return STORAGE_ROOT / "charts" / chart_id / "design"
 
@@ -199,6 +220,7 @@ async def save_metadata(
 
     with Image.open(image_path) as image:
         image_size = image.size
+    chart_fit = payload.get("chart_fit") if isinstance(payload, dict) else None
     validate_meta(payload, image_size)
     await storage.save_chart_meta(chart_id, frame_id, payload)
     if isinstance(chart_fit, dict):
@@ -239,12 +261,58 @@ async def save_layout(
     await load_chart_for_user(request, chart_id, user.user_id)
     if not await frame_exists(request, frame_id):
         raise HTTPException(status_code=404, detail="Frame not found")
-    validated = validate_layout_payload(payload)
-    if "chart_fit" not in validated:
-        existing = await get_storage(request).load_chart_layout(chart_id, frame_id)
-        if isinstance(existing, dict) and "chart_fit" in existing:
-            validated["chart_fit"] = existing["chart_fit"]
-    await get_storage(request).save_chart_layout(chart_id, frame_id, validated)
+    storage = get_storage(request)
+    existing = await storage.load_chart_layout(chart_id, frame_id)
+    validated = _merge_layout_payload(existing, payload)
+    await storage.save_chart_layout(chart_id, frame_id, validated)
+    return {"status": "ok"}
+
+
+@router.put("/api/charts/{chart_id}/frames/{frame_id}/document")
+async def save_editor_document(
+    request: Request,
+    chart_id: str,
+    frame_id: str,
+    payload: dict = Body(...),
+    user: AuthUser = Depends(require_user),
+) -> dict:
+    validate_chart_id(chart_id)
+    await load_chart_for_user(request, chart_id, user.user_id)
+    if not await frame_exists(request, frame_id):
+        raise HTTPException(status_code=404, detail="Frame not found")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Document payload must be an object")
+    layout_payload = payload.get("layout")
+    metadata_payload = payload.get("metadata")
+    if layout_payload is None and metadata_payload is None:
+        raise HTTPException(
+            status_code=400, detail="Document payload must include layout or metadata"
+        )
+    storage = get_storage(request)
+    validated_layout: dict | None = None
+    validated_meta: dict | None = None
+    if layout_payload is not None:
+        if not isinstance(layout_payload, dict):
+            raise HTTPException(status_code=400, detail="Document layout must be an object")
+        existing_layout = await storage.load_chart_layout(chart_id, frame_id)
+        validated_layout = _merge_layout_payload(existing_layout, layout_payload)
+    if metadata_payload is not None:
+        if not isinstance(metadata_payload, dict):
+            raise HTTPException(status_code=400, detail="Document metadata must be an object")
+        existing_meta = await storage.load_chart_meta(chart_id, frame_id)
+        meta_base = dict(existing_meta) if isinstance(existing_meta, dict) else {}
+        merged_meta = {**meta_base, **metadata_payload}
+        image_path = await storage.template_image_path(frame_id)
+        from PIL import Image
+
+        with Image.open(image_path) as image:
+            image_size = image.size
+        validate_meta(merged_meta, image_size)
+        validated_meta = merged_meta
+    if validated_layout is not None:
+        await storage.save_chart_layout(chart_id, frame_id, validated_layout)
+    if validated_meta is not None:
+        await storage.save_chart_meta(chart_id, frame_id, validated_meta)
     return {"status": "ok"}
 
 

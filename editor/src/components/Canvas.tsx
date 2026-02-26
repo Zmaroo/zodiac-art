@@ -1,8 +1,10 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import type { PointerEvent, ReactElement, RefObject } from 'react'
 import { useMaskedFrame } from '../hooks/useMaskedFrame'
+import { buildChartTransform } from '../utils/geometry'
 import type {
   ActiveSelectionLayer,
+  ChartFit,
   ChartMeta,
   ChartOccluder,
   FrameCircle,
@@ -12,6 +14,7 @@ import type {
 
 export type CanvasProps = {
   meta: ChartMeta | null
+  chartFit: ChartFit
   selectedFrameDetail: FrameDetail | null
   apiBase: string
   chartSvg: string
@@ -28,6 +31,8 @@ export type CanvasProps = {
   backgroundImageDy: number
   activeSelectionLayer: ActiveSelectionLayer
   frameMaskCutoff: number
+  frameMaskOffwhiteBoost: number
+  frameMaskGuideVisible: boolean
   showChartBackground: boolean
   frameCircle: FrameCircle | null
   showFrameCircleDebug: boolean
@@ -41,6 +46,7 @@ export type CanvasProps = {
 
 function Canvas({
   meta,
+  chartFit,
   selectedFrameDetail,
   apiBase,
   chartSvg,
@@ -57,6 +63,8 @@ function Canvas({
   backgroundImageDy,
   activeSelectionLayer,
   frameMaskCutoff,
+  frameMaskOffwhiteBoost,
+  frameMaskGuideVisible,
   showChartBackground,
   frameCircle,
   showFrameCircleDebug,
@@ -71,7 +79,8 @@ function Canvas({
   const chartOnlyScrollKeyRef = useRef('')
   const debugCx = frameCircle ? frameCircle.cxNorm * (meta?.canvas.width ?? 0) : 0
   const debugCy = frameCircle ? frameCircle.cyNorm * (meta?.canvas.height ?? 0) : 0
-  const debugR = frameCircle ? frameCircle.rNorm * (meta?.canvas.width ?? 0) : 0
+  const debugRx = frameCircle ? (frameCircle.rxNorm ?? frameCircle.rNorm) * (meta?.canvas.width ?? 0) : 0
+  const debugRy = frameCircle ? (frameCircle.ryNorm ?? frameCircle.rNorm) * (meta?.canvas.height ?? 0) : 0
   const frameUrl = selectedFrameDetail ? `${apiBase}${selectedFrameDetail.image_url}` : ''
   const showMaskedFrame = Boolean(selectedFrameDetail && meta && frameMaskCutoff < 255)
   const showCircleBackground = showChartBackground
@@ -81,29 +90,41 @@ function Canvas({
         y: frameCircle.cyNorm * (meta?.canvas.height ?? 0),
       }
     : (meta?.chart.center ?? { x: 0, y: 0 })
-  const maskRadius = frameCircle
-    ? frameCircle.rNorm * (meta?.canvas.width ?? 0)
+  const maskRadiusX = frameCircle
+    ? (frameCircle.rxNorm ?? frameCircle.rNorm) * (meta?.canvas.width ?? 0)
+    : (meta?.chart.ring_outer ?? 0)
+  const maskRadiusY = frameCircle
+    ? (frameCircle.ryNorm ?? frameCircle.rNorm) * (meta?.canvas.height ?? 0)
     : (meta?.chart.ring_outer ?? 0)
   const maskedFrameUrl = useMaskedFrame(
     frameUrl,
     showMaskedFrame,
     maskCenter,
-    maskRadius,
-    frameMaskCutoff
+    maskRadiusX,
+    maskRadiusY,
+    frameMaskCutoff,
+    frameMaskOffwhiteBoost
   )
   const frameHref = showMaskedFrame ? maskedFrameUrl || frameUrl : frameUrl
   const maskId = `chart-occluder-mask-${chartId || 'draft'}-${selectedFrameDetail?.id ?? 'frame'}`
   const occluderMaskEnabled = chartOccluders.length > 0
   const occluderLayerActive = activeSelectionLayer === 'occluder'
-  const [occluderTransform, setOccluderTransform] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!chartRootRef.current) {
-      return
-    }
-    const transform = chartRootRef.current.getAttribute('transform')
-    setOccluderTransform((prev) => (prev === transform ? prev : transform))
-  })
+  const occluderTransform = buildChartTransform(chartFit, meta) || undefined
+  const showMaskGuide = Boolean(frameMaskGuideVisible || activeSelectionLayer === 'frame_mask')
+  const showMaskHandles = activeSelectionLayer === 'frame_mask' && frameCircle && meta
+  const maskHandleRadius = 6
+  const maskHandlePoints = showMaskHandles
+    ? [
+        { id: 'n', x: debugCx, y: debugCy - debugRy },
+        { id: 's', x: debugCx, y: debugCy + debugRy },
+        { id: 'e', x: debugCx + debugRx, y: debugCy },
+        { id: 'w', x: debugCx - debugRx, y: debugCy },
+        { id: 'ne', x: debugCx + debugRx * 0.707, y: debugCy - debugRy * 0.707 },
+        { id: 'nw', x: debugCx - debugRx * 0.707, y: debugCy - debugRy * 0.707 },
+        { id: 'se', x: debugCx + debugRx * 0.707, y: debugCy + debugRy * 0.707 },
+        { id: 'sw', x: debugCx - debugRx * 0.707, y: debugCy + debugRy * 0.707 },
+      ]
+    : []
 
   useEffect(() => {
     if (!isChartOnly || !meta || !chartId) {
@@ -401,13 +422,53 @@ function Canvas({
             }
             return <Fragment key={key}>{layer}</Fragment>
           })}
+          {showMaskGuide && frameCircle ? (
+            <g>
+              <ellipse
+                cx={debugCx}
+                cy={debugCy}
+                rx={debugRx}
+                ry={debugRy}
+                fill="none"
+                stroke="rgba(0, 120, 255, 0.7)"
+                strokeDasharray={activeSelectionLayer === 'frame_mask' ? undefined : '6 6'}
+                strokeWidth={2}
+                pointerEvents="none"
+              />
+              {activeSelectionLayer === 'frame_mask' ? (
+                <ellipse
+                  cx={debugCx}
+                  cy={debugCy}
+                  rx={debugRx}
+                  ry={debugRy}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={12}
+                  data-frame-mask-body
+                />
+              ) : null}
+              {maskHandlePoints.map((handle) => (
+                <circle
+                  key={handle.id}
+                  cx={handle.x}
+                  cy={handle.y}
+                  r={maskHandleRadius}
+                  fill="white"
+                  stroke="rgba(0, 120, 255, 0.9)"
+                  strokeWidth={2}
+                  data-frame-mask-handle={handle.id}
+                />
+              ))}
+            </g>
+          ) : null}
           {showFrameCircleDebug && frameCircle ? (
-            <circle
+            <ellipse
               cx={debugCx}
               cy={debugCy}
-              r={debugR}
+              rx={debugRx}
+              ry={debugRy}
               fill="none"
-              stroke="rgba(0, 120, 255, 0.7)"
+              stroke="rgba(0, 120, 255, 0.4)"
               strokeWidth={2}
               pointerEvents="none"
             />

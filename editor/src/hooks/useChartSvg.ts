@@ -16,9 +16,12 @@ type LayoutLoadResult = {
   fit: ChartFit
   overrides: Record<string, Offset>
   frameCircle: FrameCircle | null
+  frameCircleExplicit: boolean
   design: DesignSettings
   userAdjustedFit: boolean
   occluders: ChartOccluder[]
+  frameMaskCutoff?: number
+  frameMaskOffwhiteBoost?: number
 }
 
 type UseChartSvgParams = {
@@ -205,14 +208,21 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           }
           const userAdjustedFit = Boolean(layoutFit || metaData.chart_fit)
           const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
-          const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
+          const layoutFile = layoutData as LayoutFile | null
+          const frameCircleExplicit = Boolean(layoutFile && 'frame_circle' in layoutFile)
+          const frameCircle = frameCircleExplicit ? layoutFile?.frame_circle ?? null : null
           const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
           const occluders = (layoutData as LayoutFile | null)?.chart_occluders ?? []
+          const frameMaskCutoff = (layoutData as LayoutFile | null)?.frame_mask_cutoff
+          const frameMaskOffwhiteBoost =
+            (layoutData as LayoutFile | null)?.frame_mask_offwhite_boost
           const layoutKey = JSON.stringify({
             fit,
             overrides: nextOverrides,
             frameCircle,
             occluders,
+            frameMaskCutoff,
+            frameMaskOffwhiteBoost,
           })
           if (lastLayoutKeyRef.current !== layoutKey) {
             lastLayoutKeyRef.current = layoutKey
@@ -221,9 +231,12 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
               fit,
               overrides: nextOverrides,
               frameCircle,
+              frameCircleExplicit,
               design,
               userAdjustedFit,
               occluders,
+              frameMaskCutoff,
+              frameMaskOffwhiteBoost,
             })
           }
           setLayoutReady(true)
@@ -262,14 +275,21 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         }
         const userAdjustedFit = Boolean(layoutFit || chartMetaData?.chart_fit)
         const nextOverrides = (layoutData as LayoutFile | null)?.overrides || {}
-        const frameCircle = (layoutData as LayoutFile | null)?.frame_circle ?? null
+        const layoutFile = layoutData as LayoutFile | null
+        const frameCircleExplicit = Boolean(layoutFile && 'frame_circle' in layoutFile)
+        const frameCircle = frameCircleExplicit ? layoutFile?.frame_circle ?? null : null
         const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
         const occluders = (layoutData as LayoutFile | null)?.chart_occluders ?? []
+        const frameMaskCutoff = (layoutData as LayoutFile | null)?.frame_mask_cutoff
+        const frameMaskOffwhiteBoost =
+          (layoutData as LayoutFile | null)?.frame_mask_offwhite_boost
         const layoutKey = JSON.stringify({
           fit,
           overrides: nextOverrides,
           frameCircle,
           occluders,
+          frameMaskCutoff,
+          frameMaskOffwhiteBoost,
         })
         if (lastLayoutKeyRef.current !== layoutKey) {
           lastLayoutKeyRef.current = layoutKey
@@ -278,9 +298,12 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
             fit,
             overrides: nextOverrides,
             frameCircle,
+            frameCircleExplicit,
             design,
             userAdjustedFit,
             occluders,
+            frameMaskCutoff,
+            frameMaskOffwhiteBoost,
           })
         }
         setLayoutReady(true)

@@ -3,9 +3,11 @@ import type { PointerEvent } from 'react'
 import type {
   ActiveSelectionLayer,
   ChartFit,
+  ChartMeta,
   ChartOccluder,
   DesignSettings,
   DragState,
+  FrameCircle,
   Offset,
 } from '../types'
 import type { EditorAction } from '../state/editorReducer'
@@ -20,6 +22,10 @@ type UseChartInteractionParams = {
   selectedElement: string
   activeSelectionLayer: ActiveSelectionLayer
   updateDesign: (next: Partial<DesignSettings>) => void
+  meta: ChartMeta | null
+  frameCircle: FrameCircle | null
+  setFrameCircle: (circle: FrameCircle | null) => void
+  frameMaskLockAspect: boolean
   svgRef: React.RefObject<SVGSVGElement | null>
   chartRootRef: React.RefObject<SVGGElement | null>
   dispatch: (action: EditorAction) => void
@@ -41,6 +47,10 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     selectedElement,
     activeSelectionLayer,
     updateDesign,
+    meta,
+    frameCircle,
+    setFrameCircle,
+    frameMaskLockAspect,
     svgRef,
     chartRootRef,
     dispatch,
@@ -51,9 +61,11 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
   const chartIsActive = activeSelectionLayer === 'chart'
   const backgroundImageIsActive = activeSelectionLayer === 'background_image'
   const occluderIsActive = activeSelectionLayer === 'occluder'
+  const frameMaskIsActive = activeSelectionLayer === 'frame_mask'
   const allowChartActions = activeSelectionLayer === 'auto' || chartIsActive
   const allowBackgroundImageActions = activeSelectionLayer === 'auto' || backgroundImageIsActive
   const allowOccluderActions = activeSelectionLayer === 'auto' || occluderIsActive
+  const allowFrameMaskActions = frameMaskIsActive
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (!svgRef.current || !chartRootRef.current) {
@@ -66,6 +78,45 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     const backgroundImageElement = target?.closest('#chartBackgroundImageRoot') as Element | null
     const occluderHandle = target?.closest('[data-occluder-handle]') as Element | null
     const occluderElement = target?.closest('[data-occluder-id]') as Element | null
+    const maskHandle = target?.closest('[data-frame-mask-handle]') as Element | null
+    const maskBody = target?.closest('[data-frame-mask-body]') as Element | null
+
+    if (allowFrameMaskActions && meta && frameCircle) {
+      const rx = (frameCircle.rxNorm ?? frameCircle.rNorm) * meta.canvas.width
+      const ry = (frameCircle.ryNorm ?? frameCircle.rNorm) * meta.canvas.height
+      const start = {
+        cx: frameCircle.cxNorm * meta.canvas.width,
+        cy: frameCircle.cyNorm * meta.canvas.height,
+        rx,
+        ry,
+      }
+      if (maskHandle) {
+        const handle = maskHandle.getAttribute('data-frame-mask-handle') || ''
+        if (handle) {
+          const point = toSvgPoint(event, svgRef.current)
+          setDrag({
+            mode: 'frame-mask-resize',
+            startPoint: point,
+            startFit: chartFit,
+            frameMaskStart: start,
+            frameMaskHandle: handle,
+          })
+          svgRef.current.setPointerCapture(event.pointerId)
+          return
+        }
+      }
+      if (maskBody) {
+        const point = toSvgPoint(event, svgRef.current)
+        setDrag({
+          mode: 'frame-mask-move',
+          startPoint: point,
+          startFit: chartFit,
+          frameMaskStart: start,
+        })
+        svgRef.current.setPointerCapture(event.pointerId)
+        return
+      }
+    }
 
     if (occluderHandle && allowOccluderActions) {
       const occluderId = occluderHandle.getAttribute('data-occluder-id') || ''
@@ -187,6 +238,65 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
         : toSvgPoint(event, svgRef.current)
     const dx = point.x - drag.startPoint.x
     const dy = point.y - drag.startPoint.y
+
+    if (drag.mode === 'frame-mask-move' && meta) {
+      const nextCx = drag.frameMaskStart.cx + dx
+      const nextCy = drag.frameMaskStart.cy + dy
+      const rx = drag.frameMaskStart.rx
+      const ry = drag.frameMaskStart.ry
+      setFrameCircle({
+        cxNorm: nextCx / meta.canvas.width,
+        cyNorm: nextCy / meta.canvas.height,
+        rxNorm: rx / meta.canvas.width,
+        ryNorm: ry / meta.canvas.height,
+        rNorm: Math.min(rx / meta.canvas.width, ry / meta.canvas.height),
+      })
+      return
+    }
+
+    if (drag.mode === 'frame-mask-resize' && meta) {
+      const minSize = 8
+      let rx = drag.frameMaskStart.rx
+      let ry = drag.frameMaskStart.ry
+      const handle = drag.frameMaskHandle
+      if (handle.includes('e')) {
+        rx = drag.frameMaskStart.rx + dx
+      }
+      if (handle.includes('w')) {
+        rx = drag.frameMaskStart.rx - dx
+      }
+      if (handle.includes('s')) {
+        ry = drag.frameMaskStart.ry + dy
+      }
+      if (handle.includes('n')) {
+        ry = drag.frameMaskStart.ry - dy
+      }
+      if (frameMaskLockAspect) {
+        const ratioBase = drag.frameMaskStart.ry !== 0 ? drag.frameMaskStart.rx / drag.frameMaskStart.ry : 1
+        const ratio = Number.isFinite(ratioBase) && ratioBase > 0 ? ratioBase : 1
+        if (handle.includes('e') || handle.includes('w')) {
+          ry = rx / ratio
+        } else if (handle.includes('n') || handle.includes('s')) {
+          rx = ry * ratio
+        } else if (Math.abs(dx) >= Math.abs(dy)) {
+          ry = rx / ratio
+        } else {
+          rx = ry * ratio
+        }
+      }
+      rx = Math.max(minSize, rx)
+      ry = Math.max(minSize, ry)
+      const nextCx = drag.frameMaskStart.cx
+      const nextCy = drag.frameMaskStart.cy
+      setFrameCircle({
+        cxNorm: nextCx / meta.canvas.width,
+        cyNorm: nextCy / meta.canvas.height,
+        rxNorm: rx / meta.canvas.width,
+        ryNorm: ry / meta.canvas.height,
+        rNorm: Math.min(rx / meta.canvas.width, ry / meta.canvas.height),
+      })
+      return
+    }
 
     if (drag.mode === 'chart-move') {
       dispatch({

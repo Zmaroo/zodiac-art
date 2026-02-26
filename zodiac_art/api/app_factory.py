@@ -28,6 +28,7 @@ from zodiac_art.config import (
     get_admin_email,
     get_cors_origins,
     get_dev_mode,
+    get_dev_tools_enabled,
     get_jwt_expires_seconds,
     get_jwt_secret,
     get_redis_url,
@@ -129,5 +130,10 @@ def create_app() -> FastAPI:
     app.include_router(frames.router)
     app.include_router(renders.router)
     app.include_router(health.router)
+
+    if get_dev_tools_enabled():
+        from zodiac_art.api.routes import dev_tools
+
+        app.include_router(dev_tools.router)
 
     return app

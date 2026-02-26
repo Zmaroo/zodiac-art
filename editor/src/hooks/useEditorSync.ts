@@ -1,32 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import type { EditorDoc } from '../types'
 
 type UseEditorSyncParams = {
   jwt: string
   doc: EditorDoc
-  saveAll: () => Promise<void>
   draftKey: string
 }
 
 type UseEditorSyncResult = {
   syncStatus: string
-  syncEnabled: boolean
-  handleSyncNow: () => Promise<void>
-  syncInFlight: boolean
 }
 
 export function useEditorSync(params: UseEditorSyncParams): UseEditorSyncResult {
   const {
     jwt,
     doc,
-    saveAll,
     draftKey,
   } = params
   const [syncStatus, setSyncStatus] = useState('')
-  const [syncInFlight, setSyncInFlight] = useState(false)
-  const syncInFlightRef = useRef(false)
-  const syncEnabled = Boolean(jwt && doc.chart_id && (doc.is_chart_only || doc.frame_id))
 
   useEffect(() => {
     if (!draftKey) {
@@ -45,55 +37,14 @@ export function useEditorSync(params: UseEditorSyncParams): UseEditorSyncResult 
     }
     if (doc.client_version <= doc.server_version) {
       if (doc.last_synced_at) {
-        setSyncStatus('Synced')
+        setSyncStatus('Saved')
       } else {
         setSyncStatus('')
       }
       return
     }
-    setSyncStatus('Unsynced changes')
-    const timeout = window.setTimeout(async () => {
-      if (syncInFlightRef.current) {
-        return
-      }
-      syncInFlightRef.current = true
-      setSyncInFlight(true)
-      setSyncStatus('Syncing...')
-      try {
-        await saveAll()
-        setSyncStatus('Synced')
-      } finally {
-        syncInFlightRef.current = false
-        setSyncInFlight(false)
-      }
-    }, 2500)
-    return () => window.clearTimeout(timeout)
-  }, [
-    doc,
-    draftKey,
-    jwt,
-    saveAll,
-  ])
+    setSyncStatus('Unsaved changes')
+  }, [doc, draftKey, jwt])
 
-  const handleSyncNow = async () => {
-    if (!syncEnabled) {
-      setSyncStatus('Offline')
-      return
-    }
-    if (syncInFlightRef.current) {
-      return
-    }
-    syncInFlightRef.current = true
-    setSyncInFlight(true)
-    setSyncStatus('Syncing...')
-    try {
-      await saveAll()
-      setSyncStatus('Synced')
-    } finally {
-      syncInFlightRef.current = false
-      setSyncInFlight(false)
-    }
-  }
-
-  return { syncStatus, syncEnabled, handleSyncNow, syncInFlight }
+  return { syncStatus }
 }

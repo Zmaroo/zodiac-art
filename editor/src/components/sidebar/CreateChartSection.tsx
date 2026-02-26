@@ -46,27 +46,33 @@ function CreateChartSection({
 }: CreateChartSectionProps) {
   return (
     <CollapsibleSection title="Create Chart" persistKey="create-chart" onToggle={onClearMessages}>
-      <label className="field">
+      <label className="field" htmlFor="chart-name">
         Name
         <input
           type="text"
+          id="chart-name"
+          name="chart-name"
           value={chartName}
           onChange={(event) => onChartNameChange(event.target.value)}
           placeholder="Chart name"
         />
       </label>
-      <label className="field">
+      <label className="field" htmlFor="birth-date">
         Birth date
         <input
           type="date"
+          id="birth-date"
+          name="birth-date"
           value={birthDate}
           onChange={(event) => onBirthDateChange(event.target.value)}
         />
       </label>
-      <label className="field">
+      <label className="field" htmlFor="birth-time">
         Birth time
         <input
           type="time"
+          id="birth-time"
+          name="birth-time"
           value={birthTime}
           onChange={(event) => onBirthTimeChange(event.target.value)}
         />

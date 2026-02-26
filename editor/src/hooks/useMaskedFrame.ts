@@ -5,8 +5,10 @@ const maskedCache = new Map<string, string>()
 function maskFrameWhite(
   image: HTMLImageElement,
   center: { x: number; y: number },
-  radius: number,
-  whiteCutoff: number
+  radiusX: number,
+  radiusY: number,
+  whiteCutoff: number,
+  offwhiteBoost: number
 ): string {
   const canvas = document.createElement('canvas')
   canvas.width = image.width
@@ -18,12 +20,13 @@ function maskFrameWhite(
   ctx.drawImage(image, 0, 0)
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
   const { data } = imageData
-  const r2 = radius * radius
+  const rx2 = radiusX * radiusX
+  const ry2 = radiusY * radiusY
   for (let y = 0; y < canvas.height; y += 1) {
     for (let x = 0; x < canvas.width; x += 1) {
       const dx = x - center.x
       const dy = y - center.y
-      if (dx * dx + dy * dy > r2) {
+      if ((dx * dx) / rx2 + (dy * dy) / ry2 > 1) {
         continue
       }
       const i = (y * canvas.width + x) * 4
@@ -40,7 +43,11 @@ function maskFrameWhite(
       const max = Math.max(rN, gN, bN)
       const min = Math.min(rN, gN, bN)
       const saturation = max == 0 ? 0 : (max - min) / max
-      const nearWhite = r >= whiteCutoff && g >= whiteCutoff && b >= whiteCutoff && saturation < 0.08
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+      const channelRange = Math.max(r, g, b) - Math.min(r, g, b)
+      const satMax = 0.24 + offwhiteBoost * 0.002
+      const rangeMax = 60 + offwhiteBoost * 0.6
+      const nearWhite = luma >= whiteCutoff && saturation < satMax && channelRange <= rangeMax
       if (nearWhite) {
         data[i + 3] = 0
       }
@@ -54,17 +61,19 @@ export function useMaskedFrame(
   frameUrl: string,
   enabled: boolean,
   center: { x: number; y: number },
-  radius: number,
-  whiteCutoff: number
+  radiusX: number,
+  radiusY: number,
+  whiteCutoff: number,
+  offwhiteBoost: number
 ) {
   const [maskedUrl, setMaskedUrl] = useState('')
 
   useEffect(() => {
-    if (!enabled || !frameUrl || radius <= 0) {
+    if (!enabled || !frameUrl || radiusX <= 0 || radiusY <= 0) {
       setMaskedUrl('')
       return
     }
-    const cacheKey = `${frameUrl}:${center.x}:${center.y}:${radius}:${whiteCutoff}`
+    const cacheKey = `${frameUrl}:${center.x}:${center.y}:${radiusX}:${radiusY}:${whiteCutoff}:${offwhiteBoost}`
     const cached = maskedCache.get(cacheKey)
     if (cached) {
       setMaskedUrl(cached)
@@ -85,7 +94,7 @@ export function useMaskedFrame(
         return
       }
       try {
-        const url = maskFrameWhite(image, center, radius, whiteCutoff)
+        const url = maskFrameWhite(image, center, radiusX, radiusY, whiteCutoff, offwhiteBoost)
         maskedCache.set(cacheKey, url)
         setMaskedUrl(url)
       } catch {
@@ -123,7 +132,7 @@ export function useMaskedFrame(
       cancelled = true
       clearObjectUrl()
     }
-  }, [enabled, frameUrl, center, radius, whiteCutoff])
+  }, [enabled, frameUrl, center, radiusX, radiusY, whiteCutoff, offwhiteBoost])
 
   return maskedUrl
 }

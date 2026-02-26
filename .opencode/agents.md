@@ -3,6 +3,29 @@ API runs at http://127.0.0.1:8000
 
 Always use the chrome-devtools MCP server.
 
+Startup checklist:
+- Run `python scripts/dev_servers.py status all` and start any stopped services.
+
+Local dev server control (PID + logs):
+- Start with dev tools enabled: `python scripts/dev_servers.py start api --dev-tools`
+- Start editor: `python scripts/dev_servers.py start editor`
+- Start MCP: `python scripts/dev_servers.py start mcp`
+- Start Chrome debugging (dedicated profile): `scripts/debug_chrome.sh`
+- If you use dev_servers for Chrome, ensure it launches the debug profile above.
+
+Editor dev auto-login (optional):
+- Create `editor/.env` with `VITE_DEV_AUTH_EMAIL` and `VITE_DEV_AUTH_PASSWORD`.
+- `editor/.env` is required for Vite; the project root `.env` is used by API/MCP.
+- Auto-login only triggers when no JWT is stored; click “Log out” once to switch users.
+- The editor will attempt a dev-only login (or register on 401) when no JWT is present.
+- Status: `python scripts/dev_servers.py status all`
+- Tail logs: `python scripts/dev_servers.py tail api --lines 200 --follow`
+
+Dev MCP server:
+- Name: `zodiac-tools`
+- Requires `ZODIAC_DEV_TOOLS=1` on the API server
+- Local-only; exposes chart/layout/mask testing tools
+
 Debugging workflow:
 
 1. Select the Chrome page whose URL contains localhost:5173

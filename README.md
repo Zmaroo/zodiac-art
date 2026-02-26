@@ -226,6 +226,76 @@ FastAPI backend for chart creation, rendering, and per-chart layout storage.
 python -m zodiac_art.api.app
 ```
 
+## Dev Tools MCP (Local)
+
+These endpoints and the MCP server are dev-only and require `ZODIAC_DEV_TOOLS=1`.
+
+Start API with dev tools enabled:
+
+```bash
+ZODIAC_DEV_TOOLS=1 python -m zodiac_art.api.app
+```
+
+Start the editor (Vite):
+
+```bash
+cd editor
+npm install
+npm run dev
+```
+
+Start Chrome with remote debugging:
+
+```bash
+open -a "Google Chrome" --args --remote-debugging-port=9222
+```
+
+Start the MCP server:
+
+```bash
+python -m zodiac_art.mcp.server
+```
+
+MCP auth can be provided via `.env` (copy from `.env.example`):
+
+```bash
+cp .env.example .env
+```
+
+Verify MCP tools are registered:
+
+```bash
+opencode mcp list
+```
+
+### Dev Server Control (Local)
+
+Use `scripts/dev_servers.py` to start/stop/restart dev services. PID files are stored in
+`.opencode/pids/` and logs in `.opencode/logs/`.
+
+```bash
+python scripts/dev_servers.py start api --dev-tools
+python scripts/dev_servers.py start editor
+python scripts/dev_servers.py start chrome
+python scripts/dev_servers.py start mcp
+```
+
+Stop everything:
+
+```bash
+python scripts/dev_servers.py stop all
+python scripts/dev_servers.py status all
+python scripts/dev_servers.py tail api --lines 200 --follow
+```
+
+Available zodiac-tools MCP actions include:
+
+- `list_frames`, `list_charts`, `get_chart`, `get_frame`, `create_chart`, `create_chart_with_frame`
+- `seed_test_chart`, `duplicate_chart`
+- `get_layout`, `update_layout`, `reset_layout`, `reset_chart_layout`, `clear_chart_layout`, `delete_chart`
+- `set_chart_fit`, `nudge_chart_fit`
+- `set_frame_mask`, `nudge_frame_mask`
+
 Manual test examples: `docs/api.md`
 
 Frame library details: `docs/frames.md`

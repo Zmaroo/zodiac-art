@@ -17,6 +17,8 @@ type UseEditorDocParams = {
   design: DesignSettings
   frameCircle: FrameCircle | null
   chartOccluders: ChartOccluder[]
+  frameMaskCutoff: number
+  frameMaskOffwhiteBoost: number
   clientVersion: number
   serverVersion: number
   lastSavedAt: number | null
@@ -33,6 +35,8 @@ export function useEditorDoc(params: UseEditorDocParams): EditorDoc {
     design,
     frameCircle,
     chartOccluders,
+    frameMaskCutoff,
+    frameMaskOffwhiteBoost,
     clientVersion,
     serverVersion,
     lastSavedAt,
@@ -48,6 +52,8 @@ export function useEditorDoc(params: UseEditorDocParams): EditorDoc {
       design,
       frame_circle: frameCircle,
       chart_occluders: chartOccluders,
+      frame_mask_cutoff: frameMaskCutoff,
+      frame_mask_offwhite_boost: frameMaskOffwhiteBoost,
       client_version: clientVersion,
       server_version: serverVersion,
       last_saved_at: lastSavedAt,
@@ -60,6 +66,8 @@ export function useEditorDoc(params: UseEditorDocParams): EditorDoc {
       clientVersion,
       design,
       frameCircle,
+      frameMaskCutoff,
+      frameMaskOffwhiteBoost,
       isChartOnly,
       lastSavedAt,
       lastSyncedAt,

@@ -10,10 +10,12 @@ function DebugSection({ showFrameCircle, onShowFrameCircleChange, debugItems }: 
   const items = debugItems.filter((item) => item.value)
   return (
     <CollapsibleSection title="Debug" initialOpen={false} persistKey="debug">
-      <label className="field checkbox">
+      <label className="field checkbox" htmlFor="debug-show-frame-circle">
         <span>Show frame circle</span>
         <input
           type="checkbox"
+          id="debug-show-frame-circle"
+          name="debug-show-frame-circle"
           checked={showFrameCircle}
           onChange={(event) => onShowFrameCircleChange(event.target.checked)}
         />

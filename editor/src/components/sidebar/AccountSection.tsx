@@ -35,18 +35,22 @@ function AccountSection({
         </div>
       ) : (
         <>
-          <label className="field">
+          <label className="field" htmlFor="auth-email">
             Email
             <input
               type="email"
+              id="auth-email"
+              name="auth-email"
               value={authEmail}
               onChange={(event) => onAuthEmailChange(event.target.value)}
             />
           </label>
-          <label className="field">
+          <label className="field" htmlFor="auth-password">
             Password
             <input
               type="password"
+              id="auth-password"
+              name="auth-password"
               value={authPassword}
               onChange={(event) => onAuthPasswordChange(event.target.value)}
             />

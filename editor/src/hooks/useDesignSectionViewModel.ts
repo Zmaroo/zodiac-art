@@ -1,7 +1,6 @@
 import type {
   ActiveSelectionLayer,
   ChartFit,
-  ChartOccluder,
   DesignSettings,
   LayerOrderKey,
 } from '../types'
@@ -32,15 +31,6 @@ type UseDesignSectionViewModelParams = {
   onSignGlyphScaleChange: (value: number) => void
   onPlanetGlyphScaleChange: (value: number) => void
   onInnerRingScaleChange: (value: number) => void
-  occluders: ChartOccluder[]
-  selectedOccluderId: string
-  onSelectOccluder: (id: string) => void
-  onAddOccluderEllipse: () => void
-  onAddOccluderRect: () => void
-  onDeleteOccluder: (id: string) => void
-  onUpdateOccluder: (id: string, next: ChartOccluder) => void
-  onSnapOccluderToChart: () => void
-  canSnapOccluderToChart: boolean
   selectedElement: string
   selectableGroups: { label: string; items: { id: string; label: string }[] }[]
   onSelectedElementChange: (value: string) => void
@@ -61,6 +51,16 @@ type UseDesignSectionViewModelParams = {
   onRadialMoveEnabledChange: (value: boolean) => void
   frameMaskCutoff: number
   onFrameMaskCutoffChange: (value: number) => void
+  frameMaskOffwhiteBoost: number
+  onFrameMaskOffwhiteBoostChange: (value: number) => void
+  frameMaskEnabled: boolean
+  onFrameMaskEnabledChange: (value: boolean) => void
+  frameMaskGuideVisible: boolean
+  onFrameMaskGuideVisibleChange: (value: boolean) => void
+  frameMaskLockAspect: boolean
+  onFrameMaskLockAspectChange: (value: boolean) => void
+  onSnapFrameMask: () => void
+  onClearFrameMask: () => void
 }
 
 export function useDesignSectionViewModel(
@@ -99,23 +99,10 @@ export function useDesignSectionViewModel(
       onPlanetGlyphScaleChange: params.onPlanetGlyphScaleChange,
       onInnerRingScaleChange: params.onInnerRingScaleChange,
     },
-    occluders: {
-      items: params.occluders,
-      selectedId: params.selectedOccluderId,
-      onSelect: params.onSelectOccluder,
-      onAddEllipse: params.onAddOccluderEllipse,
-      onAddRect: params.onAddOccluderRect,
-      onDelete: params.onDeleteOccluder,
-      onUpdate: params.onUpdateOccluder,
-      onSnapToChart: params.onSnapOccluderToChart,
-      canSnap: params.canSnapOccluderToChart,
-    },
     selection: {
       selectedElement: params.selectedElement,
       selectableGroups: params.selectableGroups,
       onSelectedElementChange: params.onSelectedElementChange,
-      activeSelectionLayer: params.activeSelectionLayer,
-      onActiveSelectionLayerChange: params.onActiveSelectionLayerChange,
       selectionColor: params.selectionColor,
       selectionColorMixed: params.selectionColorMixed,
       selectionEnabled: params.selectionEnabled,
@@ -131,6 +118,18 @@ export function useDesignSectionViewModel(
       onRadialMoveEnabledChange: params.onRadialMoveEnabledChange,
       frameMaskCutoff: params.frameMaskCutoff,
       onFrameMaskCutoffChange: params.onFrameMaskCutoffChange,
+      frameMaskOffwhiteBoost: params.frameMaskOffwhiteBoost,
+      onFrameMaskOffwhiteBoostChange: params.onFrameMaskOffwhiteBoostChange,
+      frameMaskEnabled: params.frameMaskEnabled,
+      onFrameMaskEnabledChange: params.onFrameMaskEnabledChange,
+      activeSelectionLayer: params.activeSelectionLayer,
+      onActiveSelectionLayerChange: params.onActiveSelectionLayerChange,
+      frameMaskGuideVisible: params.frameMaskGuideVisible,
+      onFrameMaskGuideVisibleChange: params.onFrameMaskGuideVisibleChange,
+      frameMaskLockAspect: params.frameMaskLockAspect,
+      onFrameMaskLockAspectChange: params.onFrameMaskLockAspectChange,
+      onSnapFrameMask: params.onSnapFrameMask,
+      onClearFrameMask: params.onClearFrameMask,
     },
   }
 }

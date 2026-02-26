@@ -2,15 +2,17 @@
 
 This document is for automated coding agents working in this repo.
 Keep changes small, focused, and aligned with existing conventions.
+
 ## Quick Facts
 - Primary language: Python 3.11 (conda env in `environment.yml`).
-- Linting: ruff (line length 100, exclude `output/` and `storage/`).
-- Tests: pytest (default `-ra`, tests in `tests/`, `pythonpath` includes repo root).
+- Linting/formatting: ruff (line length 100; excludes `output/` and `storage/`).
+- Tests: pytest (defaults include `-ra`; tests in `tests/`).
 - CLI entry point: `zodiac_art/main.py` (runs an example when no args).
 - API entry point: `zodiac_art/api/app.py` (FastAPI).
-- Config defaults: `zodiac_art/config.py` with env overrides.
-- Ephemeral chart sessions use Redis when `REDIS_URL` is set.
+- Config defaults in `zodiac_art/config.py`, with env overrides.
 - Frames live in `frames/`; outputs written to `output/`.
+- Optional Redis sessions when `REDIS_URL` is set.
+
 ## Repo Layout
 - `zodiac_art/`: package source.
 - `zodiac_art/api/`: API entry and routes.
@@ -19,7 +21,10 @@ Keep changes small, focused, and aligned with existing conventions.
 - `frames/`: frame metadata (`.json`) and art (`.png`).
 - `output/`: generated SVG/PNG artifacts.
 - `environment.yml`: conda environment definition.
+
 ## Build / Run / Test Commands
+No separate build step; create the env and run Python entry points.
+
 ### Environment Setup
 ```bash
 conda activate base
@@ -55,13 +60,24 @@ python -m zodiac_art.main \
 python -m zodiac_art.api.app
 ```
 
+### Dev Server Control
+Helper script starts/stops API/editor/MCP/Chrome with PID files.
+Logs are written to `.opencode/logs/`.
+```bash
+python scripts/dev_servers.py start api --dev-tools
+python scripts/dev_servers.py start editor
+python scripts/dev_servers.py start chrome
+python scripts/dev_servers.py start mcp
+python scripts/dev_servers.py stop all
+python scripts/dev_servers.py status all
+python scripts/dev_servers.py tail api --lines 200 --follow
+```
+
 ### Lint and Format
 ```bash
 ruff check .
 ruff format .
 ```
-
-Lint rules are limited to `E`, `F`, and `I` (errors, pyflakes, isort).
 
 Optional autofix:
 ```bash
@@ -78,13 +94,15 @@ Use pytest node IDs, file paths, or `-k`:
 ```bash
 pytest tests/test_config.py::test_build_database_url_from_pg_env
 pytest tests/test_session_storage.py::test_session_round_trip
+pytest tests/test_session_storage.py::TestSessionStorage::test_round_trip
 pytest tests/test_session_storage.py -k round_trip
 pytest -k "session and round_trip" -vv
 ```
 
 ## Code Style Guidelines
+
 ### Imports
-- Use absolute imports within the package, e.g. `from zodiac_art.utils...`.
+- Use absolute imports within the package (e.g., `from zodiac_art.utils...`).
 - Standard library imports first, then third-party, then local modules.
 - Keep import groups separated by a single blank line.
 - Avoid unused imports; use local imports only to avoid heavy deps.
@@ -96,10 +114,6 @@ pytest -k "session and round_trip" -vv
 - Use double quotes for user-facing messages and f-strings.
 - Keep docstrings concise and one-line when possible.
 - Avoid reformatting unrelated code.
-
-### Testing
-- Pytest defaults to `-ra`; keep new tests compatible with that output.
-- Tests live in `tests/` and import from the repo root via `pythonpath`.
 
 ### Typing
 - Use `from __future__ import annotations` in modules.
@@ -122,6 +136,11 @@ pytest -k "session and round_trip" -vv
 - Let exceptions propagate to `main`, which prints a single-line error.
 - Prefer clear, user-facing error text for CLI usage.
 - Avoid swallowing exceptions unless retrying or adding context.
+
+### Testing
+- Pytest defaults to `-ra`; keep new tests compatible with that output.
+- Tests live in `tests/` and import from the repo root via `pythonpath`.
+- Prefer focused unit tests; keep fixtures minimal and readable.
 
 ### Data and Paths
 - Use `pathlib.Path` for filesystem paths.

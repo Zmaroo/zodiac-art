@@ -56,11 +56,19 @@ export type FrameCircle = {
   cxNorm: number
   cyNorm: number
   rNorm: number
+  rxNorm?: number
+  ryNorm?: number
 }
 
 export type LayerOrderKey = 'background' | 'frame' | 'chart' | 'chart_background_image'
 
-export type ActiveSelectionLayer = 'auto' | 'chart' | 'background' | 'background_image' | 'occluder'
+export type ActiveSelectionLayer =
+  | 'auto'
+  | 'chart'
+  | 'background'
+  | 'background_image'
+  | 'occluder'
+  | 'frame_mask'
 
 export type DesignSettings = {
   layer_order: LayerOrderKey[]
@@ -110,6 +118,8 @@ export type EditorDraft = {
   design: DesignSettings
   frame_circle: FrameCircle | null
   chart_occluders: ChartOccluder[]
+  frame_mask_cutoff: number
+  frame_mask_offwhite_boost: number
   client_version: number
   server_version: number
   last_saved_at: number | null
@@ -125,6 +135,8 @@ export type EditorDoc = {
   design: DesignSettings
   frame_circle: FrameCircle | null
   chart_occluders: ChartOccluder[]
+  frame_mask_cutoff: number
+  frame_mask_offwhite_boost: number
   client_version: number
   server_version: number
   last_saved_at: number | null
@@ -137,27 +149,48 @@ export type LayoutFile = {
   design?: Partial<DesignSettings>
   chart_fit?: Partial<ChartFit>
   chart_occluders?: ChartOccluder[]
+  frame_mask_cutoff?: number
+  frame_mask_offwhite_boost?: number
 }
 
-export type DragState = {
-  mode:
-    | 'chart-move'
-    | 'chart-scale'
-    | 'chart-rotate'
-    | 'label'
-    | 'background-image-move'
-    | 'background-image-scale'
-    | 'occluder-move'
-    | 'occluder-resize'
+type DragStateBase = {
   startPoint: { x: number; y: number }
   startFit: ChartFit
-  labelId?: string
-  startOffset?: Offset
-  labelTheta?: number
-  backgroundImage?: { scale: number; dx: number; dy: number }
-  occluderId?: string
-  occluderStart?: ChartOccluder
-  occluderHandle?: string
 }
+
+export type DragState =
+  | (DragStateBase & {
+      mode: 'chart-move' | 'chart-scale' | 'chart-rotate'
+    })
+  | (DragStateBase & {
+      mode: 'label'
+      labelId: string
+      startOffset: Offset
+      labelTheta?: number
+    })
+  | (DragStateBase & {
+      mode: 'background-image-move' | 'background-image-scale'
+      backgroundImage: { scale: number; dx: number; dy: number }
+    })
+  | (DragStateBase & {
+      mode: 'occluder-move'
+      occluderId: string
+      occluderStart: ChartOccluder
+    })
+  | (DragStateBase & {
+      mode: 'occluder-resize'
+      occluderId: string
+      occluderStart: ChartOccluder
+      occluderHandle: string
+    })
+  | (DragStateBase & {
+      mode: 'frame-mask-move'
+      frameMaskStart: { cx: number; cy: number; rx: number; ry: number }
+    })
+  | (DragStateBase & {
+      mode: 'frame-mask-resize'
+      frameMaskStart: { cx: number; cy: number; rx: number; ry: number }
+      frameMaskHandle: string
+    })
 
 export type User = { id: string; email: string; is_admin?: boolean }

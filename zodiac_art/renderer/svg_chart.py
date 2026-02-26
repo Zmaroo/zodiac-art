@@ -68,7 +68,8 @@ class FrameCircle:
 
     cx: float
     cy: float
-    r: float
+    rx: float
+    ry: float
 
 
 class SvgChartRenderer:
@@ -150,7 +151,11 @@ class SvgChartRenderer:
         if frame_circle:
             clip_id = "frameClip"
             clip = dwg.clipPath(id=clip_id, clipPathUnits="userSpaceOnUse")
-            clip.add(dwg.circle(center=(frame_circle.cx, frame_circle.cy), r=frame_circle.r))
+            clip.add(
+                dwg.ellipse(
+                    center=(frame_circle.cx, frame_circle.cy), r=(frame_circle.rx, frame_circle.ry)
+                )
+            )
             dwg.defs.add(clip)
             chart_group.update({"clip-path": f"url(#{clip_id})"})
 

@@ -9,14 +9,18 @@ import type {
   Offset,
 } from '../types'
 import type { EditorAction } from '../state/editorReducer'
+import { deleteDraft } from '../utils/drafts'
 
 type LayoutResult = {
   fit: ChartFit
   overrides: Record<string, Offset>
   frameCircle: FrameCircle | null
+  frameCircleExplicit: boolean
   design: DesignSettings
   userAdjustedFit: boolean
   occluders: ChartOccluder[]
+  frameMaskCutoff?: number
+  frameMaskOffwhiteBoost?: number
 }
 
 type UseEditorLayoutParams = {
@@ -25,6 +29,10 @@ type UseEditorLayoutParams = {
   draftAppliedRef: MutableRefObject<boolean>
   dispatch: (action: EditorAction) => void
   setFrameCircle: (circle: FrameCircle | null) => void
+  setFrameCircleFromUser: (circle: FrameCircle | null) => void
+  frameMaskEnabled: boolean
+  setFrameMaskCutoff: (value: number) => void
+  setFrameMaskOffwhiteBoost: (value: number) => void
 }
 
 type UseEditorLayoutResult = {
@@ -32,7 +40,17 @@ type UseEditorLayoutResult = {
 }
 
 export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutResult {
-  const { draftKey, draftState, draftAppliedRef, dispatch, setFrameCircle } = params
+  const {
+    draftKey,
+    draftState,
+    draftAppliedRef,
+    dispatch,
+    setFrameCircle,
+    setFrameCircleFromUser,
+    frameMaskEnabled,
+    setFrameMaskCutoff,
+    setFrameMaskOffwhiteBoost,
+  } = params
   const layoutAppliedRef = useRef(false)
 
   useEffect(() => {
@@ -43,22 +61,41 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
     const draftIsNewer =
       draftState && draftState.key === draftKey && draftState.client_version > draftState.server_version
     if (draftIsNewer) {
-      if (!draftAppliedRef.current) {
-        dispatch({
-          type: 'APPLY_DRAFT',
-          fit: draftState.chart_fit,
-          overrides: draftState.overrides,
-          design: draftState.design,
-          frameCircle: draftState.frame_circle,
-          occluders: draftState.chart_occluders ?? [],
-          clientVersion: draftState.client_version,
-          serverVersion: draftState.server_version,
-          lastSavedAt: draftState.last_saved_at,
-          lastSyncedAt: draftState.last_synced_at,
-        })
-        draftAppliedRef.current = true
+      if (draftAppliedRef.current) {
+        return
       }
-      setFrameCircle(draftState.frame_circle ?? result.frameCircle)
+      const restoreDraft = window.confirm(
+        'Unsaved local changes were found for this chart. Restore them?'
+      )
+      if (!restoreDraft) {
+        draftAppliedRef.current = true
+        deleteDraft(draftKey).catch(() => undefined)
+        return
+      }
+      dispatch({
+        type: 'APPLY_DRAFT',
+        fit: draftState.chart_fit,
+        overrides: draftState.overrides,
+        design: draftState.design,
+        frameCircle: draftState.frame_circle,
+        occluders: draftState.chart_occluders ?? [],
+        clientVersion: draftState.client_version,
+        serverVersion: draftState.server_version,
+        lastSavedAt: draftState.last_saved_at,
+        lastSyncedAt: draftState.last_synced_at,
+      })
+      draftAppliedRef.current = true
+      if (draftState.frame_circle === null) {
+        setFrameCircleFromUser(null)
+      } else {
+        setFrameCircle(draftState.frame_circle ?? result.frameCircle)
+      }
+      if (typeof draftState.frame_mask_cutoff === 'number') {
+        setFrameMaskCutoff(draftState.frame_mask_cutoff)
+      }
+      if (typeof draftState.frame_mask_offwhite_boost === 'number') {
+        setFrameMaskOffwhiteBoost(draftState.frame_mask_offwhite_boost)
+      }
       return
     }
     if (layoutAppliedRef.current) {
@@ -73,7 +110,21 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
       userAdjustedFit: result.userAdjustedFit,
       occluders: result.occluders,
     })
-    setFrameCircle(result.frameCircle)
+    if (result.frameCircleExplicit && result.frameCircle === null) {
+      if (frameMaskEnabled) {
+        setFrameCircle(null)
+        return
+      }
+      setFrameCircleFromUser(null)
+    } else {
+      setFrameCircle(result.frameCircle)
+    }
+    if (typeof result.frameMaskCutoff === 'number') {
+      setFrameMaskCutoff(result.frameMaskCutoff)
+    }
+    if (typeof result.frameMaskOffwhiteBoost === 'number') {
+      setFrameMaskOffwhiteBoost(result.frameMaskOffwhiteBoost)
+    }
   }
 
   return { handleLayoutLoaded }

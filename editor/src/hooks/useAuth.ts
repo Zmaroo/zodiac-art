@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from '../types'
 import { apiFetch, readApiError } from '../api/client'
 
@@ -33,6 +33,9 @@ export function useAuth(defaultApiBase: string): UseAuthResult {
   )
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const devLoginAttemptedRef = useRef(false)
+  const devAuthEmail = import.meta.env.VITE_DEV_AUTH_EMAIL as string | undefined
+  const devAuthPassword = import.meta.env.VITE_DEV_AUTH_PASSWORD as string | undefined
 
   useEffect(() => {
     localStorage.setItem('zodiac_editor.apiBaseUrl', apiBase)
@@ -65,6 +68,59 @@ export function useAuth(defaultApiBase: string): UseAuthResult {
       refreshUser().catch(() => undefined)
     })
   }, [refreshUser])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+    if (jwt || devLoginAttemptedRef.current) {
+      return
+    }
+    if (!devAuthEmail || !devAuthPassword) {
+      return
+    }
+    devLoginAttemptedRef.current = true
+    const run = async () => {
+      try {
+        const response = await fetch(`${apiBase}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: devAuthEmail, password: devAuthPassword }),
+        })
+        if (response.ok) {
+          const data = (await response.json()) as {
+            token: string
+            user: { id: string; email: string; is_admin?: boolean }
+          }
+          setJwt(data.token)
+          setUser(data.user)
+          setAuthEmail(devAuthEmail)
+          return
+        }
+        if (response.status !== 401) {
+          return
+        }
+        const registerResponse = await fetch(`${apiBase}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: devAuthEmail, password: devAuthPassword }),
+        })
+        if (!registerResponse.ok) {
+          return
+        }
+        const data = (await registerResponse.json()) as {
+          token: string
+          user: { id: string; email: string; is_admin?: boolean }
+        }
+        setJwt(data.token)
+        setUser(data.user)
+        setAuthEmail(devAuthEmail)
+      } catch {
+        return
+      }
+    }
+    run().catch(() => undefined)
+  }, [apiBase, devAuthEmail, devAuthPassword, jwt])
 
   const login = async () => {
     setError('')

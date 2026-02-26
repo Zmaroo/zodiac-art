@@ -482,17 +482,36 @@ def _frame_circle_from_layout(
     cx_norm = raw.get("cxNorm")
     cy_norm = raw.get("cyNorm")
     r_norm = raw.get("rNorm")
+    rx_norm = raw.get("rxNorm")
+    ry_norm = raw.get("ryNorm")
     if not isinstance(cx_norm, (int, float)):
         return None
     if not isinstance(cy_norm, (int, float)):
         return None
-    if not isinstance(r_norm, (int, float)):
+    if r_norm is not None and not isinstance(r_norm, (int, float)):
         return None
+    if rx_norm is not None and not isinstance(rx_norm, (int, float)):
+        return None
+    if ry_norm is not None and not isinstance(ry_norm, (int, float)):
+        return None
+    if r_norm is None and (rx_norm is None or ry_norm is None):
+        return None
+    r_value = float(r_norm) if r_norm is not None else None
+    rx_value = float(rx_norm) if rx_norm is not None else None
+    ry_value = float(ry_norm) if ry_norm is not None else None
+    if r_value is None:
+        assert rx_value is not None and ry_value is not None
+        r_value = min(rx_value, ry_value)
+    if rx_value is None:
+        rx_value = r_value
+    if ry_value is None:
+        ry_value = r_value
     width, height = image_size
     return FrameCircle(
         cx=cx_norm * width,
         cy=cy_norm * height,
-        r=r_norm * width,
+        rx=rx_value * width,
+        ry=ry_value * height,
     )
 
 

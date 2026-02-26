@@ -176,17 +176,55 @@ def validate_layout_payload(payload: dict) -> dict:
         if not isinstance(frame_circle, dict):
             raise HTTPException(status_code=400, detail="frame_circle must be an object")
         normalized_circle = {}
-        for key in ("cxNorm", "cyNorm", "rNorm"):
+        for key in ("cxNorm", "cyNorm"):
             value = frame_circle.get(key)
             if not isinstance(value, (int, float)):
                 raise HTTPException(status_code=400, detail="frame_circle values must be numbers")
             normalized_circle[key] = float(value)
+        r_norm = frame_circle.get("rNorm")
+        rx_norm = frame_circle.get("rxNorm")
+        ry_norm = frame_circle.get("ryNorm")
+        if r_norm is not None and not isinstance(r_norm, (int, float)):
+            raise HTTPException(status_code=400, detail="frame_circle values must be numbers")
+        if rx_norm is not None and not isinstance(rx_norm, (int, float)):
+            raise HTTPException(status_code=400, detail="frame_circle values must be numbers")
+        if ry_norm is not None and not isinstance(ry_norm, (int, float)):
+            raise HTTPException(status_code=400, detail="frame_circle values must be numbers")
+        r_value = float(r_norm) if r_norm is not None else None
+        rx_value = float(rx_norm) if rx_norm is not None else None
+        ry_value = float(ry_norm) if ry_norm is not None else None
+        if r_value is None and (rx_value is None or ry_value is None):
+            raise HTTPException(
+                status_code=400, detail="frame_circle must include rNorm or rxNorm/ryNorm"
+            )
+        if r_value is None:
+            assert rx_value is not None and ry_value is not None
+            r_value = min(rx_value, ry_value)
+        if rx_value is None:
+            rx_value = r_value
+        if ry_value is None:
+            ry_value = r_value
+        normalized_circle["rNorm"] = r_value
+        normalized_circle["rxNorm"] = rx_value
+        normalized_circle["ryNorm"] = ry_value
     result = {"version": version, "overrides": normalized_overrides}
     chart_fit = payload.get("chart_fit")
     if chart_fit is not None:
         if not isinstance(chart_fit, dict):
             raise HTTPException(status_code=400, detail="chart_fit must be an object")
         result["chart_fit"] = validate_chart_fit_payload(chart_fit)
+    frame_mask_cutoff = payload.get("frame_mask_cutoff")
+    if frame_mask_cutoff is not None:
+        if not isinstance(frame_mask_cutoff, (int, float)):
+            raise HTTPException(status_code=400, detail="frame_mask_cutoff must be a number")
+        result["frame_mask_cutoff"] = float(frame_mask_cutoff)
+    frame_mask_offwhite_boost = payload.get("frame_mask_offwhite_boost")
+    if frame_mask_offwhite_boost is not None:
+        if not isinstance(frame_mask_offwhite_boost, (int, float)):
+            raise HTTPException(
+                status_code=400, detail="frame_mask_offwhite_boost must be a number"
+            )
+        result["frame_mask_offwhite_boost"] = float(frame_mask_offwhite_boost)
     design = normalize_design_settings(payload.get("design"))
     if design:
         result["design"] = design

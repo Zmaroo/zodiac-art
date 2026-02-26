@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { ChartFit, ChartMeta } from '../types'
+import { buildChartTransform } from '../utils/geometry'
 
 type UseChartTransformParams = {
   chartFit: ChartFit
@@ -16,14 +17,7 @@ export function useChartTransform(params: UseChartTransformParams) {
     if (!chartRootRef.current || !meta) {
       return
     }
-    const { x, y } = meta.chart.center
-    const transform = [
-      `translate(${chartFit.dx.toFixed(3)} ${chartFit.dy.toFixed(3)})`,
-      `translate(${x.toFixed(3)} ${y.toFixed(3)})`,
-      `rotate(${chartFit.rotation_deg.toFixed(3)})`,
-      `scale(${chartFit.scale.toFixed(6)})`,
-      `translate(${-x.toFixed(3)} ${-y.toFixed(3)})`,
-    ].join(' ')
+    const transform = buildChartTransform(chartFit, meta)
     chartRootRef.current.setAttribute('transform', transform)
     if (chartBackgroundRef?.current) {
       chartBackgroundRef.current.setAttribute('transform', transform)

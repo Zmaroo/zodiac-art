@@ -73,6 +73,7 @@ export type EditorAction =
   | { type: 'AUTO_FIT_APPLIED'; fit: ChartFit }
   | { type: 'RESET_USER_ADJUSTED' }
   | { type: 'SET_USER_ADJUSTED'; value: boolean }
+  | { type: 'BUMP_CLIENT_VERSION' }
 
 export function createInitialEditorState(defaultFit: ChartFit, defaultDesign: DesignSettings): EditorState {
   return {
@@ -269,6 +270,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         userAdjustedFit: action.value,
+      }
+    case 'BUMP_CLIENT_VERSION':
+      return {
+        ...state,
+        clientVersion: state.clientVersion + 1,
       }
     default:
       return state

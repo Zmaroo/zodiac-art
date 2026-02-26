@@ -125,7 +125,14 @@ export function useEditorSessionActions(
     setLongitude(-74.006)
     setChartId('')
     setChartName('')
-    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
+    dispatch({
+      type: 'LOAD_LAYOUT',
+      fit: defaultChartFit,
+      overrides: {},
+      design: defaultDesign,
+      userAdjustedFit: false,
+      occluders: [],
+    })
     setFrameCircle(null)
     setStatus('')
     setError('')
@@ -145,7 +152,14 @@ export function useEditorSessionActions(
     setLongitude(-74.006)
     setChartId('')
     setChartName('')
-    dispatch({ type: 'LOAD_LAYOUT', fit: defaultChartFit, overrides: {}, design: defaultDesign })
+    dispatch({
+      type: 'LOAD_LAYOUT',
+      fit: defaultChartFit,
+      overrides: {},
+      design: defaultDesign,
+      userAdjustedFit: false,
+      occluders: [],
+    })
     setFrameCircle(null)
     setStatus('')
     setError('')

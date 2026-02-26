@@ -1,5 +1,5 @@
 import { apiFetch, readApiError } from '../api/client'
-import { normalizeOverride, round } from '../utils/format'
+import { buildChartFitPayload, buildLayoutPayload } from '../utils/layout'
 import type { ChartFit, ChartMeta, ChartOccluder, DesignSettings, FrameCircle, Offset } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
@@ -15,6 +15,8 @@ type UseLayoutActionsParams = {
   design: DesignSettings
   frameCircle: FrameCircle | null
   chartOccluders: ChartOccluder[]
+  frameMaskCutoff: number
+  frameMaskOffwhiteBoost: number
   clientVersion: number
   setError: (value: string) => void
   setStatus: (value: string) => void
@@ -34,6 +36,8 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
     design,
     frameCircle,
     chartOccluders,
+    frameMaskCutoff,
+    frameMaskOffwhiteBoost,
     clientVersion,
     setError,
     setStatus,
@@ -52,22 +56,14 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
       return
     }
     if (isChartOnly) {
-      const chartFitPayload = {
-        dx: round(chartFit.dx),
-        dy: round(chartFit.dy),
-        scale: round(chartFit.scale),
-        rotation_deg: round(chartFit.rotation_deg),
-      }
-      const layoutPayload = {
-        overrides: Object.fromEntries(
-          Object.entries(overrides).map(([key, value]) => [
-            key,
-            normalizeOverride(value),
-          ])
-        ),
+      const chartFitPayload = buildChartFitPayload(chartFit)
+      const layoutPayload = buildLayoutPayload({
+        overrides,
         design,
-        chart_occluders: chartOccluders,
-      }
+        chartOccluders,
+        frameMaskCutoff,
+        frameMaskOffwhiteBoost,
+      })
       const fitResponse = await apiFetchWithAuth(`${apiBase}/api/charts/${chartId}/chart_fit`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -99,60 +95,41 @@ export function useLayoutActions(params: UseLayoutActionsParams) {
     if (!meta || !selectedId) {
       return
     }
-    const chartFitPayload = {
-      dx: round(chartFit.dx),
-      dy: round(chartFit.dy),
-      scale: round(chartFit.scale),
-      rotation_deg: round(chartFit.rotation_deg),
-    }
+    const chartFitPayload = buildChartFitPayload(chartFit)
     const metaPayload = {
       ...meta,
       chart_fit: chartFitPayload,
     }
-    const layoutPayload = {
-      overrides: Object.fromEntries(
-        Object.entries(overrides).map(([key, value]) => [
-          key,
-          normalizeOverride(value),
-        ])
-      ),
-      frame_circle: frameCircle ?? undefined,
+    const layoutPayload = buildLayoutPayload({
+      overrides,
+      frameCircle,
       design,
-      chart_fit: chartFitPayload,
-      chart_occluders: chartOccluders,
-    }
-    const metaResponse = await apiFetchWithAuth(
-      `${apiBase}/api/charts/${chartId}/frames/${selectedId}/metadata`,
+      chartFit,
+      chartOccluders,
+      frameMaskCutoff,
+      frameMaskOffwhiteBoost,
+    })
+    const documentResponse = await apiFetchWithAuth(
+      `${apiBase}/api/charts/${chartId}/frames/${selectedId}/document`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(metaPayload),
+        body: JSON.stringify({
+          layout: layoutPayload,
+          metadata: metaPayload,
+        }),
       }
     )
-    if (!metaResponse.ok) {
-      const detail = await readApiError(metaResponse)
-      setError(detail ?? 'Failed to save metadata.')
-      setStatus('')
-      return
-    }
-    const layoutResponse = await apiFetchWithAuth(
-      `${apiBase}/api/charts/${chartId}/frames/${selectedId}/layout`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(layoutPayload),
-      }
-    )
-    if (!layoutResponse.ok) {
-      const detail = await readApiError(layoutResponse)
-      setError(detail ?? 'Failed to save layout.')
+    if (!documentResponse.ok) {
+      const detail = await readApiError(documentResponse)
+      setError(detail ?? 'Failed to save editor document.')
       setStatus('')
       return
     }
     dispatch({ type: 'SET_SAVED_FIT', fit: chartFit })
     dispatch({ type: 'MARK_SYNCED', version: clientVersion, savedAt: Date.now() })
     setError('')
-    setStatus('Saved metadata and layout.')
+    setStatus('Saved editor document.')
   }
 
   return { saveAll }

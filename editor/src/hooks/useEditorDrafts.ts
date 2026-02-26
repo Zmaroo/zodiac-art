@@ -8,6 +8,8 @@ type UseEditorDraftsParams = {
   doc: EditorDoc
   dispatch: (action: EditorAction) => void
   setFrameCircle: (circle: FrameCircle | null) => void
+  setFrameMaskCutoff: (value: number) => void
+  setFrameMaskOffwhiteBoost: (value: number) => void
 }
 
 type UseEditorDraftsResult = {
@@ -19,15 +21,12 @@ type UseEditorDraftsResult = {
 }
 
 export function useEditorDrafts(params: UseEditorDraftsParams): UseEditorDraftsResult {
-  const {
-    doc,
-    dispatch,
-    setFrameCircle,
-  } = params
+  const { doc, dispatch, setFrameCircle, setFrameMaskCutoff, setFrameMaskOffwhiteBoost } = params
   const [draftStatus, setDraftStatus] = useState('')
   const [lastDraftAt, setLastDraftAt] = useState<number | null>(null)
   const [draftState, setDraftState] = useState<EditorDraft | null>(null)
   const draftAppliedRef = useRef(false)
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const draftKey = useMemo(() => {
     if (!doc.chart_id) {
@@ -90,8 +89,21 @@ export function useEditorDrafts(params: UseEditorDraftsParams): UseEditorDraftsR
     if (draftState.frame_circle) {
       setFrameCircle(draftState.frame_circle)
     }
+    if (typeof draftState.frame_mask_cutoff === 'number') {
+      setFrameMaskCutoff(draftState.frame_mask_cutoff)
+    }
+    if (typeof draftState.frame_mask_offwhite_boost === 'number') {
+      setFrameMaskOffwhiteBoost(draftState.frame_mask_offwhite_boost)
+    }
     draftAppliedRef.current = true
-  }, [dispatch, draftKey, draftState, setFrameCircle])
+  }, [
+    dispatch,
+    draftKey,
+    draftState,
+    setFrameCircle,
+    setFrameMaskCutoff,
+    setFrameMaskOffwhiteBoost,
+  ])
 
   useEffect(() => {
     if (!draftKey) {
@@ -107,24 +119,30 @@ export function useEditorDrafts(params: UseEditorDraftsParams): UseEditorDraftsR
       design: doc.design,
       frame_circle: doc.frame_circle,
       chart_occluders: doc.chart_occluders,
+      frame_mask_cutoff: doc.frame_mask_cutoff,
+      frame_mask_offwhite_boost: doc.frame_mask_offwhite_boost,
       client_version: doc.client_version,
       server_version: doc.server_version,
       last_saved_at: doc.last_saved_at,
       last_synced_at: doc.last_synced_at,
     }
-    const timeout = window.setTimeout(() => {
+    if (draftTimerRef.current) {
+      clearTimeout(draftTimerRef.current)
+    }
+    draftTimerRef.current = setTimeout(() => {
       setDraft(draftKey, payload)
         .then(() => {
           setLastDraftAt(Date.now())
           setDraftStatus('')
         })
         .catch(() => setDraftStatus('Draft save failed.'))
-    }, 500)
-    return () => window.clearTimeout(timeout)
-  }, [
-    doc,
-    draftKey,
-  ])
+    }, 350)
+    return () => {
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current)
+      }
+    }
+  }, [doc, draftKey])
 
   const draftInfo = lastDraftAt ? 'Draft saved locally' : ''
 

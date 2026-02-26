@@ -212,8 +212,11 @@ def compose_svg(
                     else ""
                 )
                 occluder_shapes.append(
-                    f"<rect x='{x_value:.3f}' y='{y_value:.3f}' "
-                    f"width='{width_value:.3f}' height='{height_value:.3f}' fill='black'{transform} />"
+                    (
+                        f"<rect x='{x_value:.3f}' y='{y_value:.3f}' "
+                        f"width='{width_value:.3f}' height='{height_value:.3f}' "
+                        f"fill='black'{transform} />"
+                    )
                 )
         if occluder_shapes:
             mask_markup = (

@@ -1,54 +1,96 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiFetch } from '../api/client'
-import { detectInnerCircleFromImage } from '../lib/frameCircleDetect'
-import { normalizeOverride } from '../utils/format'
-import type { FrameCircle, FrameDetail, Offset } from '../types'
+import { detectInnerCircleFromImage, detectMaskEllipseFromImage } from '../lib/frameCircleDetect'
+import type { FrameCircle, FrameDetail } from '../types'
 
 type UseFrameCircleParams = {
   apiBase: string
-  jwt: string
-  chartId: string
-  selectedId: string
-  isChartOnly: boolean
   selectedFrameDetail: FrameDetail | null
-  overrides: Record<string, Offset>
+  frameCircleLocked: boolean
 }
 
 type UseFrameCircleResult = {
   frameCircle: FrameCircle | null
   setFrameCircle: (circle: FrameCircle | null) => void
+  setFrameCircleFromUser: (circle: FrameCircle | null) => void
+  resetFrameCircleAuto: () => void
   error: string
   status: string
   clearStatus: () => void
+  snapFrameMask: (whiteCutoff: number, offwhiteBoost: number) => void
 }
 
 export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResult {
-  const { apiBase, jwt, chartId, selectedId, isChartOnly, selectedFrameDetail, overrides } = params
+  const {
+    apiBase,
+    selectedFrameDetail,
+    frameCircleLocked,
+  } = params
   const [frameCircle, setFrameCircle] = useState<FrameCircle | null>(null)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
-  const saveKeyRef = useRef<string>('')
-
-  const apiFetchWithAuth = useCallback(
-    (url: string, init: RequestInit = {}) => apiFetch(url, jwt, init),
-    [jwt]
-  )
+  const lastFrameIdRef = useRef<string>('')
+  const userChangeRef = useRef(false)
+  const userClearedRef = useRef(false)
 
   useEffect(() => {
-    if (!selectedFrameDetail) {
+    if (!frameCircleLocked) {
+      return
+    }
+    userClearedRef.current = true
+    userChangeRef.current = true
+    setFrameCircle(null)
+  }, [frameCircleLocked])
+
+  const setFrameCircleFromUser = useCallback((circle: FrameCircle | null) => {
+    userChangeRef.current = true
+    userClearedRef.current = circle === null
+    setFrameCircle(circle)
+  }, [])
+
+  const resetFrameCircleAuto = useCallback(() => {
+    userClearedRef.current = false
+    userChangeRef.current = false
+    setFrameCircle(null)
+  }, [])
+
+  useEffect(() => {
+    const frameId = selectedFrameDetail?.id ?? ''
+    if (frameId && frameId !== lastFrameIdRef.current) {
+      lastFrameIdRef.current = frameId
+      userChangeRef.current = false
+      userClearedRef.current = false
       queueMicrotask(() => {
         setFrameCircle(null)
       })
+      return
+    }
+    if (!selectedFrameDetail) {
+      userClearedRef.current = false
+      queueMicrotask(() => {
+        setFrameCircle(null)
+      })
+      return
+    }
+    if (frameCircleLocked) {
+      return
+    }
+    if (userClearedRef.current) {
+      return
+    }
+    if (frameCircle) {
       return
     }
     const meta = selectedFrameDetail.template_metadata_json
     if (meta?.canvas?.width && meta?.canvas?.height && meta?.chart?.ring_outer) {
       const cx = meta.chart.center?.x ?? meta.canvas.width / 2
       const cy = meta.chart.center?.y ?? meta.canvas.height / 2
+      const rNorm = meta.chart.ring_outer / meta.canvas.width
       const circle: FrameCircle = {
         cxNorm: cx / meta.canvas.width,
         cyNorm: cy / meta.canvas.height,
-        rNorm: meta.chart.ring_outer / meta.canvas.width,
+        rNorm,
+        rxNorm: rNorm,
+        ryNorm: meta.chart.ring_outer / meta.canvas.height,
       }
       queueMicrotask(() => {
         setFrameCircle(circle)
@@ -59,7 +101,7 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
     let cancelled = false
     detectInnerCircleFromImage(frameUrl)
       .then((circle) => {
-        if (!cancelled) {
+        if (!cancelled && !userClearedRef.current) {
           setFrameCircle(circle)
         }
       })
@@ -72,47 +114,41 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
     return () => {
       cancelled = true
     }
-  }, [apiBase, selectedFrameDetail])
+  }, [apiBase, frameCircle, selectedFrameDetail])
 
-  useEffect(() => {
-    if (!frameCircle || !selectedFrameDetail) {
-      return
-    }
-    if (!jwt || !chartId || !selectedId || isChartOnly) {
-      return
-    }
-    const key = `${selectedFrameDetail.id}:${frameCircle.cxNorm.toFixed(4)}:${frameCircle.cyNorm.toFixed(4)}:${frameCircle.rNorm.toFixed(4)}`
-    if (saveKeyRef.current === key) {
-      return
-    }
-    saveKeyRef.current = key
-    const layoutPayload = {
-      overrides: Object.fromEntries(
-        Object.entries(overrides).map(([entryKey, value]) => [
-          entryKey,
-          normalizeOverride(value),
-        ])
-      ),
-      frame_circle: frameCircle,
-    }
-    apiFetchWithAuth(`${apiBase}/api/charts/${chartId}/frames/${selectedId}/layout`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(layoutPayload),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          setError('Failed to save frame circle.')
-          return
-        }
-        setStatus('Frame circle saved.')
-      })
-      .catch((err) => setError(String(err)))
-  }, [apiBase, apiFetchWithAuth, chartId, frameCircle, isChartOnly, jwt, overrides, selectedFrameDetail, selectedId])
+  const snapFrameMask = useCallback(
+    (whiteCutoff: number, offwhiteBoost: number) => {
+      if (!selectedFrameDetail) {
+        return
+      }
+      const frameUrl = `${apiBase}${selectedFrameDetail.image_url}`
+      const centerOverride = frameCircle
+        ? { cxNorm: frameCircle.cxNorm, cyNorm: frameCircle.cyNorm }
+        : undefined
+      detectMaskEllipseFromImage(frameUrl, whiteCutoff, offwhiteBoost, centerOverride)
+        .then((circle) => {
+          userChangeRef.current = true
+          userClearedRef.current = false
+          setFrameCircle(circle)
+          setError('')
+        })
+        .catch((err) => setError(String(err)))
+    },
+    [apiBase, frameCircle, selectedFrameDetail]
+  )
 
   const clearStatus = () => {
     setStatus('')
   }
 
-  return { frameCircle, setFrameCircle, error, status, clearStatus }
+  return {
+    frameCircle,
+    setFrameCircle,
+    setFrameCircleFromUser,
+    resetFrameCircleAuto,
+    error,
+    status,
+    clearStatus,
+    snapFrameMask,
+  }
 }

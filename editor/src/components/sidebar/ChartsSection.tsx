@@ -22,6 +22,8 @@ function ChartsSection({
         <div className="hint">No charts yet.</div>
       ) : (
         <select
+          name="chart-select"
+          aria-label="Select chart"
           value={chartId}
           onChange={(event) => {
             if (event.target.value) {
@@ -38,10 +40,12 @@ function ChartsSection({
           ))}
         </select>
       )}
-      <label className="field">
+      <label className="field" htmlFor="chart-id">
         Chart ID
         <input
           type="text"
+          id="chart-id"
+          name="chart-id"
           value={chartId}
           onChange={(event) => onChartIdChange(event.target.value)}
           placeholder="Paste chart id"

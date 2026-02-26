@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -102,7 +101,7 @@ def _summarize_fit(fit: dict | None) -> str:
 
 
 def main() -> int:
-    base_url = _env("ZODIAC_API_BASE_URL", "http://127.0.0.1:8000")
+    base_url = _env("ZODIAC_API_BASE_URL", "http://127.0.0.1:8000") or "http://127.0.0.1:8000"
     token = _env("ZODIAC_API_TOKEN")
     if not token:
         email = _env("ZODIAC_API_EMAIL")
