@@ -1,8 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MutableRefObject } from 'react'
 import type {
   ChartFit,
-  ChartOccluder,
   DesignSettings,
   EditorDraft,
   FrameCircle,
@@ -18,7 +17,6 @@ type LayoutResult = {
   frameCircleExplicit: boolean
   design: DesignSettings
   userAdjustedFit: boolean
-  occluders: ChartOccluder[]
   frameMaskCutoff?: number
   frameMaskOffwhiteBoost?: number
 }
@@ -33,10 +31,16 @@ type UseEditorLayoutParams = {
   frameMaskEnabled: boolean
   setFrameMaskCutoff: (value: number) => void
   setFrameMaskOffwhiteBoost: (value: number) => void
+  onDraftFrameCircleApplied: (circle: FrameCircle | null) => void
 }
 
 type UseEditorLayoutResult = {
   handleLayoutLoaded: (result: LayoutResult) => void
+  draftPrompt: {
+    visible: boolean
+    onRestore: () => void
+    onDiscard: () => void
+  }
 }
 
 export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutResult {
@@ -50,54 +54,19 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
     frameMaskEnabled,
     setFrameMaskCutoff,
     setFrameMaskOffwhiteBoost,
+    onDraftFrameCircleApplied,
   } = params
   const layoutAppliedRef = useRef(false)
+  const layoutResultRef = useRef<LayoutResult | null>(null)
+  const [draftPromptVisible, setDraftPromptVisible] = useState(false)
 
   useEffect(() => {
     layoutAppliedRef.current = false
+    layoutResultRef.current = null
+    setDraftPromptVisible(false)
   }, [draftKey])
 
-  const handleLayoutLoaded = (result: LayoutResult) => {
-    const draftIsNewer =
-      draftState && draftState.key === draftKey && draftState.client_version > draftState.server_version
-    if (draftIsNewer) {
-      if (draftAppliedRef.current) {
-        return
-      }
-      const restoreDraft = window.confirm(
-        'Unsaved local changes were found for this chart. Restore them?'
-      )
-      if (!restoreDraft) {
-        draftAppliedRef.current = true
-        deleteDraft(draftKey).catch(() => undefined)
-        return
-      }
-      dispatch({
-        type: 'APPLY_DRAFT',
-        fit: draftState.chart_fit,
-        overrides: draftState.overrides,
-        design: draftState.design,
-        frameCircle: draftState.frame_circle,
-        occluders: draftState.chart_occluders ?? [],
-        clientVersion: draftState.client_version,
-        serverVersion: draftState.server_version,
-        lastSavedAt: draftState.last_saved_at,
-        lastSyncedAt: draftState.last_synced_at,
-      })
-      draftAppliedRef.current = true
-      if (draftState.frame_circle === null) {
-        setFrameCircleFromUser(null)
-      } else {
-        setFrameCircle(draftState.frame_circle ?? result.frameCircle)
-      }
-      if (typeof draftState.frame_mask_cutoff === 'number') {
-        setFrameMaskCutoff(draftState.frame_mask_cutoff)
-      }
-      if (typeof draftState.frame_mask_offwhite_boost === 'number') {
-        setFrameMaskOffwhiteBoost(draftState.frame_mask_offwhite_boost)
-      }
-      return
-    }
+  const applyLayoutResult = (result: LayoutResult) => {
     if (layoutAppliedRef.current) {
       return
     }
@@ -108,7 +77,6 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
       overrides: result.overrides,
       design: result.design,
       userAdjustedFit: result.userAdjustedFit,
-      occluders: result.occluders,
     })
     if (result.frameCircleExplicit && result.frameCircle === null) {
       if (frameMaskEnabled) {
@@ -125,7 +93,95 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
     if (typeof result.frameMaskOffwhiteBoost === 'number') {
       setFrameMaskOffwhiteBoost(result.frameMaskOffwhiteBoost)
     }
+    if ((result.frameMaskCutoff ?? 255) < 255 && result.frameCircle) {
+      dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'frame_mask' })
+    }
   }
 
-  return { handleLayoutLoaded }
+  const applyDraft = () => {
+    if (!draftState) {
+      return
+    }
+    const layoutResult = layoutResultRef.current
+    dispatch({
+      type: 'APPLY_DRAFT',
+      fit: draftState.chart_fit,
+      overrides: draftState.overrides,
+      design: draftState.design,
+      frameCircle: draftState.frame_circle,
+      clientVersion: draftState.client_version,
+      serverVersion: draftState.server_version,
+      lastSavedAt: draftState.last_saved_at,
+      lastSyncedAt: draftState.last_synced_at,
+    })
+    draftAppliedRef.current = true
+    onDraftFrameCircleApplied(draftState.frame_circle ?? null)
+    if (draftState.frame_circle === null) {
+      setFrameCircleFromUser(null)
+    } else {
+      setFrameCircleFromUser(draftState.frame_circle ?? layoutResult?.frameCircle ?? null)
+    }
+    if (typeof draftState.frame_mask_cutoff === 'number') {
+      setFrameMaskCutoff(draftState.frame_mask_cutoff)
+    }
+    if (typeof draftState.frame_mask_offwhite_boost === 'number') {
+      setFrameMaskOffwhiteBoost(draftState.frame_mask_offwhite_boost)
+    }
+    const shouldEditMask =
+      (draftState.frame_mask_cutoff ?? 255) < 255 && Boolean(draftState.frame_circle)
+    if (shouldEditMask) {
+      setFrameMaskCutoff(draftState.frame_mask_cutoff ?? 252)
+      setFrameMaskOffwhiteBoost(draftState.frame_mask_offwhite_boost ?? 20)
+    }
+    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: shouldEditMask ? 'frame_mask' : 'auto' })
+  }
+
+  const handleLayoutLoaded = (result: LayoutResult) => {
+    layoutResultRef.current = result
+    applyLayoutResult(result)
+    const draftIsNewer =
+      draftState && draftState.key === draftKey && draftState.client_version > draftState.server_version
+    if (draftIsNewer && !draftAppliedRef.current) {
+      setDraftPromptVisible(true)
+    }
+  }
+
+  useEffect(() => {
+    const draftIsNewer =
+      draftState && draftState.key === draftKey && draftState.client_version > draftState.server_version
+    if (!draftIsNewer || draftAppliedRef.current || draftPromptVisible) {
+      return
+    }
+    if (!layoutResultRef.current) {
+      return
+    }
+    setDraftPromptVisible(true)
+  }, [draftKey, draftPromptVisible, draftState])
+
+  useEffect(() => {
+    if (!draftPromptVisible) {
+      return
+    }
+    const draftIsNewer =
+      draftState && draftState.key === draftKey && draftState.client_version > draftState.server_version
+    if (!draftIsNewer) {
+      setDraftPromptVisible(false)
+    }
+  }, [draftKey, draftPromptVisible, draftState])
+
+  return {
+    handleLayoutLoaded,
+    draftPrompt: {
+      visible: draftPromptVisible,
+      onRestore: () => {
+        setDraftPromptVisible(false)
+        applyDraft()
+      },
+      onDiscard: () => {
+        setDraftPromptVisible(false)
+        draftAppliedRef.current = true
+        deleteDraft(draftKey).catch(() => undefined)
+      },
+    },
+  }
 }

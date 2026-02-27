@@ -37,7 +37,6 @@ export function useEditorResetEffects(params: UseEditorResetEffectsParams) {
         overrides: {},
         design: defaultDesign,
         userAdjustedFit: false,
-        occluders: [],
       })
       setFrameCircle(null)
     }

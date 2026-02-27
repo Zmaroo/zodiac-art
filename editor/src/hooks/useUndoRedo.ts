@@ -1,19 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChartFit, ChartOccluder, DesignSettings, Offset } from '../types'
+import type { ChartFit, DesignSettings, Offset } from '../types'
 import type { EditorAction } from '../state/editorReducer'
 
 type Snapshot = {
   chartFit: ChartFit
   overrides: Record<string, Offset>
   design: DesignSettings
-  occluders: ChartOccluder[]
 }
 
 type UseUndoRedoParams = {
   chartFit: ChartFit
   overrides: Record<string, Offset>
   design: DesignSettings
-  occluders: ChartOccluder[]
   dispatch: (action: EditorAction) => void
   limit?: number
   resetKey?: string
@@ -40,7 +38,6 @@ export function useUndoRedo({
   chartFit,
   overrides,
   design,
-  occluders,
   dispatch,
   limit = DEFAULT_LIMIT,
   resetKey = '',
@@ -51,10 +48,7 @@ export function useUndoRedo({
   const debounceRef = useRef<number | null>(null)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
-  const snapshot = useMemo(
-    () => ({ chartFit, overrides, design, occluders }),
-    [chartFit, overrides, design, occluders]
-  )
+  const snapshot = useMemo(() => ({ chartFit, overrides, design }), [chartFit, overrides, design])
   const snapshotRef = useRef<Snapshot>(cloneSnapshot(snapshot))
 
   useEffect(() => {

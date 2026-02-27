@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import type {
   ChartFit,
-  ChartOccluder,
   DesignSettings,
   EditorDoc,
   FrameCircle,
@@ -16,7 +15,6 @@ type UseEditorDocParams = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frameCircle: FrameCircle | null
-  chartOccluders: ChartOccluder[]
   frameMaskCutoff: number
   frameMaskOffwhiteBoost: number
   clientVersion: number
@@ -34,7 +32,6 @@ export function useEditorDoc(params: UseEditorDocParams): EditorDoc {
     overrides,
     design,
     frameCircle,
-    chartOccluders,
     frameMaskCutoff,
     frameMaskOffwhiteBoost,
     clientVersion,
@@ -51,7 +48,6 @@ export function useEditorDoc(params: UseEditorDocParams): EditorDoc {
       overrides,
       design,
       frame_circle: frameCircle,
-      chart_occluders: chartOccluders,
       frame_mask_cutoff: frameMaskCutoff,
       frame_mask_offwhite_boost: frameMaskOffwhiteBoost,
       client_version: clientVersion,
@@ -62,7 +58,6 @@ export function useEditorDoc(params: UseEditorDocParams): EditorDoc {
     [
       chartFit,
       chartId,
-      chartOccluders,
       clientVersion,
       design,
       frameCircle,

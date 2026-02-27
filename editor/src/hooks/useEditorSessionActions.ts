@@ -35,6 +35,10 @@ type UseEditorSessionActionsParams = {
   defaultDesign: DesignSettings
   dispatch: Dispatch<EditorAction>
   setFrameCircle: (value: FrameCircle | null) => void
+  setFrameMaskCutoff: (value: number) => void
+  setFrameMaskOffwhiteBoost: (value: number) => void
+  setFrameMaskGuideVisible: (value: boolean) => void
+  setFrameMaskLockAspect: (value: boolean) => void
   setStatus: (value: string) => void
   setError: (value: string) => void
 }
@@ -80,6 +84,10 @@ export function useEditorSessionActions(
     defaultDesign,
     dispatch,
     setFrameCircle,
+    setFrameMaskCutoff,
+    setFrameMaskOffwhiteBoost,
+    setFrameMaskGuideVisible,
+    setFrameMaskLockAspect,
     setStatus,
     setError,
   } = params
@@ -131,9 +139,13 @@ export function useEditorSessionActions(
       overrides: {},
       design: defaultDesign,
       userAdjustedFit: false,
-      occluders: [],
     })
     setFrameCircle(null)
+    setFrameMaskCutoff(255)
+    setFrameMaskOffwhiteBoost(20)
+    setFrameMaskGuideVisible(true)
+    setFrameMaskLockAspect(false)
+    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'auto' })
     setStatus('')
     setError('')
   }
@@ -158,9 +170,13 @@ export function useEditorSessionActions(
       overrides: {},
       design: defaultDesign,
       userAdjustedFit: false,
-      occluders: [],
     })
     setFrameCircle(null)
+    setFrameMaskCutoff(255)
+    setFrameMaskOffwhiteBoost(20)
+    setFrameMaskGuideVisible(true)
+    setFrameMaskLockAspect(false)
+    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'auto' })
     setStatus('')
     setError('')
   }

@@ -4,7 +4,6 @@ import type {
   ActiveSelectionLayer,
   ChartFit,
   ChartMeta,
-  ChartOccluder,
   DesignSettings,
   DragState,
   FrameCircle,
@@ -16,7 +15,6 @@ import { toNodePoint, toSvgPoint } from '../utils/geometry'
 
 type UseChartInteractionParams = {
   chartFit: ChartFit
-  chartOccluders: ChartOccluder[]
   overrides: Record<string, Offset>
   design: DesignSettings
   selectedElement: string
@@ -24,7 +22,7 @@ type UseChartInteractionParams = {
   updateDesign: (next: Partial<DesignSettings>) => void
   meta: ChartMeta | null
   frameCircle: FrameCircle | null
-  setFrameCircle: (circle: FrameCircle | null) => void
+  setFrameCircleFromUser: (circle: FrameCircle | null) => void
   frameMaskLockAspect: boolean
   svgRef: React.RefObject<SVGSVGElement | null>
   chartRootRef: React.RefObject<SVGGElement | null>
@@ -41,7 +39,6 @@ type UseChartInteractionResult = {
 export function useChartInteraction(params: UseChartInteractionParams): UseChartInteractionResult {
   const {
     chartFit,
-    chartOccluders,
     overrides,
     design,
     selectedElement,
@@ -49,7 +46,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     updateDesign,
     meta,
     frameCircle,
-    setFrameCircle,
+    setFrameCircleFromUser,
     frameMaskLockAspect,
     svgRef,
     chartRootRef,
@@ -60,11 +57,9 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
   const backgroundImageId = 'chart.background_image'
   const chartIsActive = activeSelectionLayer === 'chart'
   const backgroundImageIsActive = activeSelectionLayer === 'background_image'
-  const occluderIsActive = activeSelectionLayer === 'occluder'
   const frameMaskIsActive = activeSelectionLayer === 'frame_mask'
   const allowChartActions = activeSelectionLayer === 'auto' || chartIsActive
   const allowBackgroundImageActions = activeSelectionLayer === 'auto' || backgroundImageIsActive
-  const allowOccluderActions = activeSelectionLayer === 'auto' || occluderIsActive
   const allowFrameMaskActions = frameMaskIsActive
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
@@ -76,8 +71,6 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     const chartElement = target?.closest('#chartRoot') as Element | null
     const chartBackgroundElement = target?.closest('#chartBackgroundRoot') as Element | null
     const backgroundImageElement = target?.closest('#chartBackgroundImageRoot') as Element | null
-    const occluderHandle = target?.closest('[data-occluder-handle]') as Element | null
-    const occluderElement = target?.closest('[data-occluder-id]') as Element | null
     const maskHandle = target?.closest('[data-frame-mask-handle]') as Element | null
     const maskBody = target?.closest('[data-frame-mask-body]') as Element | null
 
@@ -112,44 +105,6 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
           startPoint: point,
           startFit: chartFit,
           frameMaskStart: start,
-        })
-        svgRef.current.setPointerCapture(event.pointerId)
-        return
-      }
-    }
-
-    if (occluderHandle && allowOccluderActions) {
-      const occluderId = occluderHandle.getAttribute('data-occluder-id') || ''
-      const handle = occluderHandle.getAttribute('data-occluder-handle') || ''
-      const occluder = chartOccluders.find((item) => item.id === occluderId)
-      if (occluder && handle) {
-        const point = toSvgPoint(event, svgRef.current)
-        dispatch({ type: 'SET_SELECTED_OCCLUDER', id: occluderId })
-        setDrag({
-          mode: 'occluder-resize',
-          startPoint: point,
-          startFit: chartFit,
-          occluderId,
-          occluderStart: occluder,
-          occluderHandle: handle,
-        })
-        svgRef.current.setPointerCapture(event.pointerId)
-        return
-      }
-    }
-
-    if (occluderElement && allowOccluderActions) {
-      const occluderId = occluderElement.getAttribute('data-occluder-id') || ''
-      const occluder = chartOccluders.find((item) => item.id === occluderId)
-      if (occluder) {
-        const point = toSvgPoint(event, svgRef.current)
-        dispatch({ type: 'SET_SELECTED_OCCLUDER', id: occluderId })
-        setDrag({
-          mode: 'occluder-move',
-          startPoint: point,
-          startFit: chartFit,
-          occluderId,
-          occluderStart: occluder,
         })
         svgRef.current.setPointerCapture(event.pointerId)
         return
@@ -244,7 +199,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       const nextCy = drag.frameMaskStart.cy + dy
       const rx = drag.frameMaskStart.rx
       const ry = drag.frameMaskStart.ry
-      setFrameCircle({
+      setFrameCircleFromUser({
         cxNorm: nextCx / meta.canvas.width,
         cyNorm: nextCy / meta.canvas.height,
         rxNorm: rx / meta.canvas.width,
@@ -288,7 +243,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       ry = Math.max(minSize, ry)
       const nextCx = drag.frameMaskStart.cx
       const nextCy = drag.frameMaskStart.cy
-      setFrameCircle({
+      setFrameCircleFromUser({
         cxNorm: nextCx / meta.canvas.width,
         cyNorm: nextCy / meta.canvas.height,
         rxNorm: rx / meta.canvas.width,
@@ -300,7 +255,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
 
     if (drag.mode === 'chart-move') {
       dispatch({
-        type: 'SET_CHART_FIT',
+        type: 'SET_CHART_FIT_PREVIEW',
         fit: {
           ...drag.startFit,
           dx: drag.startFit.dx + dx,
@@ -313,7 +268,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     if (drag.mode === 'chart-scale') {
       const nextScale = Math.max(0.1, drag.startFit.scale * (1 + dx / 300))
       dispatch({
-        type: 'SET_CHART_FIT',
+        type: 'SET_CHART_FIT_PREVIEW',
         fit: { ...drag.startFit, scale: nextScale },
         userAdjusted: true,
       })
@@ -321,7 +276,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     }
     if (drag.mode === 'chart-rotate') {
       dispatch({
-        type: 'SET_CHART_FIT',
+        type: 'SET_CHART_FIT_PREVIEW',
         fit: {
           ...drag.startFit,
           rotation_deg: drag.startFit.rotation_deg + dx,
@@ -357,85 +312,6 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
         background_image_dx: nextDx,
         background_image_dy: nextDy,
       })
-      return
-    }
-    if (drag.mode === 'occluder-move' && drag.occluderId && drag.occluderStart) {
-      const next = chartOccluders.map((item) => {
-        if (item.id !== drag.occluderId) {
-          return item
-        }
-        if (drag.occluderStart?.shape === 'ellipse') {
-          return {
-            ...drag.occluderStart,
-            cx: drag.occluderStart.cx + dx,
-            cy: drag.occluderStart.cy + dy,
-          }
-        }
-        return {
-          ...drag.occluderStart,
-          x: drag.occluderStart.x + dx,
-          y: drag.occluderStart.y + dy,
-        }
-      })
-      dispatch({ type: 'SET_OCCLUDERS', occluders: next })
-      return
-    }
-    if (drag.mode === 'occluder-resize' && drag.occluderId && drag.occluderStart && drag.occluderHandle) {
-      const minSize = 6
-      const next = chartOccluders.map((item) => {
-        if (item.id !== drag.occluderId) {
-          return item
-        }
-        if (drag.occluderStart.shape === 'ellipse') {
-          let rx = drag.occluderStart.rx
-          let ry = drag.occluderStart.ry
-          if (drag.occluderHandle === 'e') {
-            rx = drag.occluderStart.rx + dx
-          }
-          if (drag.occluderHandle === 'w') {
-            rx = drag.occluderStart.rx - dx
-          }
-          if (drag.occluderHandle === 's') {
-            ry = drag.occluderStart.ry + dy
-          }
-          if (drag.occluderHandle === 'n') {
-            ry = drag.occluderStart.ry - dy
-          }
-          return {
-            ...drag.occluderStart,
-            rx: Math.max(minSize, rx),
-            ry: Math.max(minSize, ry),
-          }
-        }
-        let x = drag.occluderStart.x
-        let y = drag.occluderStart.y
-        let width = drag.occluderStart.width
-        let height = drag.occluderStart.height
-        if (drag.occluderHandle.includes('e')) {
-          width = drag.occluderStart.width + dx
-        }
-        if (drag.occluderHandle.includes('s')) {
-          height = drag.occluderStart.height + dy
-        }
-        if (drag.occluderHandle.includes('w')) {
-          width = drag.occluderStart.width - dx
-          x = drag.occluderStart.x + dx
-        }
-        if (drag.occluderHandle.includes('n')) {
-          height = drag.occluderStart.height - dy
-          y = drag.occluderStart.y + dy
-        }
-        width = Math.max(minSize, width)
-        height = Math.max(minSize, height)
-        return {
-          ...drag.occluderStart,
-          x,
-          y,
-          width,
-          height,
-        }
-      })
-      dispatch({ type: 'SET_OCCLUDERS', occluders: next })
       return
     }
     if (drag.mode === 'label' && drag.labelId && drag.startOffset) {
@@ -482,6 +358,41 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     }
     if (svgRef.current.hasPointerCapture(event.pointerId)) {
       svgRef.current.releasePointerCapture(event.pointerId)
+    }
+    if (drag && (drag.mode === 'frame-mask-move' || drag.mode === 'frame-mask-resize')) {
+      dispatch({ type: 'BUMP_CLIENT_VERSION' })
+    }
+    if (drag && (drag.mode === 'chart-move' || drag.mode === 'chart-scale' || drag.mode === 'chart-rotate')) {
+      const point = toSvgPoint(event, svgRef.current)
+      const dx = point.x - drag.startPoint.x
+      const dy = point.y - drag.startPoint.y
+      if (drag.mode === 'chart-move') {
+        dispatch({
+          type: 'SET_CHART_FIT',
+          fit: {
+            ...drag.startFit,
+            dx: drag.startFit.dx + dx,
+            dy: drag.startFit.dy + dy,
+          },
+          userAdjusted: true,
+        })
+      } else if (drag.mode === 'chart-scale') {
+        const nextScale = Math.max(0.1, drag.startFit.scale * (1 + dx / 300))
+        dispatch({
+          type: 'SET_CHART_FIT',
+          fit: { ...drag.startFit, scale: nextScale },
+          userAdjusted: true,
+        })
+      } else {
+        dispatch({
+          type: 'SET_CHART_FIT',
+          fit: {
+            ...drag.startFit,
+            rotation_deg: drag.startFit.rotation_deg + dx,
+          },
+          userAdjusted: true,
+        })
+      }
     }
     setDrag(null)
   }

@@ -6,6 +6,7 @@ import argparse
 import os
 import signal
 import subprocess
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -106,7 +107,7 @@ def _api_command(dev_tools: bool) -> tuple[list[str], dict[str, str]]:
     env = _base_env()
     if dev_tools:
         env["ZODIAC_DEV_TOOLS"] = "1"
-    return ["python", "-m", "zodiac_art.api.app"], env
+    return [sys.executable, "-m", "zodiac_art.api.app"], env
 
 
 def _editor_command() -> tuple[list[str], dict[str, str]]:
@@ -116,7 +117,7 @@ def _editor_command() -> tuple[list[str], dict[str, str]]:
 
 def _mcp_command() -> tuple[list[str], dict[str, str]]:
     env = _base_env()
-    return ["python", "-m", "zodiac_art.mcp.server"], env
+    return [sys.executable, "-m", "zodiac_art.mcp.server"], env
 
 
 def _chrome_command() -> tuple[list[str], dict[str, str]]:

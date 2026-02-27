@@ -54,7 +54,7 @@ type UseDesignSectionViewModelParams = {
   frameMaskOffwhiteBoost: number
   onFrameMaskOffwhiteBoostChange: (value: number) => void
   frameMaskEnabled: boolean
-  onFrameMaskEnabledChange: (value: boolean) => void
+  onFrameMaskActivate: () => void
   frameMaskGuideVisible: boolean
   onFrameMaskGuideVisibleChange: (value: boolean) => void
   frameMaskLockAspect: boolean
@@ -121,7 +121,7 @@ export function useDesignSectionViewModel(
       frameMaskOffwhiteBoost: params.frameMaskOffwhiteBoost,
       onFrameMaskOffwhiteBoostChange: params.onFrameMaskOffwhiteBoostChange,
       frameMaskEnabled: params.frameMaskEnabled,
-      onFrameMaskEnabledChange: params.onFrameMaskEnabledChange,
+      onFrameMaskActivate: params.onFrameMaskActivate,
       activeSelectionLayer: params.activeSelectionLayer,
       onActiveSelectionLayerChange: params.onActiveSelectionLayerChange,
       frameMaskGuideVisible: params.frameMaskGuideVisible,

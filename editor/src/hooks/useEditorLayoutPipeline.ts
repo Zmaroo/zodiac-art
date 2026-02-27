@@ -8,8 +8,8 @@ import { useEditorLayout } from './useEditorLayout'
 import { useChartBackground } from './useChartBackground'
 import { applyOverrides, stripElementById } from '../utils/svg'
 import type {
+  ActiveSelectionLayer,
   ChartFit,
-  ChartOccluder,
   DesignSettings,
   EditorDoc,
   FrameCircle,
@@ -26,7 +26,7 @@ type UseEditorLayoutPipelineParams = {
   design: DesignSettings
   overrides: Record<string, Offset>
   chartFit: ChartFit
-  chartOccluders: ChartOccluder[]
+  activeSelectionLayer: ActiveSelectionLayer
   frameMaskCutoff: number
   frameMaskOffwhiteBoost: number
   clientVersion: number
@@ -40,6 +40,10 @@ type UseEditorLayoutPipelineParams = {
   setFrameMaskOffwhiteBoost: (value: number) => void
 }
 
+const noopLayoutHandler = <T,>(result: T) => {
+  void result
+}
+
 export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
   const {
     apiBase,
@@ -50,7 +54,7 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
     design,
     overrides,
     chartFit,
-    chartOccluders,
+    activeSelectionLayer,
     frameMaskCutoff,
     frameMaskOffwhiteBoost,
     clientVersion,
@@ -71,15 +75,14 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
     frameCircleExplicit: boolean
     design: DesignSettings
     userAdjustedFit: boolean
-    occluders: ChartOccluder[]
     frameMaskCutoff?: number
     frameMaskOffwhiteBoost?: number
   }
   const frameMaskEnabled = frameMaskCutoff < 255
   const [frameCircleLocked, setFrameCircleLocked] = useState(false)
-  const noopLayoutHandler = (result: LayoutResult) => {
-    void result
-  }
+  const [draftFrameCircleApplied, setDraftFrameCircleApplied] = useState<FrameCircle | null | undefined>(
+    undefined
+  )
   const layoutHandlerRef = useRef<(result: LayoutResult) => void>(noopLayoutHandler)
   const pendingLayoutRef = useRef<LayoutResult | null>(null)
   const handleLayoutLoadedProxy = useCallback((result: LayoutResult) => {
@@ -118,15 +121,12 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
     status: frameCircleStatus,
     clearStatus: clearFrameCircleStatus,
     snapFrameMask,
+    lastUpdateReason: frameCircleLastUpdateReason,
   } = useFrameCircle({
     apiBase,
     selectedFrameDetail,
     frameCircleLocked,
   })
-  const setFrameCircleFromUserWithVersion = (circle: FrameCircle | null) => {
-    setFrameCircleFromUser(circle)
-    dispatch({ type: 'BUMP_CLIENT_VERSION' })
-  }
   const resetFrameCircleAutoWithVersion = () => {
     setFrameCircleLocked(false)
     resetFrameCircleAuto()
@@ -137,6 +137,18 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
     dispatch({ type: 'BUMP_CLIENT_VERSION' })
   }
 
+  const lastFrameCircleKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    const key = frameCircle ? JSON.stringify(frameCircle) : 'null'
+    if (lastFrameCircleKeyRef.current === null) {
+      lastFrameCircleKeyRef.current = key
+      return
+    }
+    if (activeSelectionLayer !== 'frame_mask') {
+      lastFrameCircleKeyRef.current = key
+    }
+  }, [activeSelectionLayer, frameCircle])
+
   const editorDoc: EditorDoc = useEditorDoc({
     chartId,
     selectedId,
@@ -145,7 +157,6 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
     overrides,
     design,
     frameCircle,
-    chartOccluders,
     frameMaskCutoff,
     frameMaskOffwhiteBoost,
     clientVersion,
@@ -156,13 +167,13 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
 
   const { draftKey, draftStatus, draftInfo, draftState, draftAppliedRef } = useEditorDrafts({
     doc: editorDoc,
-    dispatch,
-    setFrameCircle,
-    setFrameMaskCutoff,
-    setFrameMaskOffwhiteBoost,
   })
 
-  const { handleLayoutLoaded: layoutHandler } = useEditorLayout({
+  useEffect(() => {
+    setDraftFrameCircleApplied(undefined)
+  }, [draftKey])
+
+  const { handleLayoutLoaded: layoutHandler, draftPrompt } = useEditorLayout({
     draftKey,
     draftState,
     draftAppliedRef,
@@ -172,6 +183,7 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
     frameMaskEnabled,
     setFrameMaskCutoff,
     setFrameMaskOffwhiteBoost,
+    onDraftFrameCircleApplied: setDraftFrameCircleApplied,
   })
   useEffect(() => {
     layoutHandlerRef.current = layoutHandler
@@ -204,16 +216,20 @@ export function useEditorLayoutPipeline(params: UseEditorLayoutPipelineParams) {
     hasSavedFit,
     frameCircle,
     setFrameCircle,
-    setFrameCircleFromUser: setFrameCircleFromUserWithVersion,
+    setFrameCircleFromUser,
     resetFrameCircleAuto: resetFrameCircleAutoWithVersion,
     frameCircleError,
     frameCircleStatus,
+    frameCircleLastUpdateReason,
     clearFrameCircleStatus,
     snapFrameMask: snapFrameMaskFromUser,
     editorDoc,
     draftKey,
     draftStatus,
     draftInfo,
+    draftState,
+    draftFrameCircleApplied,
     chartBackgroundColor,
+    draftPrompt,
   }
 }

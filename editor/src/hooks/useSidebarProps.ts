@@ -10,6 +10,7 @@ type UseSidebarPropsParams = {
   frames: SidebarProps['frames']
   upload: Omit<SidebarProps['upload'], 'userIsAdmin'>
   actions: SidebarProps['actions']
+  draftPrompt: SidebarProps['draftPrompt']
   debug: SidebarProps['debug']
   design: Parameters<typeof useDesignSectionViewModel>[0]
 }
@@ -25,6 +26,7 @@ export function useSidebarProps(params: UseSidebarPropsParams): SidebarProps {
     upload: params.upload,
     design: { sectionProps: designSectionProps },
     actions: params.actions,
+    draftPrompt: params.draftPrompt,
     debug: params.debug,
   })
 }

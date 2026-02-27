@@ -6,7 +6,6 @@ import { useLayoutActions } from './useLayoutActions'
 import type {
   ChartFit,
   ChartMeta,
-  ChartOccluder,
   DesignSettings,
   EditorDoc,
   FrameCircle,
@@ -26,7 +25,6 @@ type UseEditorActionBundleParams = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frameCircle: FrameCircle | null
-  chartOccluders: ChartOccluder[]
   frameMaskCutoff: number
   frameMaskOffwhiteBoost: number
   clientVersion: number
@@ -52,7 +50,6 @@ export function useEditorActionBundle(params: UseEditorActionBundleParams) {
     overrides,
     design,
     frameCircle,
-    chartOccluders,
     frameMaskCutoff,
     frameMaskOffwhiteBoost,
     clientVersion,
@@ -70,7 +67,6 @@ export function useEditorActionBundle(params: UseEditorActionBundleParams) {
     chartFit,
     overrides,
     design,
-    occluders: chartOccluders,
     dispatch,
     resetKey: draftKey,
   })
@@ -86,7 +82,6 @@ export function useEditorActionBundle(params: UseEditorActionBundleParams) {
     overrides,
     design,
     frameCircle,
-    chartOccluders,
     frameMaskCutoff,
     frameMaskOffwhiteBoost,
     clientVersion,

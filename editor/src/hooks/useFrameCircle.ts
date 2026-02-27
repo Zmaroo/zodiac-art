@@ -17,6 +17,7 @@ type UseFrameCircleResult = {
   status: string
   clearStatus: () => void
   snapFrameMask: (whiteCutoff: number, offwhiteBoost: number) => void
+  lastUpdateReason: string
 }
 
 export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResult {
@@ -28,9 +29,23 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
   const [frameCircle, setFrameCircle] = useState<FrameCircle | null>(null)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const [lastUpdateReason, setLastUpdateReason] = useState('')
   const lastFrameIdRef = useRef<string>('')
+  const skipInitialFrameResetRef = useRef(false)
   const userChangeRef = useRef(false)
   const userClearedRef = useRef(false)
+
+  const setFrameCircleWithReason = useCallback((circle: FrameCircle | null, reason: string) => {
+    setLastUpdateReason(reason)
+    setFrameCircle(circle)
+  }, [])
+
+  const setFrameCircleExternal = useCallback((circle: FrameCircle | null) => {
+    if (lastFrameIdRef.current == '' && circle) {
+      skipInitialFrameResetRef.current = true
+    }
+    setFrameCircleWithReason(circle, 'external')
+  }, [setFrameCircleWithReason])
 
   useEffect(() => {
     if (!frameCircleLocked) {
@@ -38,36 +53,46 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
     }
     userClearedRef.current = true
     userChangeRef.current = true
-    setFrameCircle(null)
-  }, [frameCircleLocked])
+    queueMicrotask(() => {
+      setFrameCircleWithReason(null, 'locked-clear')
+    })
+  }, [frameCircleLocked, setFrameCircleWithReason])
 
   const setFrameCircleFromUser = useCallback((circle: FrameCircle | null) => {
     userChangeRef.current = true
     userClearedRef.current = circle === null
-    setFrameCircle(circle)
-  }, [])
+    if (lastFrameIdRef.current === '') {
+      skipInitialFrameResetRef.current = true
+    }
+    setFrameCircleWithReason(circle, circle ? 'user-set' : 'user-clear')
+  }, [setFrameCircleWithReason])
 
   const resetFrameCircleAuto = useCallback(() => {
     userClearedRef.current = false
     userChangeRef.current = false
-    setFrameCircle(null)
-  }, [])
+    setFrameCircleWithReason(null, 'auto-reset')
+  }, [setFrameCircleWithReason])
 
   useEffect(() => {
     const frameId = selectedFrameDetail?.id ?? ''
     if (frameId && frameId !== lastFrameIdRef.current) {
+      if (lastFrameIdRef.current === '' && skipInitialFrameResetRef.current) {
+        skipInitialFrameResetRef.current = false
+        lastFrameIdRef.current = frameId
+        return
+      }
       lastFrameIdRef.current = frameId
       userChangeRef.current = false
       userClearedRef.current = false
       queueMicrotask(() => {
-        setFrameCircle(null)
+        setFrameCircleWithReason(null, 'frame-change-reset')
       })
       return
     }
     if (!selectedFrameDetail) {
       userClearedRef.current = false
       queueMicrotask(() => {
-        setFrameCircle(null)
+        setFrameCircleWithReason(null, 'frame-clear-reset')
       })
       return
     }
@@ -93,7 +118,9 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
         ryNorm: meta.chart.ring_outer / meta.canvas.height,
       }
       queueMicrotask(() => {
-        setFrameCircle(circle)
+        if (!userClearedRef.current && !userChangeRef.current && !frameCircleLocked) {
+          setFrameCircleWithReason(circle, 'auto-meta')
+        }
       })
       return
     }
@@ -101,20 +128,20 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
     let cancelled = false
     detectInnerCircleFromImage(frameUrl)
       .then((circle) => {
-        if (!cancelled && !userClearedRef.current) {
-          setFrameCircle(circle)
+        if (!cancelled && !userClearedRef.current && !userChangeRef.current) {
+          setFrameCircleWithReason(circle, 'auto-detect')
         }
       })
       .catch((err) => {
         if (!cancelled) {
           setError(String(err))
-          setFrameCircle(null)
+          setFrameCircleWithReason(null, 'auto-detect-error')
         }
       })
     return () => {
       cancelled = true
     }
-  }, [apiBase, frameCircle, selectedFrameDetail])
+  }, [apiBase, frameCircle, frameCircleLocked, selectedFrameDetail, setFrameCircleWithReason])
 
   const snapFrameMask = useCallback(
     (whiteCutoff: number, offwhiteBoost: number) => {
@@ -129,12 +156,12 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
         .then((circle) => {
           userChangeRef.current = true
           userClearedRef.current = false
-          setFrameCircle(circle)
+          setFrameCircleWithReason(circle, 'snap-mask')
           setError('')
         })
         .catch((err) => setError(String(err)))
     },
-    [apiBase, frameCircle, selectedFrameDetail]
+    [apiBase, frameCircle, selectedFrameDetail, setFrameCircleWithReason]
   )
 
   const clearStatus = () => {
@@ -143,12 +170,13 @@ export function useFrameCircle(params: UseFrameCircleParams): UseFrameCircleResu
 
   return {
     frameCircle,
-    setFrameCircle,
+    setFrameCircle: setFrameCircleExternal,
     setFrameCircleFromUser,
     resetFrameCircleAuto,
     error,
     status,
     clearStatus,
     snapFrameMask,
+    lastUpdateReason,
   }
 }

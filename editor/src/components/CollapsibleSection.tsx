@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
 
 type CollapsibleSectionProps = {
@@ -17,6 +17,7 @@ function CollapsibleSection({
   onToggle,
 }: CollapsibleSectionProps) {
   const storageKey = `zodiac_editor.section.${encodeURIComponent(persistKey ?? title)}`
+  const contentId = useId()
   const [isOpen, setIsOpen] = useState(() => {
     try {
       const stored = localStorage.getItem(storageKey)
@@ -38,7 +39,7 @@ function CollapsibleSection({
       try {
         localStorage.setItem(storageKey, String(next))
       } catch {
-        return next
+        // ignore storage errors
       }
       onToggle?.(next)
       return next
@@ -46,11 +47,21 @@ function CollapsibleSection({
   }
   return (
     <div className="section">
-      <div className="collapsible-header" onClick={toggleOpen}>
+      <button
+        className="collapsible-header"
+        onClick={toggleOpen}
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls={contentId}
+      >
         <h2>{title}</h2>
         <span className={`arrow ${isOpen ? 'open' : 'closed'}`}>▼</span>
-      </div>
-      {isOpen ? children : null}
+      </button>
+      {isOpen ? (
+        <div id={contentId}>
+          {children}
+        </div>
+      ) : null}
     </div>
   )
 }

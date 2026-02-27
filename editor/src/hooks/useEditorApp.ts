@@ -98,10 +98,8 @@ export function useEditorApp(): UseEditorAppResult {
     userAdjustedFit,
     overrides,
     selectedElement,
-    selectedOccluderId,
     activeSelectionLayer,
     design,
-    chartOccluders,
     clientVersion,
     serverVersion,
     lastSavedAt,
@@ -146,13 +144,17 @@ export function useEditorApp(): UseEditorAppResult {
     resetFrameCircleAuto,
     frameCircleError,
     frameCircleStatus,
+    frameCircleLastUpdateReason,
     clearFrameCircleStatus,
     snapFrameMask,
     editorDoc,
     draftKey,
     draftStatus,
     draftInfo,
+    draftState,
+    draftFrameCircleApplied,
     chartBackgroundColor,
+    draftPrompt,
   } = useEditorLayoutPipeline({
     apiBase,
     jwt,
@@ -162,7 +164,7 @@ export function useEditorApp(): UseEditorAppResult {
     design,
     overrides,
     chartFit,
-    chartOccluders,
+    activeSelectionLayer,
     frameMaskCutoff,
     frameMaskOffwhiteBoost,
     clientVersion,
@@ -186,18 +188,14 @@ export function useEditorApp(): UseEditorAppResult {
     dispatch({ type: 'BUMP_CLIENT_VERSION' })
   }
   const frameMaskEnabled = frameMaskCutoff < 255
-  const handleFrameMaskEnabledChange = (enabled: boolean) => {
-    if (enabled) {
+  const handleFrameMaskActivate = () => {
+    if (!frameMaskEnabled) {
       setFrameMaskCutoff(252)
       resetFrameCircleAuto()
       dispatch({ type: 'BUMP_CLIENT_VERSION' })
-      return
     }
-    setFrameMaskCutoff(255)
-    setFrameCircleFromUser(null)
-    setFrameMaskGuideVisible(false)
-    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'auto' })
-    dispatch({ type: 'BUMP_CLIENT_VERSION' })
+    setFrameMaskGuideVisible(true)
+    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'frame_mask' })
   }
   const {
     backgroundImageUrl,
@@ -234,6 +232,10 @@ export function useEditorApp(): UseEditorAppResult {
   const { computeFitFromCircle, resetToSavedEnabled } = useEditorDerived({ meta })
   const handleClearFrameMask = () => {
     setFrameCircleFromUser(null)
+    setFrameMaskCutoff(255)
+    setFrameMaskGuideVisible(false)
+    dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'auto' })
+    dispatch({ type: 'BUMP_CLIENT_VERSION' })
   }
 
   useChartTransform({ chartFit, meta, chartSvg, chartRootRef, chartBackgroundRef })
@@ -241,7 +243,6 @@ export function useEditorApp(): UseEditorAppResult {
 
   const { onPointerDown, onPointerMove, onPointerUp } = useChartInteraction({
     chartFit,
-    chartOccluders,
     overrides,
     design,
     selectedElement,
@@ -249,7 +250,7 @@ export function useEditorApp(): UseEditorAppResult {
     updateDesign,
     meta,
     frameCircle,
-    setFrameCircle: setFrameCircleFromUser,
+    setFrameCircleFromUser,
     frameMaskLockAspect,
     svgRef,
     chartRootRef,
@@ -295,7 +296,6 @@ export function useEditorApp(): UseEditorAppResult {
     overrides,
     design,
     frameCircle,
-    chartOccluders,
     frameMaskCutoff,
     frameMaskOffwhiteBoost,
     clientVersion,
@@ -409,6 +409,10 @@ export function useEditorApp(): UseEditorAppResult {
     defaultDesign: DEFAULT_DESIGN,
     dispatch,
     setFrameCircle,
+    setFrameMaskCutoff,
+    setFrameMaskOffwhiteBoost,
+    setFrameMaskGuideVisible,
+    setFrameMaskLockAspect,
     setStatus,
     setError,
   })
@@ -429,6 +433,26 @@ export function useEditorApp(): UseEditorAppResult {
     draftStatus,
     draftInfo,
     syncStatus,
+    debugExtras: [
+      { label: 'Client version', value: String(clientVersion) },
+      { label: 'Server version', value: String(serverVersion) },
+      { label: 'Draft key', value: draftKey || '' },
+      { label: 'Draft present', value: draftState ? 'yes' : '' },
+      { label: 'Active layer', value: activeSelectionLayer },
+      { label: 'Frame mask cutoff', value: String(frameMaskCutoff) },
+      { label: 'Frame circle', value: frameCircle ? 'yes' : '' },
+      { label: 'Frame circle value', value: frameCircle ? JSON.stringify(frameCircle) : '' },
+      { label: 'Frame circle last set', value: frameCircleLastUpdateReason },
+      {
+        label: 'Draft frame circle',
+        value: draftState ? JSON.stringify(draftState.frame_circle) : '',
+      },
+      {
+        label: 'Draft frame circle applied',
+        value:
+          draftFrameCircleApplied === undefined ? '' : JSON.stringify(draftFrameCircleApplied),
+      },
+    ],
     clearAuthError,
     clearAuthStatus,
     clearChartsError,
@@ -482,6 +506,9 @@ export function useEditorApp(): UseEditorAppResult {
       onSelectedIdChange: handleSelectedIdChange,
       filteredFrames,
       chartOnlyId: CHART_ONLY_ID,
+      selectedFrameSizeLabel: selectedFrameDetail
+        ? `${selectedFrameDetail.width}×${selectedFrameDetail.height} px`
+        : '',
     },
     upload: {
       uploadName,
@@ -540,7 +567,7 @@ export function useEditorApp(): UseEditorAppResult {
       frameMaskOffwhiteBoost,
       onFrameMaskOffwhiteBoostChange: handleFrameMaskOffwhiteBoostChange,
       frameMaskEnabled,
-      onFrameMaskEnabledChange: handleFrameMaskEnabledChange,
+      onFrameMaskActivate: handleFrameMaskActivate,
       activeSelectionLayer,
       onActiveSelectionLayerChange: handleActiveSelectionLayerChangeWithMask,
       frameMaskGuideVisible,
@@ -567,19 +594,17 @@ export function useEditorApp(): UseEditorAppResult {
       showFrameCircleDebug,
       onShowFrameCircleDebugChange: setShowFrameCircleDebug,
     },
+    draftPrompt,
   })
 
   const canvasProps = useCanvasProps({
     meta,
-    chartFit,
     selectedFrameDetail,
     apiBase,
     chartSvg,
     chartId,
     isChartOnly,
     chartBackgroundColor,
-    chartOccluders,
-    selectedOccluderId,
     layerOrder: design.layer_order,
     layerOpacity: design.layer_opacity,
     backgroundImageUrl,

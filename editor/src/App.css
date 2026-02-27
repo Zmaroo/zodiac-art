@@ -471,6 +471,38 @@
   margin-bottom: 10px;
 }
 
+.frame-size-label {
+  font-size: 12px;
+  color: #6b6254;
+  margin-top: 6px;
+}
+
+.draft-prompt {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #d5c8b0;
+  background: #f7f0e2;
+  color: #3f3425;
+  font-size: 12px;
+}
+
+.draft-prompt-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.draft-prompt-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.draft-prompt-actions button {
+  width: 100%;
+}
+
 .placeholder {
   font-size: 14px;
   color: #5b5246;

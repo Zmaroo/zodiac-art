@@ -1,12 +1,9 @@
 import { Fragment, useEffect, useRef } from 'react'
 import type { PointerEvent, ReactElement, RefObject } from 'react'
 import { useMaskedFrame } from '../hooks/useMaskedFrame'
-import { buildChartTransform } from '../utils/geometry'
 import type {
   ActiveSelectionLayer,
-  ChartFit,
   ChartMeta,
-  ChartOccluder,
   FrameCircle,
   FrameDetail,
   LayerOrderKey,
@@ -14,15 +11,12 @@ import type {
 
 export type CanvasProps = {
   meta: ChartMeta | null
-  chartFit: ChartFit
   selectedFrameDetail: FrameDetail | null
   apiBase: string
   chartSvg: string
   chartId: string
   isChartOnly: boolean
   chartBackgroundColor: string
-  chartOccluders: ChartOccluder[]
-  selectedOccluderId: string
   layerOrder: LayerOrderKey[]
   layerOpacity: Record<string, number>
   backgroundImageUrl: string
@@ -44,17 +38,15 @@ export type CanvasProps = {
   onPointerUp: (event: PointerEvent<SVGSVGElement>) => void
 }
 
+
 function Canvas({
   meta,
-  chartFit,
   selectedFrameDetail,
   apiBase,
   chartSvg,
   chartId,
   isChartOnly,
   chartBackgroundColor,
-  chartOccluders,
-  selectedOccluderId,
   layerOrder,
   layerOpacity,
   backgroundImageUrl,
@@ -106,12 +98,9 @@ function Canvas({
     frameMaskOffwhiteBoost
   )
   const frameHref = showMaskedFrame ? maskedFrameUrl || frameUrl : frameUrl
-  const maskId = `chart-occluder-mask-${chartId || 'draft'}-${selectedFrameDetail?.id ?? 'frame'}`
-  const occluderMaskEnabled = chartOccluders.length > 0
-  const occluderLayerActive = activeSelectionLayer === 'occluder'
-  const occluderTransform = buildChartTransform(chartFit, meta) || undefined
-  const showMaskGuide = Boolean(frameMaskGuideVisible || activeSelectionLayer === 'frame_mask')
-  const showMaskHandles = activeSelectionLayer === 'frame_mask' && frameCircle && meta
+  const showMaskGuide = Boolean(frameMaskGuideVisible && activeSelectionLayer === 'frame_mask')
+  const showMaskHandles =
+    Boolean(frameMaskGuideVisible && activeSelectionLayer === 'frame_mask' && frameCircle && meta)
   const maskHandleRadius = 6
   const maskHandlePoints = showMaskHandles
     ? [
@@ -151,7 +140,6 @@ function Canvas({
     <g
       ref={chartBackgroundRef}
       id="chartBackgroundRoot"
-      mask={occluderMaskEnabled ? `url(#${maskId})` : undefined}
     >
       <circle
         id="chart.background"
@@ -175,156 +163,10 @@ function Canvas({
     />
   ) : null
   const chartLayer = (
-    <g ref={chartRootRef} id="chartRoot" mask={occluderMaskEnabled ? `url(#${maskId})` : undefined}>
+    <g ref={chartRootRef} id="chartRoot">
       <g dangerouslySetInnerHTML={{ __html: chartSvg }} />
     </g>
   )
-  const occluderOverlay = chartOccluders.length ? (
-    <g
-      id="chartOccluderOverlay"
-      transform={occluderTransform ?? undefined}
-      pointerEvents={occluderLayerActive ? 'auto' : 'none'}
-    >
-      {chartOccluders.map((occluder) => {
-        const isSelected = occluder.id === selectedOccluderId
-        const stroke = isSelected ? 'rgba(255, 120, 0, 0.9)' : 'rgba(30, 30, 30, 0.6)'
-        const fill = isSelected ? 'rgba(255, 170, 0, 0.15)' : 'rgba(30, 30, 30, 0.1)'
-        const handleFill = 'rgba(255, 255, 255, 0.95)'
-        const handleStroke = 'rgba(30, 30, 30, 0.8)'
-        const handleSize = 6
-        if (occluder.shape === 'ellipse') {
-          const transform = occluder.rotation_deg
-            ? `rotate(${occluder.rotation_deg} ${occluder.cx} ${occluder.cy})`
-            : undefined
-          return (
-            <g key={occluder.id} data-occluder-id={occluder.id} transform={transform}>
-              <ellipse
-                data-occluder-id={occluder.id}
-                cx={occluder.cx}
-                cy={occluder.cy}
-                rx={occluder.rx}
-                ry={occluder.ry}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={2}
-              />
-              {isSelected && occluderLayerActive ? (
-                <g>
-                  <circle
-                    data-occluder-id={occluder.id}
-                    data-occluder-handle="e"
-                    cx={occluder.cx + occluder.rx}
-                    cy={occluder.cy}
-                    r={handleSize}
-                    fill={handleFill}
-                    stroke={handleStroke}
-                    strokeWidth={1.5}
-                  />
-                  <circle
-                    data-occluder-id={occluder.id}
-                    data-occluder-handle="w"
-                    cx={occluder.cx - occluder.rx}
-                    cy={occluder.cy}
-                    r={handleSize}
-                    fill={handleFill}
-                    stroke={handleStroke}
-                    strokeWidth={1.5}
-                  />
-                  <circle
-                    data-occluder-id={occluder.id}
-                    data-occluder-handle="n"
-                    cx={occluder.cx}
-                    cy={occluder.cy - occluder.ry}
-                    r={handleSize}
-                    fill={handleFill}
-                    stroke={handleStroke}
-                    strokeWidth={1.5}
-                  />
-                  <circle
-                    data-occluder-id={occluder.id}
-                    data-occluder-handle="s"
-                    cx={occluder.cx}
-                    cy={occluder.cy + occluder.ry}
-                    r={handleSize}
-                    fill={handleFill}
-                    stroke={handleStroke}
-                    strokeWidth={1.5}
-                  />
-                </g>
-              ) : null}
-            </g>
-          )
-        }
-        const centerX = occluder.x + occluder.width / 2
-        const centerY = occluder.y + occluder.height / 2
-        const transform = occluder.rotation_deg
-          ? `rotate(${occluder.rotation_deg} ${centerX} ${centerY})`
-          : undefined
-        return (
-          <g key={occluder.id} data-occluder-id={occluder.id} transform={transform}>
-            <rect
-              data-occluder-id={occluder.id}
-              x={occluder.x}
-              y={occluder.y}
-              width={occluder.width}
-              height={occluder.height}
-              fill={fill}
-              stroke={stroke}
-              strokeWidth={2}
-            />
-            {isSelected && occluderLayerActive ? (
-              <g>
-                <rect
-                  data-occluder-id={occluder.id}
-                  data-occluder-handle="nw"
-                  x={occluder.x - handleSize}
-                  y={occluder.y - handleSize}
-                  width={handleSize * 2}
-                  height={handleSize * 2}
-                  fill={handleFill}
-                  stroke={handleStroke}
-                  strokeWidth={1.5}
-                />
-                <rect
-                  data-occluder-id={occluder.id}
-                  data-occluder-handle="ne"
-                  x={occluder.x + occluder.width - handleSize}
-                  y={occluder.y - handleSize}
-                  width={handleSize * 2}
-                  height={handleSize * 2}
-                  fill={handleFill}
-                  stroke={handleStroke}
-                  strokeWidth={1.5}
-                />
-                <rect
-                  data-occluder-id={occluder.id}
-                  data-occluder-handle="se"
-                  x={occluder.x + occluder.width - handleSize}
-                  y={occluder.y + occluder.height - handleSize}
-                  width={handleSize * 2}
-                  height={handleSize * 2}
-                  fill={handleFill}
-                  stroke={handleStroke}
-                  strokeWidth={1.5}
-                />
-                <rect
-                  data-occluder-id={occluder.id}
-                  data-occluder-handle="sw"
-                  x={occluder.x - handleSize}
-                  y={occluder.y + occluder.height - handleSize}
-                  width={handleSize * 2}
-                  height={handleSize * 2}
-                  fill={handleFill}
-                  stroke={handleStroke}
-                  strokeWidth={1.5}
-                />
-              </g>
-            ) : null}
-          </g>
-        )
-      })}
-    </g>
-  ) : null
   const backgroundImageLayer = backgroundImageUrl ? (
     <g
       id="chartBackgroundImageRoot"
@@ -358,55 +200,6 @@ function Canvas({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
-          {occluderMaskEnabled ? (
-            <defs>
-              <mask id={maskId} maskUnits="userSpaceOnUse">
-                <rect
-                  x={0}
-                  y={0}
-                  width={meta.canvas.width}
-                  height={meta.canvas.height}
-                  fill="white"
-                />
-                <g transform={occluderTransform ?? undefined}>
-                  {chartOccluders.map((occluder) => {
-                    if (occluder.shape === 'ellipse') {
-                      const transform = occluder.rotation_deg
-                        ? `rotate(${occluder.rotation_deg} ${occluder.cx} ${occluder.cy})`
-                        : undefined
-                      return (
-                        <ellipse
-                          key={occluder.id}
-                          cx={occluder.cx}
-                          cy={occluder.cy}
-                          rx={occluder.rx}
-                          ry={occluder.ry}
-                          transform={transform}
-                          fill="black"
-                        />
-                      )
-                    }
-                    const centerX = occluder.x + occluder.width / 2
-                    const centerY = occluder.y + occluder.height / 2
-                    const transform = occluder.rotation_deg
-                      ? `rotate(${occluder.rotation_deg} ${centerX} ${centerY})`
-                      : undefined
-                    return (
-                      <rect
-                        key={occluder.id}
-                        x={occluder.x}
-                        y={occluder.y}
-                        width={occluder.width}
-                        height={occluder.height}
-                        transform={transform}
-                        fill="black"
-                      />
-                    )
-                  })}
-                </g>
-              </mask>
-            </defs>
-          ) : null}
           {layerOrder.map((key) => {
             const layer = layers[key]
             if (!layer) {
@@ -484,7 +277,6 @@ function Canvas({
               Set chart ID to load overlay
             </text>
           ) : null}
-          {occluderOverlay}
         </svg>
       ) : (
         <div className="placeholder">

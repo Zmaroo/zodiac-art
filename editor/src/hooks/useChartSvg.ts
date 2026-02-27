@@ -4,7 +4,6 @@ import { extractChartInner, stripOverrideTransforms } from '../utils/svg'
 import type {
   ChartFit,
   ChartMeta,
-  ChartOccluder,
   DesignSettings,
   FrameCircle,
   FrameDetail,
@@ -19,7 +18,6 @@ type LayoutLoadResult = {
   frameCircleExplicit: boolean
   design: DesignSettings
   userAdjustedFit: boolean
-  occluders: ChartOccluder[]
   frameMaskCutoff?: number
   frameMaskOffwhiteBoost?: number
 }
@@ -66,10 +64,21 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
   const onLayoutLoadedRef = useRef(onLayoutLoaded)
   const lastLayoutKeyRef = useRef('')
   const layoutOverridesRef = useRef<Record<string, Offset>>({})
+  const layoutRequestIdRef = useRef(0)
+  const svgRequestIdRef = useRef(0)
 
-  const fetchJsonAuthWith = useCallback((url: string) => fetchJsonAuth(url, jwt), [jwt])
-  const fetchJsonIfOkAuthWith = useCallback((url: string) => fetchJsonIfOkAuth(url, jwt), [jwt])
-  const fetchTextIfOkAuthWith = useCallback((url: string) => fetchTextIfOkAuth(url, jwt), [jwt])
+  const fetchJsonAuthWith = useCallback(
+    (url: string, init?: RequestInit) => fetchJsonAuth(url, jwt, init),
+    [jwt]
+  )
+  const fetchJsonIfOkAuthWith = useCallback(
+    (url: string, init?: RequestInit) => fetchJsonIfOkAuth(url, jwt, init),
+    [jwt]
+  )
+  const fetchTextIfOkAuthWith = useCallback(
+    (url: string, init?: RequestInit) => fetchTextIfOkAuth(url, jwt, init),
+    [jwt]
+  )
 
   useEffect(() => {
     onLayoutLoadedRef.current = onLayoutLoaded
@@ -159,11 +168,21 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
   }, [defaultDesign])
 
   useEffect(() => {
+    layoutRequestIdRef.current += 1
+    const requestId = layoutRequestIdRef.current
+    const isStale = () => layoutRequestIdRef.current !== requestId
+    const controller = new AbortController()
+    const { signal } = controller
     queueMicrotask(() => {
-      setLayoutReady(false)
+      if (!isStale()) {
+        setLayoutReady(false)
+      }
     })
     if (!selectedId) {
       queueMicrotask(() => {
+        if (isStale()) {
+          return
+        }
         setSelectedFrameDetail(null)
         setMeta(null)
         setChartSvgBase('')
@@ -171,29 +190,41 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         layoutOverridesRef.current = {}
         setLayoutReady(false)
       })
-      return
+      return () => {
+        controller.abort()
+      }
     }
     queueMicrotask(() => {
-      setError('')
-      setStatus('')
+      if (!isStale()) {
+        setError('')
+        setStatus('')
+      }
     })
     if (isChartOnly) {
       if (!chartId) {
         queueMicrotask(() => {
+          if (isStale()) {
+            return
+          }
           setSelectedFrameDetail(null)
           setMeta(null)
           setChartSvgBase('')
           setLayoutReady(false)
         })
-        return
+        return () => {
+          controller.abort()
+        }
       }
       const chartMetaUrl = `${apiBase}/api/charts/${chartId}/chart_only/meta`
       const layoutUrl = `${apiBase}/api/charts/${chartId}/layout`
       Promise.all([
-        fetchJsonAuthWith(chartMetaUrl),
-        fetchJsonIfOkAuthWith(layoutUrl),
+        fetchJsonAuthWith(chartMetaUrl, { signal }),
+        fetchJsonIfOkAuthWith(layoutUrl, { signal }),
       ])
         .then(([chartMeta, layoutData]) => {
+          if (isStale()) {
+            return
+          }
           setSelectedFrameDetail(null)
           const metaData = chartMeta as ChartMeta
           setMeta(metaData)
@@ -212,7 +243,6 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           const frameCircleExplicit = Boolean(layoutFile && 'frame_circle' in layoutFile)
           const frameCircle = frameCircleExplicit ? layoutFile?.frame_circle ?? null : null
           const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
-          const occluders = (layoutData as LayoutFile | null)?.chart_occluders ?? []
           const frameMaskCutoff = (layoutData as LayoutFile | null)?.frame_mask_cutoff
           const frameMaskOffwhiteBoost =
             (layoutData as LayoutFile | null)?.frame_mask_offwhite_boost
@@ -220,7 +250,6 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
             fit,
             overrides: nextOverrides,
             frameCircle,
-            occluders,
             frameMaskCutoff,
             frameMaskOffwhiteBoost,
           })
@@ -234,15 +263,23 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
               frameCircleExplicit,
               design,
               userAdjustedFit,
-              occluders,
               frameMaskCutoff,
               frameMaskOffwhiteBoost,
             })
           }
           setLayoutReady(true)
         })
-        .catch((err) => setError(String(err)))
-      return
+        .catch((err) => {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            return
+          }
+          if (!isStale()) {
+            setError(String(err))
+          }
+        })
+      return () => {
+        controller.abort()
+      }
     }
 
     const frameDetailUrl = `${apiBase}/api/frames/${selectedId}`
@@ -253,11 +290,14 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
       ? `${apiBase}/api/charts/${chartId}/frames/${selectedId}/layout`
       : null
     Promise.all([
-      fetchJsonAuthWith(frameDetailUrl),
-      chartMetaUrl ? fetchJsonIfOkAuthWith(chartMetaUrl) : Promise.resolve(null),
-      layoutUrl ? fetchJsonIfOkAuthWith(layoutUrl) : Promise.resolve({ overrides: {} }),
+      fetchJsonAuthWith(frameDetailUrl, { signal }),
+      chartMetaUrl ? fetchJsonIfOkAuthWith(chartMetaUrl, { signal }) : Promise.resolve(null),
+      layoutUrl ? fetchJsonIfOkAuthWith(layoutUrl, { signal }) : Promise.resolve({ overrides: {} }),
     ])
       .then(([frameDetail, chartMeta, layoutData]) => {
+        if (isStale()) {
+          return
+        }
         const detail = frameDetail as FrameDetail
         setSelectedFrameDetail(detail)
         const templateMeta = detail.template_metadata_json
@@ -279,7 +319,6 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
         const frameCircleExplicit = Boolean(layoutFile && 'frame_circle' in layoutFile)
         const frameCircle = frameCircleExplicit ? layoutFile?.frame_circle ?? null : null
         const design = normalizeDesign((layoutData as LayoutFile | null)?.design)
-        const occluders = (layoutData as LayoutFile | null)?.chart_occluders ?? []
         const frameMaskCutoff = (layoutData as LayoutFile | null)?.frame_mask_cutoff
         const frameMaskOffwhiteBoost =
           (layoutData as LayoutFile | null)?.frame_mask_offwhite_boost
@@ -287,7 +326,6 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
           fit,
           overrides: nextOverrides,
           frameCircle,
-          occluders,
           frameMaskCutoff,
           frameMaskOffwhiteBoost,
         })
@@ -301,14 +339,23 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
             frameCircleExplicit,
             design,
             userAdjustedFit,
-            occluders,
             frameMaskCutoff,
             frameMaskOffwhiteBoost,
           })
         }
         setLayoutReady(true)
       })
-      .catch((err) => setError(String(err)))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return
+        }
+        if (!isStale()) {
+          setError(String(err))
+        }
+      })
+    return () => {
+      controller.abort()
+    }
   }, [
     apiBase,
     chartId,
@@ -321,41 +368,81 @@ export function useChartSvg(params: UseChartSvgParams): UseChartSvgResult {
   ])
 
   useEffect(() => {
+    svgRequestIdRef.current += 1
+    const requestId = svgRequestIdRef.current
+    const isStale = () => svgRequestIdRef.current !== requestId
+    const controller = new AbortController()
+    const { signal } = controller
     if (!layoutReady) {
-      return
+      return () => {
+        controller.abort()
+      }
     }
     if (!chartId) {
       queueMicrotask(() => {
-        setChartSvgBase('')
+        if (!isStale()) {
+          setChartSvgBase('')
+        }
       })
-      return
+      return () => {
+        controller.abort()
+      }
     }
     if (!selectedId) {
       queueMicrotask(() => {
-        setChartSvgBase('')
+        if (!isStale()) {
+          setChartSvgBase('')
+        }
       })
-      return
+      return () => {
+        controller.abort()
+      }
     }
     const params = buildDesignParams(normalizeDesign(designPreview))
     if (isChartOnly) {
       const svgUrl = `${apiBase}/api/charts/${chartId}/render_chart.svg?${params.toString()}`
-      fetchTextIfOkAuthWith(svgUrl)
+      fetchTextIfOkAuthWith(svgUrl, { signal })
         .then((svgText) => {
+          if (isStale()) {
+            return
+          }
           const inner = svgText ? extractChartInner(svgText as string) : ''
           setChartSvgBase(stripOverrideTransforms(inner, layoutOverridesRef.current))
         })
-        .catch((err) => setError(String(err)))
-      return
+        .catch((err) => {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            return
+          }
+          if (!isStale()) {
+            setError(String(err))
+          }
+        })
+      return () => {
+        controller.abort()
+      }
     }
     const frameParams = new URLSearchParams(params)
     frameParams.set('frame_id', selectedId)
     const svgUrl = `${apiBase}/api/charts/${chartId}/render.svg?${frameParams.toString()}`
-    fetchTextIfOkAuthWith(svgUrl)
+    fetchTextIfOkAuthWith(svgUrl, { signal })
       .then((svgText) => {
+        if (isStale()) {
+          return
+        }
         const inner = svgText ? extractChartInner(svgText as string) : ''
         setChartSvgBase(stripOverrideTransforms(inner, layoutOverridesRef.current))
       })
-      .catch((err) => setError(String(err)))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return
+        }
+        if (!isStale()) {
+          setError(String(err))
+        }
+      })
+    return () => {
+      controller.abort()
+    }
   }, [
     apiBase,
     buildDesignParams,

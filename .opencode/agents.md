@@ -11,6 +11,7 @@ Local dev server control (PID + logs):
 - Start editor: `python scripts/dev_servers.py start editor`
 - Start MCP: `python scripts/dev_servers.py start mcp`
 - Start Chrome debugging (dedicated profile): `scripts/debug_chrome.sh`
+- Run Chrome in background: `scripts/debug_chrome.sh > .opencode/logs/chrome.log 2>&1 &`
 - If you use dev_servers for Chrome, ensure it launches the debug profile above.
 
 Editor dev auto-login (optional):

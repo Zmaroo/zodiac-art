@@ -65,7 +65,7 @@ export type DesignSectionProps = {
     frameMaskOffwhiteBoost: number
     onFrameMaskOffwhiteBoostChange: (value: number) => void
     frameMaskEnabled: boolean
-    onFrameMaskEnabledChange: (value: boolean) => void
+    onFrameMaskActivate: () => void
     frameMaskGuideVisible: boolean
     onFrameMaskGuideVisibleChange: (value: boolean) => void
     frameMaskLockAspect: boolean
@@ -445,16 +445,19 @@ function DesignSection({
       </CollapsibleSection>
 
       <CollapsibleSection title="Frame mask" persistKey="design-frame-mask">
-        <label className="field checkbox" htmlFor="frame-mask-enabled">
-          Enable frame mask
-          <input
-            type="checkbox"
-            id="frame-mask-enabled"
-            name="frame-mask-enabled"
-            checked={selection.frameMaskEnabled}
-            onChange={(event) => selection.onFrameMaskEnabledChange(event.target.checked)}
-          />
-        </label>
+        <div className="field">
+          <button
+            type="button"
+            className="secondary"
+            onClick={selection.onFrameMaskActivate}
+            title="Turn on frame mask to make frame transparent inside the guide circle."
+          >
+            Frame mask
+          </button>
+          <div className="hint">
+            Turn on frame mask to make frame transparent inside the guide circle.
+          </div>
+        </div>
         <label className="field" htmlFor="frame-mask-cutoff">
           Frame mask cutoff
           <input
@@ -486,19 +489,6 @@ function DesignSection({
             disabled={!selection.frameMaskEnabled}
           />
           <div className="hint">{selection.frameMaskOffwhiteBoost}</div>
-        </label>
-        <label className="field checkbox" htmlFor="frame-mask-edit">
-          Edit frame mask
-          <input
-            type="checkbox"
-            id="frame-mask-edit"
-            name="frame-mask-edit"
-            checked={selection.activeSelectionLayer === 'frame_mask'}
-            onChange={(event) =>
-              selection.onActiveSelectionLayerChange(event.target.checked ? 'frame_mask' : 'auto')
-            }
-            disabled={!selection.frameMaskEnabled}
-          />
         </label>
         <label className="field checkbox" htmlFor="frame-mask-guide">
           Show mask guide

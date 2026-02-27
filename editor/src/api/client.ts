@@ -6,24 +6,24 @@ export const apiFetch = (url: string, jwt: string, init: RequestInit = {}) => {
   return fetch(url, { ...init, headers })
 }
 
-export const fetchJsonAuth = async (url: string, jwt: string) => {
-  const response = await apiFetch(url, jwt)
+export const fetchJsonAuth = async (url: string, jwt: string, init: RequestInit = {}) => {
+  const response = await apiFetch(url, jwt, init)
   if (!response.ok) {
     throw new Error(`Failed to load JSON: ${response.statusText}`)
   }
   return response.json()
 }
 
-export const fetchJsonIfOkAuth = async (url: string, jwt: string) => {
-  const response = await apiFetch(url, jwt)
+export const fetchJsonIfOkAuth = async (url: string, jwt: string, init: RequestInit = {}) => {
+  const response = await apiFetch(url, jwt, init)
   if (!response.ok) {
     return null
   }
   return response.json()
 }
 
-export const fetchTextIfOkAuth = async (url: string, jwt: string) => {
-  const response = await apiFetch(url, jwt)
+export const fetchTextIfOkAuth = async (url: string, jwt: string, init: RequestInit = {}) => {
+  const response = await apiFetch(url, jwt, init)
   if (!response.ok) {
     return ''
   }

@@ -18,6 +18,7 @@ type UseEditorStatusParams = {
   draftStatus: string
   draftInfo: string
   syncStatus: string
+  debugExtras?: { label: string; value: string }[]
   clearAuthError: () => void
   clearAuthStatus: () => void
   clearChartsError: () => void
@@ -44,6 +45,7 @@ export function useEditorStatus(params: UseEditorStatusParams) {
     draftStatus,
     draftInfo,
     syncStatus,
+    debugExtras,
     clearAuthError,
     clearAuthStatus,
     clearChartsError,
@@ -78,6 +80,7 @@ export function useEditorStatus(params: UseEditorStatusParams) {
     editorStatus,
     uploadError,
     uploadStatus,
+    extraDebugItems: debugExtras,
   })
 
   const sidebarMessages = useSidebarMessages({

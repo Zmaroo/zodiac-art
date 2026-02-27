@@ -67,7 +67,6 @@ export type ActiveSelectionLayer =
   | 'chart'
   | 'background'
   | 'background_image'
-  | 'occluder'
   | 'frame_mask'
 
 export type DesignSettings = {
@@ -84,30 +83,6 @@ export type DesignSettings = {
 
 export type Offset = { dx?: number; dy?: number; dr?: number; dt?: number; color?: string }
 
-export type ChartOccluderBase = {
-  id: string
-  shape: 'ellipse' | 'rect'
-  rotation_deg?: number
-}
-
-export type ChartOccluderEllipse = ChartOccluderBase & {
-  shape: 'ellipse'
-  cx: number
-  cy: number
-  rx: number
-  ry: number
-}
-
-export type ChartOccluderRect = ChartOccluderBase & {
-  shape: 'rect'
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-export type ChartOccluder = ChartOccluderEllipse | ChartOccluderRect
-
 export type EditorDraft = {
   key: string
   chart_id: string
@@ -117,7 +92,6 @@ export type EditorDraft = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frame_circle: FrameCircle | null
-  chart_occluders: ChartOccluder[]
   frame_mask_cutoff: number
   frame_mask_offwhite_boost: number
   client_version: number
@@ -134,7 +108,6 @@ export type EditorDoc = {
   overrides: Record<string, Offset>
   design: DesignSettings
   frame_circle: FrameCircle | null
-  chart_occluders: ChartOccluder[]
   frame_mask_cutoff: number
   frame_mask_offwhite_boost: number
   client_version: number
@@ -148,7 +121,6 @@ export type LayoutFile = {
   frame_circle?: FrameCircle
   design?: Partial<DesignSettings>
   chart_fit?: Partial<ChartFit>
-  chart_occluders?: ChartOccluder[]
   frame_mask_cutoff?: number
   frame_mask_offwhite_boost?: number
 }
@@ -171,17 +143,6 @@ export type DragState =
   | (DragStateBase & {
       mode: 'background-image-move' | 'background-image-scale'
       backgroundImage: { scale: number; dx: number; dy: number }
-    })
-  | (DragStateBase & {
-      mode: 'occluder-move'
-      occluderId: string
-      occluderStart: ChartOccluder
-    })
-  | (DragStateBase & {
-      mode: 'occluder-resize'
-      occluderId: string
-      occluderStart: ChartOccluder
-      occluderHandle: string
     })
   | (DragStateBase & {
       mode: 'frame-mask-move'

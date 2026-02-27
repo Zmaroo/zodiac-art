@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MutableRefObject } from 'react'
-import { getDraft, setDraft } from '../utils/drafts'
-import type { EditorDoc, EditorDraft, FrameCircle } from '../types'
-import type { EditorAction } from '../state/editorReducer'
+import { deleteDraft, getDraft, setDraft } from '../utils/drafts'
+import type { EditorDoc, EditorDraft } from '../types'
 
 type UseEditorDraftsParams = {
   doc: EditorDoc
-  dispatch: (action: EditorAction) => void
-  setFrameCircle: (circle: FrameCircle | null) => void
-  setFrameMaskCutoff: (value: number) => void
-  setFrameMaskOffwhiteBoost: (value: number) => void
 }
 
 type UseEditorDraftsResult = {
@@ -21,7 +16,7 @@ type UseEditorDraftsResult = {
 }
 
 export function useEditorDrafts(params: UseEditorDraftsParams): UseEditorDraftsResult {
-  const { doc, dispatch, setFrameCircle, setFrameMaskCutoff, setFrameMaskOffwhiteBoost } = params
+  const { doc } = params
   const [draftStatus, setDraftStatus] = useState('')
   const [lastDraftAt, setLastDraftAt] = useState<number | null>(null)
   const [draftState, setDraftState] = useState<EditorDraft | null>(null)
@@ -68,45 +63,21 @@ export function useEditorDrafts(params: UseEditorDraftsParams): UseEditorDraftsR
   }, [draftKey])
 
   useEffect(() => {
-    if (!draftKey || !draftState || draftAppliedRef.current) {
-      return
-    }
-    if (draftState.client_version <= draftState.server_version) {
-      return
-    }
-    dispatch({
-      type: 'APPLY_DRAFT',
-      fit: draftState.chart_fit,
-      overrides: draftState.overrides,
-      design: draftState.design,
-      frameCircle: draftState.frame_circle,
-      occluders: draftState.chart_occluders ?? [],
-      clientVersion: draftState.client_version,
-      serverVersion: draftState.server_version,
-      lastSavedAt: draftState.last_saved_at,
-      lastSyncedAt: draftState.last_synced_at,
-    })
-    if (draftState.frame_circle) {
-      setFrameCircle(draftState.frame_circle)
-    }
-    if (typeof draftState.frame_mask_cutoff === 'number') {
-      setFrameMaskCutoff(draftState.frame_mask_cutoff)
-    }
-    if (typeof draftState.frame_mask_offwhite_boost === 'number') {
-      setFrameMaskOffwhiteBoost(draftState.frame_mask_offwhite_boost)
-    }
-    draftAppliedRef.current = true
-  }, [
-    dispatch,
-    draftKey,
-    draftState,
-    setFrameCircle,
-    setFrameMaskCutoff,
-    setFrameMaskOffwhiteBoost,
-  ])
-
-  useEffect(() => {
     if (!draftKey) {
+      return
+    }
+    if (doc.client_version <= doc.server_version) {
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current)
+      }
+      if (doc.last_saved_at) {
+        deleteDraft(draftKey).catch(() => undefined)
+        queueMicrotask(() => {
+          setLastDraftAt(null)
+          setDraftStatus('')
+          setDraftState(null)
+        })
+      }
       return
     }
     const payload: EditorDraft = {
@@ -118,7 +89,6 @@ export function useEditorDrafts(params: UseEditorDraftsParams): UseEditorDraftsR
       overrides: doc.overrides,
       design: doc.design,
       frame_circle: doc.frame_circle,
-      chart_occluders: doc.chart_occluders,
       frame_mask_cutoff: doc.frame_mask_cutoff,
       frame_mask_offwhite_boost: doc.frame_mask_offwhite_boost,
       client_version: doc.client_version,
@@ -134,6 +104,7 @@ export function useEditorDrafts(params: UseEditorDraftsParams): UseEditorDraftsR
         .then(() => {
           setLastDraftAt(Date.now())
           setDraftStatus('')
+          setDraftState(payload)
         })
         .catch(() => setDraftStatus('Draft save failed.'))
     }, 350)

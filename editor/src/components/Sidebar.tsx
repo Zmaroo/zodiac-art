@@ -73,6 +73,7 @@ export type SidebarProps = {
     onSelectedIdChange: (value: string) => void
     filteredFrames: FrameEntry[]
     chartOnlyId: string
+    selectedFrameSizeLabel: string
   }
   upload: {
     uploadName: string
@@ -101,6 +102,11 @@ export type SidebarProps = {
     exportEnabled: boolean
     exportDisabledTitle: string
   }
+  draftPrompt: {
+    visible: boolean
+    onRestore: () => void
+    onDiscard: () => void
+  }
   debug: {
     debugItems: { label: string; value: string }[]
     showFrameCircleDebug: boolean
@@ -108,7 +114,7 @@ export type SidebarProps = {
   }
 }
 
-function Sidebar({ messages, clears, account, charts, frames, upload, design, actions, debug }: SidebarProps) {
+function Sidebar({ messages, clears, account, charts, frames, upload, design, actions, draftPrompt, debug }: SidebarProps) {
   const {
     accountError,
     accountStatus,
@@ -166,7 +172,15 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     resetToSavedEnabled,
     autoFitEnabled,
   } = charts
-  const { frameSearch, onFrameSearchChange, selectedId, onSelectedIdChange, filteredFrames, chartOnlyId } = frames
+  const {
+    frameSearch,
+    onFrameSearchChange,
+    selectedId,
+    onSelectedIdChange,
+    filteredFrames,
+    chartOnlyId,
+    selectedFrameSizeLabel,
+  } = frames
   const {
     uploadName,
     uploadTags,
@@ -192,6 +206,11 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     exportEnabled,
     exportDisabledTitle,
   } = actions
+  const {
+    visible: draftPromptVisible,
+    onRestore: onDraftRestore,
+    onDiscard: onDraftDiscard,
+  } = draftPrompt
   const { debugItems, showFrameCircleDebug, onShowFrameCircleDebugChange } = debug
   const [activeTab, setActiveTab] = useState<'main' | 'design'>(() => {
     const stored = localStorage.getItem('zodiac_editor.sidebarTab')
@@ -220,6 +239,19 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
           Design
         </button>
       </div>
+      {draftPromptVisible ? (
+        <div className="draft-prompt">
+          <div className="draft-prompt-title">Unsaved local changes found.</div>
+          <div className="draft-prompt-actions">
+            <button type="button" onClick={onDraftRestore}>
+              Restore draft
+            </button>
+            <button type="button" className="secondary" onClick={onDraftDiscard}>
+              Discard draft
+            </button>
+          </div>
+        </div>
+      ) : null}
       {activeTab === 'main' ? (
         <>
           <AccountSection
@@ -274,6 +306,7 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
             onSelectedIdChange={onSelectedIdChange}
             filteredFrames={filteredFrames}
             chartOnlyId={chartOnlyId}
+            selectedFrameSizeLabel={selectedFrameSizeLabel}
             onClearMessages={onClearFramesMessages}
           />
           {framesError ? <div className="inline-error">{framesError}</div> : null}

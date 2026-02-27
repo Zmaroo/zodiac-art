@@ -1,12 +1,11 @@
 import { normalizeOverride, round } from './format'
-import type { ChartFit, ChartOccluder, DesignSettings, FrameCircle, Offset } from '../types'
+import type { ChartFit, DesignSettings, FrameCircle, Offset } from '../types'
 
 type LayoutPayloadInput = {
   overrides: Record<string, Offset>
   design?: DesignSettings
   frameCircle?: FrameCircle | null
   chartFit?: ChartFit
-  chartOccluders?: ChartOccluder[]
   frameMaskCutoff?: number
   frameMaskOffwhiteBoost?: number
 }
@@ -37,9 +36,6 @@ export function buildLayoutPayload(input: LayoutPayloadInput) {
   }
   if (input.chartFit) {
     payload.chart_fit = buildChartFitPayload(input.chartFit)
-  }
-  if (input.chartOccluders) {
-    payload.chart_occluders = input.chartOccluders
   }
   if (typeof input.frameMaskCutoff === 'number') {
     payload.frame_mask_cutoff = input.frameMaskCutoff

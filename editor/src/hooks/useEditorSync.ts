@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 
 import type { EditorDoc } from '../types'
 
@@ -18,32 +18,24 @@ export function useEditorSync(params: UseEditorSyncParams): UseEditorSyncResult 
     doc,
     draftKey,
   } = params
-  const [syncStatus, setSyncStatus] = useState('')
 
-  useEffect(() => {
+  const syncStatus = useMemo(() => {
     if (!draftKey) {
-      setSyncStatus('')
-      return
+      return ''
     }
     if (!jwt) {
-      setSyncStatus('Offline')
-      return
+      return 'Offline'
     }
     if (!doc.chart_id) {
-      return
+      return ''
     }
     if (!doc.is_chart_only && !doc.frame_id) {
-      return
+      return ''
     }
     if (doc.client_version <= doc.server_version) {
-      if (doc.last_synced_at) {
-        setSyncStatus('Saved')
-      } else {
-        setSyncStatus('')
-      }
-      return
+      return doc.last_synced_at ? 'Saved' : ''
     }
-    setSyncStatus('Unsaved changes')
+    return 'Unsaved changes'
   }, [doc, draftKey, jwt])
 
   return { syncStatus }

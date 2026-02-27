@@ -52,7 +52,6 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const lastLoadedChartIdRef = useRef('')
-  const lastJwtRef = useRef(jwt)
 
   const apiFetchWithAuth = useCallback(
     (url: string, init: RequestInit = {}) => apiFetch(url, jwt, init),
@@ -79,17 +78,6 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
   useEffect(() => {
     localStorage.setItem('zodiac_editor.chartId', chartId)
   }, [chartId])
-
-  useEffect(() => {
-    if (lastJwtRef.current === jwt) {
-      return
-    }
-    lastJwtRef.current = jwt
-    lastLoadedChartIdRef.current = ''
-    setChartId('')
-    setChartName('')
-    localStorage.removeItem('zodiac_editor.chartId')
-  }, [jwt])
 
   const createChart = async (payload: {
     birthDate: string

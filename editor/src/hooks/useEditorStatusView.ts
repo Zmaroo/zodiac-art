@@ -15,6 +15,7 @@ type UseEditorStatusViewParams = {
   editorStatus: StatusValue
   uploadError: StatusValue
   uploadStatus: StatusValue
+  extraDebugItems?: { label: string; value: string }[]
 }
 
 type UseEditorStatusViewResult = {
@@ -45,6 +46,7 @@ export function useEditorStatusView(params: UseEditorStatusViewParams): UseEdito
     editorStatus,
     uploadError,
     uploadStatus,
+    extraDebugItems,
   } = params
 
   const debugItems = [
@@ -61,6 +63,9 @@ export function useEditorStatusView(params: UseEditorStatusViewParams): UseEdito
     { label: 'Upload error', value: uploadError },
     { label: 'Upload status', value: uploadStatus },
   ]
+  if (extraDebugItems && extraDebugItems.length > 0) {
+    debugItems.push(...extraDebugItems)
+  }
 
   const inlineAuthError = useAutoDismissMessage(authError, 6000)
   const inlineAuthStatus = useAutoDismissMessage(authStatus, 4000)

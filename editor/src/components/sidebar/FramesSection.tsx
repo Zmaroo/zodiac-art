@@ -8,6 +8,7 @@ type FramesSectionProps = {
   onSelectedIdChange: (value: string) => void
   filteredFrames: FrameEntry[]
   chartOnlyId: string
+  selectedFrameSizeLabel: string
   onClearMessages: () => void
 }
 
@@ -18,6 +19,7 @@ function FramesSection({
   onSelectedIdChange,
   filteredFrames,
   chartOnlyId,
+  selectedFrameSizeLabel,
   onClearMessages,
 }: FramesSectionProps) {
   return (
@@ -47,6 +49,9 @@ function FramesSection({
           </option>
         ))}
       </select>
+      {selectedFrameSizeLabel ? (
+        <div className="frame-size-label">Pixel size: {selectedFrameSizeLabel}</div>
+      ) : null}
     </CollapsibleSection>
   )
 }
