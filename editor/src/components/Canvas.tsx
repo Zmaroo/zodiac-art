@@ -17,6 +17,7 @@ export type CanvasProps = {
   chartId: string
   isChartOnly: boolean
   chartBackgroundColor: string
+  chartBackgroundOffset?: { dx?: number; dy?: number; dr?: number }
   layerOrder: LayerOrderKey[]
   layerOpacity: Record<string, number>
   backgroundImageUrl: string
@@ -47,6 +48,7 @@ function Canvas({
   chartId,
   isChartOnly,
   chartBackgroundColor,
+  chartBackgroundOffset,
   layerOrder,
   layerOpacity,
   backgroundImageUrl,
@@ -69,6 +71,8 @@ function Canvas({
 }: CanvasProps) {
   const canvasRef = useRef<HTMLElement | null>(null)
   const chartOnlyScrollKeyRef = useRef('')
+  const frameOnlyScrollKeyRef = useRef('')
+  const framedScrollKeyRef = useRef('')
   const debugCx = frameCircle ? frameCircle.cxNorm * (meta?.canvas.width ?? 0) : 0
   const debugCy = frameCircle ? frameCircle.cyNorm * (meta?.canvas.height ?? 0) : 0
   const debugRx = frameCircle ? (frameCircle.rxNorm ?? frameCircle.rNorm) * (meta?.canvas.width ?? 0) : 0
@@ -136,6 +140,51 @@ function Canvas({
     })
   }, [chartId, isChartOnly, meta])
 
+  useEffect(() => {
+    if (chartId || !meta || !selectedFrameDetail) {
+      return
+    }
+    const key = `${selectedFrameDetail.id}:${meta.canvas.width}:${meta.canvas.height}`
+    if (frameOnlyScrollKeyRef.current === key) {
+      return
+    }
+    frameOnlyScrollKeyRef.current = key
+    requestAnimationFrame(() => {
+      const container = canvasRef.current
+      if (!container) {
+        return
+      }
+      const targetLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2)
+      const targetTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2)
+      container.scrollLeft = targetLeft
+      container.scrollTop = targetTop
+    })
+  }, [chartId, meta, selectedFrameDetail])
+
+  useEffect(() => {
+    if (!chartId || !meta || !selectedFrameDetail) {
+      return
+    }
+    const key = `${chartId}:${selectedFrameDetail.id}:${meta.canvas.width}:${meta.canvas.height}`
+    if (framedScrollKeyRef.current === key) {
+      return
+    }
+    framedScrollKeyRef.current = key
+    requestAnimationFrame(() => {
+      const container = canvasRef.current
+      if (!container) {
+        return
+      }
+      const targetLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2)
+      const targetTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2)
+      container.scrollLeft = targetLeft
+      container.scrollTop = targetTop
+    })
+  }, [chartId, meta, selectedFrameDetail])
+
+  const backgroundDx = chartBackgroundOffset?.dx ?? 0
+  const backgroundDy = chartBackgroundOffset?.dy ?? 0
+  const backgroundDr = chartBackgroundOffset?.dr ?? 0
   const backgroundLayer = showCircleBackground ? (
     <g
       ref={chartBackgroundRef}
@@ -144,9 +193,9 @@ function Canvas({
       <circle
         id="chart.background"
         data-fill-only="true"
-        cx={meta?.chart.center.x ?? 0}
-        cy={meta?.chart.center.y ?? 0}
-        r={meta?.chart.ring_outer ?? 0}
+        cx={(meta?.chart.center.x ?? 0) + backgroundDx}
+        cy={(meta?.chart.center.y ?? 0) + backgroundDy}
+        r={Math.max(0, (meta?.chart.ring_outer ?? 0) + backgroundDr)}
         fill={chartBackgroundColor || 'none'}
         stroke="none"
       />

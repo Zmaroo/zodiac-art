@@ -83,10 +83,12 @@ const LAYER_LABELS: Record<LayerOrderKey, string> = {
 }
 
 const LAYER_SELECTION_IDS: Partial<Record<LayerOrderKey, string>> = {
+  background: 'chart.background',
   chart_background_image: 'chart.background_image',
 }
 
 const LAYER_ACTIVE_KEYS: Partial<Record<LayerOrderKey, ActiveSelectionLayer>> = {
+  background: 'background',
   chart_background_image: 'background_image',
   chart: 'chart',
 }
@@ -227,11 +229,23 @@ function DesignSection({
             const selectionId = LAYER_SELECTION_IDS[layerKey]
             const activeKey = LAYER_ACTIVE_KEYS[layerKey]
             const isActiveLayer = Boolean(
-              activeKey && selection.activeSelectionLayer === activeKey
+              (activeKey && selection.activeSelectionLayer === activeKey) ||
+                (layerKey === 'background' && selectionId && selectionId === selection.selectedElement)
             )
             const isSelected = Boolean(selectionId && selectionId === selection.selectedElement)
             const handleLayerActivate = () => {
               if (!activeKey) {
+                return
+              }
+              if (layerKey === 'background') {
+                const isActive =
+                  selection.activeSelectionLayer === activeKey &&
+                  selection.selectedElement === selectionId
+                const next = isActive ? 'auto' : activeKey
+                selection.onActiveSelectionLayerChange(next)
+                if (selectionId) {
+                  selection.onSelectedElementChange(next === 'auto' ? '' : selectionId)
+                }
                 return
               }
               const next = selection.activeSelectionLayer === activeKey ? 'auto' : activeKey
@@ -309,8 +323,8 @@ function DesignSection({
             type="range"
             id="sign-glyph-scale"
             name="sign-glyph-scale"
-            min={0.7}
-            max={1.3}
+            min={0.5}
+            max={2.5}
             step={0.01}
             value={layering.design.sign_glyph_scale}
             onChange={(event) => glyphScale.onSignGlyphScaleChange(Number(event.target.value))}
@@ -323,8 +337,8 @@ function DesignSection({
             type="range"
             id="planet-glyph-scale"
             name="planet-glyph-scale"
-            min={0.7}
-            max={1.3}
+            min={0.5}
+            max={2.5}
             step={0.01}
             value={layering.design.planet_glyph_scale}
             onChange={(event) => glyphScale.onPlanetGlyphScaleChange(Number(event.target.value))}

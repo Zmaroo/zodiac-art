@@ -138,13 +138,25 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
       setLatitude(data.latitude)
       setLongitude(data.longitude)
       setChartName(data.name ?? '')
-      if (data.default_frame_id) {
+      if (selectedId && selectedId !== '__chart_only__') {
+        setSelectedId(selectedId)
+      } else if (data.default_frame_id) {
         setSelectedId(data.default_frame_id)
       } else {
         setSelectedId('__chart_only__')
       }
     },
-    [apiBase, apiFetchWithAuth, jwt, setBirthDate, setBirthTime, setLatitude, setLongitude, setSelectedId]
+    [
+      apiBase,
+      apiFetchWithAuth,
+      jwt,
+      selectedId,
+      setBirthDate,
+      setBirthTime,
+      setLatitude,
+      setLongitude,
+      setSelectedId,
+    ]
   )
 
   useEffect(() => {

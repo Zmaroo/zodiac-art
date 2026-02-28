@@ -161,10 +161,18 @@ class SvgChartRenderer:
 
         background_override = overrides.get("chart.background")
         background_color = background_override.color if background_override else None
+        background_center = center
+        background_radius = outer_radius
+        if background_override:
+            dx = background_override.dx or 0.0
+            dy = background_override.dy or 0.0
+            background_center = (center[0] + dx, center[1] + dy)
+            if background_override.dr is not None:
+                background_radius = max(0.0, outer_radius + background_override.dr)
         chart_group.add(
             dwg.circle(
-                center=center,
-                r=outer_radius,
+                center=background_center,
+                r=background_radius,
                 fill=background_color or "none",
                 stroke="none",
                 **{"data-fill-only": "true", "id": "chart.background"},

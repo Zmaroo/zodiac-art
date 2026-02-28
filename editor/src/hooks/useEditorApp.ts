@@ -605,6 +605,7 @@ export function useEditorApp(): UseEditorAppResult {
     chartId,
     isChartOnly,
     chartBackgroundColor,
+    chartBackgroundOffset: overrides?.['chart.background'],
     layerOrder: design.layer_order,
     layerOpacity: design.layer_opacity,
     backgroundImageUrl,

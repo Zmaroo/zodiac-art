@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Start/stop local dev servers with PID files."""
 
 from __future__ import annotations
@@ -117,12 +118,14 @@ def _editor_command() -> tuple[list[str], dict[str, str]]:
 
 def _mcp_command() -> tuple[list[str], dict[str, str]]:
     env = _base_env()
+    env.setdefault("MCP_TRANSPORT", "streamable-http")
+    env.setdefault("MCP_PORT", "7331")
     return [sys.executable, "-m", "zodiac_art.mcp.server"], env
 
 
 def _chrome_command() -> tuple[list[str], dict[str, str]]:
     env = _base_env()
-    return ["open", "-a", "Google Chrome", "--args", "--remote-debugging-port=9222"], env
+    return [str(PROJECT_ROOT / "scripts" / "debug_chrome.sh")], env
 
 
 def main() -> None:

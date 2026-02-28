@@ -163,7 +163,8 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
       return
     }
     const bulkValues = [BULK_ALL, BULK_PLANETS, BULK_SIGNS, BULK_GLYPHS]
-    const layerSelected = selectedElement === BACKGROUND_IMAGE_ID
+    const layerSelected =
+      selectedElement === BACKGROUND_IMAGE_ID || selectedElement === CHART_BACKGROUND_ID
     if (!layerSelected && !selectableElements.includes(selectedElement) && !bulkValues.includes(selectedElement)) {
       dispatch({ type: 'SET_SELECTED_ELEMENT', id: '' })
       dispatch({ type: 'SET_ACTIVE_SELECTION_LAYER', layer: 'auto' })
@@ -183,6 +184,8 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
         isDraggableElement(value))
     ) {
       nextLayer = 'chart'
+    } else if (value === CHART_BACKGROUND_ID) {
+      nextLayer = 'background'
     } else if (value === BACKGROUND_IMAGE_ID) {
       nextLayer = 'background_image'
     }

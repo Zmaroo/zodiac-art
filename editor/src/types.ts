@@ -135,6 +135,10 @@ export type DragState =
       mode: 'chart-move' | 'chart-scale' | 'chart-rotate'
     })
   | (DragStateBase & {
+      mode: 'background-move' | 'background-scale'
+      backgroundOffset: Offset
+    })
+  | (DragStateBase & {
       mode: 'label'
       labelId: string
       startOffset: Offset

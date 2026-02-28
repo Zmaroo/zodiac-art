@@ -304,7 +304,8 @@ async def _build_frame_render_context(
             rotation_deg=meta.chart_fit_rotation_deg,
         )
     design = _design_from_layout(layout, design_override)
-    settings = _build_settings(meta, config, design)
+    font_scale = max(0.1, meta.ring_outer / CHART_ONLY_FONT_BASE_RADIUS)
+    settings = _build_settings(meta, config, design, font_scale=font_scale)
     metadata_path = await storage.template_meta_path(frame_id)
     cache_key = _cache_key(
         "frame",

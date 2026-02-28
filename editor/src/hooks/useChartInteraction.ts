@@ -54,13 +54,18 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
     radialMoveEnabled,
   } = params
   const [drag, setDrag] = useState<DragState | null>(null)
+  const chartBackgroundId = 'chart.background'
   const backgroundImageId = 'chart.background_image'
   const chartIsActive = activeSelectionLayer === 'chart'
+  const backgroundIsActive = activeSelectionLayer === 'background'
+  const backgroundIsSelected = selectedElement === chartBackgroundId
   const backgroundImageIsActive = activeSelectionLayer === 'background_image'
   const frameMaskIsActive = activeSelectionLayer === 'frame_mask'
   const allowChartActions = activeSelectionLayer === 'auto' || chartIsActive
+  const allowBackgroundActions = backgroundIsActive || backgroundIsSelected
   const allowBackgroundImageActions = activeSelectionLayer === 'auto' || backgroundImageIsActive
   const allowFrameMaskActions = frameMaskIsActive
+  const allowChartBackgroundForChart = activeSelectionLayer === 'auto' && !backgroundIsSelected
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (!svgRef.current || !chartRootRef.current) {
@@ -131,6 +136,21 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       }
     }
 
+    if (allowBackgroundActions && (chartBackgroundElement || selectedElement === chartBackgroundId)) {
+      const point = toSvgPoint(event, svgRef.current)
+      const mode = event.shiftKey ? 'background-scale' : 'background-move'
+      const current = overrides[chartBackgroundId] || {}
+      dispatch({ type: 'SET_SELECTED_ELEMENT', id: chartBackgroundId })
+      setDrag({
+        mode,
+        startPoint: point,
+        startFit: chartFit,
+        backgroundOffset: current,
+      })
+      svgRef.current.setPointerCapture(event.pointerId)
+      return
+    }
+
     if (
       allowBackgroundImageActions &&
       design.background_image_path &&
@@ -170,7 +190,7 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
       return
     }
 
-    if (allowChartActions && (chartElement || chartBackgroundElement)) {
+    if (allowChartActions && (chartElement || (allowChartBackgroundForChart && chartBackgroundElement))) {
       const point = toSvgPoint(event, svgRef.current)
       const mode = event.shiftKey
         ? 'chart-scale'
@@ -311,6 +331,40 @@ export function useChartInteraction(params: UseChartInteractionParams): UseChart
         background_image_scale: nextScale,
         background_image_dx: nextDx,
         background_image_dy: nextDy,
+      })
+      return
+    }
+    if (drag.mode === 'background-move') {
+      const baseOffset = drag.backgroundOffset
+      const color = baseOffset.color
+      dispatch({
+        type: 'SET_OVERRIDES',
+        overrides: {
+          ...overrides,
+          [chartBackgroundId]: {
+            dx: (baseOffset.dx ?? 0) + dx,
+            dy: (baseOffset.dy ?? 0) + dy,
+            dr: baseOffset.dr ?? 0,
+            color,
+          },
+        },
+      })
+      return
+    }
+    if (drag.mode === 'background-scale') {
+      const baseOffset = drag.backgroundOffset
+      const color = baseOffset.color
+      dispatch({
+        type: 'SET_OVERRIDES',
+        overrides: {
+          ...overrides,
+          [chartBackgroundId]: {
+            dx: baseOffset.dx ?? 0,
+            dy: baseOffset.dy ?? 0,
+            dr: (baseOffset.dr ?? 0) + dx,
+            color,
+          },
+        },
       })
       return
     }

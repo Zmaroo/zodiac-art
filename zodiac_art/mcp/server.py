@@ -13,7 +13,37 @@ from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
 
 load_dotenv(override=False)
 
-mcp = FastMCP("zodiac-tools")
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"Invalid integer for {name}: {value}") from exc
+
+
+def _env_str(name: str, default: str) -> str:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    return value.strip()
+
+
+def _mcp_host() -> str:
+    return _env_str("MCP_HOST", "127.0.0.1")
+
+
+def _mcp_port() -> int:
+    return _env_int("MCP_PORT", 7331)
+
+
+def _mcp_transport() -> str:
+    return _env_str("MCP_TRANSPORT", "stdio")
+
+
+mcp = FastMCP("zodiac-tools", host=_mcp_host(), port=_mcp_port())
 
 
 def _api_base() -> str:
@@ -327,7 +357,7 @@ def delete_chart(chart_id: str) -> Any:
 
 
 def main() -> None:
-    mcp.run()
+    mcp.run(transport=_mcp_transport())
 
 
 if __name__ == "__main__":

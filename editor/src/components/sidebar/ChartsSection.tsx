@@ -26,9 +26,12 @@ function ChartsSection({
           aria-label="Select chart"
           value={chartId}
           onChange={(event) => {
-            if (event.target.value) {
-              onSelectChart(event.target.value)
+            const value = event.target.value
+            if (!value) {
+              onChartIdChange('')
+              return
             }
+            onSelectChart(value)
           }}
           className="chart-select"
         >
