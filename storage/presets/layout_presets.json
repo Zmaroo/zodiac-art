@@ -1,0 +1,25 @@
+{
+  "demo-preset-01": {
+    "chart_id": "623188e8-79cc-418f-88ef-677817f54a91",
+    "frame_id": "8e551e9e-44d4-487f-9ccf-5819af9c9e32",
+    "layout": {
+      "chart_fit": {
+        "dx": 6.0,
+        "dy": 4.0,
+        "rotation_deg": 1.5,
+        "scale": 1.06
+      },
+      "frame_circle": {
+        "cxNorm": 0.5,
+        "cyNorm": 0.5,
+        "rNorm": 0.24,
+        "rxNorm": 0.26,
+        "ryNorm": 0.24
+      },
+      "overrides": {},
+      "version": 1
+    },
+    "name": "demo-preset-01",
+    "saved_at": "2026-02-28T15:22:21.685120+00:00"
+  }
+}

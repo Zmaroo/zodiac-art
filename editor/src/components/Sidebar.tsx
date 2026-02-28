@@ -57,7 +57,13 @@ export type SidebarProps = {
     onBirthTimeChange: (value: string) => void
     onLatitudeChange: (value: number) => void
     onLongitudeChange: (value: number) => void
-    onCreateChart: () => void
+    onCreateChart: (payload?: {
+      birthDate: string
+      birthTime: string
+      latitude: number
+      longitude: number
+    }) => void
+    onDeleteChart: (chartIdToDelete: string) => void
     onResetSession: () => void
     onFactoryReset: () => void
     onResetView: () => void
@@ -74,6 +80,7 @@ export type SidebarProps = {
     filteredFrames: FrameEntry[]
     chartOnlyId: string
     selectedFrameSizeLabel: string
+    onDeleteFrame: (frameIdToDelete: string) => void
   }
   upload: {
     uploadName: string
@@ -164,6 +171,7 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     onLatitudeChange,
     onLongitudeChange,
     onCreateChart,
+    onDeleteChart,
     onResetSession,
     onFactoryReset,
     onResetView,
@@ -180,6 +188,7 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     filteredFrames,
     chartOnlyId,
     selectedFrameSizeLabel,
+    onDeleteFrame,
   } = frames
   const {
     uploadName,
@@ -252,6 +261,49 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
           </div>
         </div>
       ) : null}
+      <div className="toolbar-actions">
+        <div className="actions">
+          <div className="undo-row">
+            <button type="button" className="secondary" onClick={onUndo} disabled={!canUndo}>
+              Undo
+            </button>
+            <button type="button" className="secondary" onClick={onRedo} disabled={!canRedo}>
+              Redo
+            </button>
+          </div>
+          <button onClick={onSaveAll} title="Saves layout + metadata (or chart-only fit) to the server.">
+            Save changes
+          </button>
+          <div className="export-row">
+            <select
+              name="export-format"
+              value={exportFormat}
+              onChange={(event) => onExportFormatChange(event.target.value as 'png' | 'svg')}
+              disabled={!exportEnabled}
+              aria-label="Export format"
+            >
+              <option value="png">Download PNG</option>
+              <option value="svg">Download SVG</option>
+            </select>
+            <button
+              className="secondary"
+              onClick={onExport}
+              disabled={!exportEnabled}
+              title={exportDisabledTitle}
+            >
+              Download
+            </button>
+          </div>
+          {actionsError ? <div className="inline-error">{actionsError}</div> : null}
+          {actionsStatus ? <div className="inline-status">{actionsStatus}</div> : null}
+          {(draftStatus || syncStatus) && (
+            <div className="sync-status">
+              {draftStatus ? <div>{draftStatus}</div> : null}
+              {syncStatus ? <div>{syncStatus}</div> : null}
+            </div>
+          )}
+        </div>
+      </div>
       {activeTab === 'main' ? (
         <>
           <AccountSection
@@ -272,6 +324,7 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
             chartId={chartId}
             onSelectChart={onSelectChart}
             onChartIdChange={onChartIdChange}
+            onDeleteChart={onDeleteChart}
             onClearMessages={onClearChartsMessages}
           />
           {chartsError ? <div className="inline-error">{chartsError}</div> : null}
@@ -307,6 +360,7 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
             filteredFrames={filteredFrames}
             chartOnlyId={chartOnlyId}
             selectedFrameSizeLabel={selectedFrameSizeLabel}
+            onDeleteFrame={onDeleteFrame}
             onClearMessages={onClearFramesMessages}
           />
           {framesError ? <div className="inline-error">{framesError}</div> : null}
@@ -333,50 +387,6 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
               debugItems={debugItems}
             />
           ) : null}
-          {actionsError ? <div className="inline-error">{actionsError}</div> : null}
-          {actionsStatus ? <div className="inline-status">{actionsStatus}</div> : null}
-          {(draftStatus || syncStatus) && (
-            <div className="sync-status">
-              {draftStatus ? <div>{draftStatus}</div> : null}
-              {syncStatus ? <div>{syncStatus}</div> : null}
-            </div>
-          )}
-          <div className="actions">
-            <div className="undo-row">
-              <button type="button" className="secondary" onClick={onUndo} disabled={!canUndo}>
-                Undo
-              </button>
-              <button type="button" className="secondary" onClick={onRedo} disabled={!canRedo}>
-                Redo
-              </button>
-            </div>
-            <button
-              onClick={onSaveAll}
-              title="Saves layout + metadata (or chart-only fit) to the server."
-            >
-              Save changes
-            </button>
-            <div className="export-row">
-              <select
-                name="export-format"
-                value={exportFormat}
-                onChange={(event) => onExportFormatChange(event.target.value as 'png' | 'svg')}
-                disabled={!exportEnabled}
-                aria-label="Export format"
-              >
-                <option value="png">Download PNG</option>
-                <option value="svg">Download SVG</option>
-              </select>
-              <button
-                className="secondary"
-                onClick={onExport}
-                disabled={!exportEnabled}
-                title={exportDisabledTitle}
-              >
-                Download
-              </button>
-            </div>
-          </div>
         </>
       ) : (
         <>

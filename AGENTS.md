@@ -18,6 +18,12 @@ Keep changes small, focused, and aligned with existing conventions.
 - `frames/`: frame metadata (`.json`) and art (`.png`).
 - `output/`: generated SVG/PNG artifacts.
 - `environment.yml`: conda environment definition.
+## Generated Artifacts
+- `output/` and `storage/` are generated; avoid editing by hand.
+- Keep rendering outputs deterministic so diffs are stable.
+## MCP Tooling
+- `zodiac_art/mcp/tools_manifest.json` documents available `zodiac-tools`.
+- After MCP tool changes, restart the opencode host to refresh the tool list.
 ## Build / Run / Test Commands
 No separate build step; create the env and run Python entry points.
 ### Environment Setup
@@ -84,6 +90,8 @@ pytest tests/test_session_storage.py::TestSessionStorage::test_round_trip
 pytest tests/test_session_storage.py -k round_trip
 pytest -k "session and round_trip" -vv
 ```
+### Tests (Fast Feedback)
+Use `-k` with `-vv` and target the smallest scope first.
 ## Code Style Guidelines
 ### Imports
 - Use absolute imports within the package (e.g., `from zodiac_art.utils...`).
@@ -124,6 +132,7 @@ pytest -k "session and round_trip" -vv
 - Use `pathlib.Path` for filesystem paths.
 - JSON loading should validate file existence and raise `FileNotFoundError`.
 - Keep assets and output paths configurable via config/env.
+- Update `environment.yml` when adding dependencies.
 ### SVG / Rendering
 - Keep rendering logic in `zodiac_art/renderer/`.
 - Use `svgwrite` for SVG generation.

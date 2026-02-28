@@ -26,6 +26,8 @@ Dev MCP server:
 - Name: `zodiac-tools`
 - Requires `ZODIAC_DEV_TOOLS=1` on the API server
 - Local-only; exposes chart/layout/mask testing tools
+- Tool manifest lives at `zodiac_art/mcp/tools_manifest.json`
+- After MCP tool changes, restart the opencode host to refresh the tool list
 
 Debugging workflow:
 

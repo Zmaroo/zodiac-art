@@ -6,6 +6,7 @@ type UseEditorStatusViewParams = {
   authError: StatusValue
   authStatus: StatusValue
   framesError: StatusValue
+  framesStatus: StatusValue
   chartsError: StatusValue
   chartsStatus: StatusValue
   chartSvgError: StatusValue
@@ -37,6 +38,7 @@ export function useEditorStatusView(params: UseEditorStatusViewParams): UseEdito
     authError,
     authStatus,
     framesError,
+    framesStatus,
     chartsError,
     chartsStatus,
     chartSvgError,
@@ -53,6 +55,7 @@ export function useEditorStatusView(params: UseEditorStatusViewParams): UseEdito
     { label: 'Auth error', value: authError },
     { label: 'Auth status', value: authStatus },
     { label: 'Frames error', value: framesError },
+    { label: 'Frames status', value: framesStatus },
     { label: 'Charts error', value: chartsError },
     { label: 'Charts status', value: chartsStatus },
     { label: 'Chart SVG error', value: chartSvgError },
@@ -72,7 +75,7 @@ export function useEditorStatusView(params: UseEditorStatusViewParams): UseEdito
   const inlineChartsError = useAutoDismissMessage(chartsError, 6000)
   const inlineChartsStatus = useAutoDismissMessage(chartsStatus, 4000)
   const inlineFramesError = useAutoDismissMessage(framesError || chartSvgError || frameCircleError, 6000)
-  const inlineFramesStatus = useAutoDismissMessage(frameCircleStatus, 4000)
+  const inlineFramesStatus = useAutoDismissMessage(framesStatus || frameCircleStatus, 4000)
   const inlineUploadError = useAutoDismissMessage(uploadError, 6000)
   const inlineUploadStatus = useAutoDismissMessage(uploadStatus, 4000)
   const inlineActionsError = useAutoDismissMessage(editorError, 6000)

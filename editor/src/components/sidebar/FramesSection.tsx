@@ -9,6 +9,7 @@ type FramesSectionProps = {
   filteredFrames: FrameEntry[]
   chartOnlyId: string
   selectedFrameSizeLabel: string
+  onDeleteFrame: (frameIdToDelete: string) => void
   onClearMessages: () => void
 }
 
@@ -20,6 +21,7 @@ function FramesSection({
   filteredFrames,
   chartOnlyId,
   selectedFrameSizeLabel,
+  onDeleteFrame,
   onClearMessages,
 }: FramesSectionProps) {
   return (
@@ -51,6 +53,24 @@ function FramesSection({
       </select>
       {selectedFrameSizeLabel ? (
         <div className="frame-size-label">Pixel size: {selectedFrameSizeLabel}</div>
+      ) : null}
+      {import.meta.env.DEV ? (
+        <button
+          type="button"
+          className="secondary danger"
+          disabled={!selectedId || selectedId === chartOnlyId}
+          onClick={() => {
+            if (!selectedId || selectedId === chartOnlyId) {
+              return
+            }
+            if (!window.confirm('Delete this frame? This cannot be undone.')) {
+              return
+            }
+            onDeleteFrame(selectedId)
+          }}
+        >
+          Delete frame
+        </button>
       ) : null}
     </CollapsibleSection>
   )

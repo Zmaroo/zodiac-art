@@ -44,7 +44,12 @@ type UseEditorSessionActionsParams = {
 }
 
 type UseEditorSessionActionsResult = {
-  handleCreateChart: () => Promise<void>
+  handleCreateChart: (payload?: {
+    birthDate: string
+    birthTime: string
+    latitude: number
+    longitude: number
+  }) => Promise<void>
   handleLoginClick: () => Promise<void>
   handleRegisterClick: () => Promise<void>
   handleUploadFrame: () => Promise<void>
@@ -92,9 +97,15 @@ export function useEditorSessionActions(
     setError,
   } = params
 
-  const handleCreateChart = async () => {
+  const handleCreateChart = async (payloadOverride?: {
+    birthDate: string
+    birthTime: string
+    latitude: number
+    longitude: number
+  }) => {
     clearChartsMessages()
-    await createChart({ birthDate, birthTime, latitude, longitude })
+    const payload = payloadOverride ?? { birthDate, birthTime, latitude, longitude }
+    await createChart(payload)
   }
 
   const handleLoginClick = async () => {

@@ -245,7 +245,10 @@ async def load_metadata(
         raise HTTPException(status_code=404, detail="Frame not found")
     meta = await get_storage(request).load_chart_meta(chart_id, frame_id)
     if meta is None:
-        raise HTTPException(status_code=404, detail="Metadata not found")
+        frame = await get_frame_store(request).get_frame(frame_id)
+        if frame:
+            return frame.template_metadata_json
+        return {}
     return meta
 
 
@@ -329,7 +332,7 @@ async def load_layout(
         raise HTTPException(status_code=404, detail="Frame not found")
     layout = await get_storage(request).load_chart_layout(chart_id, frame_id)
     if layout is None:
-        raise HTTPException(status_code=404, detail="Layout not found")
+        return {"version": 1, "overrides": {}}
     return ensure_layout_version(layout, f"chart {chart_id} frame {frame_id}")
 
 
@@ -397,7 +400,7 @@ async def load_chart_layout(
     await load_chart_for_user(request, chart_id, user.user_id)
     layout = await get_storage(request).load_chart_layout_base(chart_id)
     if layout is None:
-        raise HTTPException(status_code=404, detail="Layout not found")
+        return {"version": 1, "overrides": {}}
     return ensure_layout_version(layout, f"chart {chart_id} base")
 
 

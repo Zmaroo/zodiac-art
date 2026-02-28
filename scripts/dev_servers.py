@@ -108,6 +108,8 @@ def _api_command(dev_tools: bool) -> tuple[list[str], dict[str, str]]:
     env = _base_env()
     if dev_tools:
         env["ZODIAC_DEV_TOOLS"] = "1"
+    else:
+        env.setdefault("ZODIAC_DEV_TOOLS", "1")
     return [sys.executable, "-m", "zodiac_art.api.app"], env
 
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchJsonAuth } from '../api/client'
+import { apiFetch, fetchJsonAuth, readApiError } from '../api/client'
 import type { FrameEntry } from '../types'
 
 type UseFramesResult = {
@@ -10,8 +10,11 @@ type UseFramesResult = {
   setFrameSearch: (value: string) => void
   filteredFrames: FrameEntry[]
   error: string
+  status: string
+  deleteFrame: (frameIdToDelete: string) => Promise<void>
   reload: () => void
   clearError: () => void
+  clearStatus: () => void
 }
 
 export function useFrames(apiBase: string, jwt: string): UseFramesResult {
@@ -21,6 +24,7 @@ export function useFrames(apiBase: string, jwt: string): UseFramesResult {
   )
   const [frameSearch, setFrameSearch] = useState('')
   const [error, setError] = useState('')
+  const [status, setStatus] = useState('')
 
   const loadFrames = useCallback(() => {
     fetchJsonAuth(`${apiBase}/api/frames`, jwt)
@@ -69,7 +73,36 @@ export function useFrames(apiBase: string, jwt: string): UseFramesResult {
     setFrameSearch,
     filteredFrames,
     error,
+    status,
+    deleteFrame: async (frameIdToDelete: string) => {
+      if (!jwt) {
+        setError('Login required to delete frames.')
+        return
+      }
+      if (!frameIdToDelete || frameIdToDelete === '__chart_only__') {
+        setError('Select a frame to delete.')
+        return
+      }
+      const response = await apiFetch(`${apiBase}/api/dev/tools/frame/delete`, jwt, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frame_id: frameIdToDelete }),
+      })
+      if (!response.ok) {
+        const detail = await readApiError(response)
+        setError(detail ?? 'Failed to delete frame.')
+        setStatus('')
+        return
+      }
+      if (selectedId === frameIdToDelete) {
+        localStorage.removeItem('zodiac_editor.frameId')
+      }
+      setError('')
+      setStatus(`Deleted frame ${frameIdToDelete}`)
+      loadFrames()
+    },
     reload: loadFrames,
     clearError: () => setError(''),
+    clearStatus: () => setStatus(''),
   }
 }

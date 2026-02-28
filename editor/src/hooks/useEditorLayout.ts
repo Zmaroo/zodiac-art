@@ -141,7 +141,10 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
     applyLayoutResult(result)
     const draftIsNewer =
       draftState && draftState.key === draftKey && draftState.client_version > draftState.server_version
-    if (draftIsNewer && !draftAppliedRef.current) {
+    const promptEligible =
+      draftIsNewer &&
+      (draftState?.last_saved_at !== null || draftState?.last_synced_at !== null)
+    if (promptEligible && !draftAppliedRef.current) {
       setDraftPromptVisible(true)
     }
   }
@@ -149,7 +152,10 @@ export function useEditorLayout(params: UseEditorLayoutParams): UseEditorLayoutR
   useEffect(() => {
     const draftIsNewer =
       draftState && draftState.key === draftKey && draftState.client_version > draftState.server_version
-    if (!draftIsNewer || draftAppliedRef.current || draftPromptVisible) {
+    const promptEligible =
+      draftIsNewer &&
+      (draftState?.last_saved_at !== null || draftState?.last_synced_at !== null)
+    if (!promptEligible || draftAppliedRef.current || draftPromptVisible) {
       return
     }
     if (!layoutResultRef.current) {

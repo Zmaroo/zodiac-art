@@ -26,6 +26,7 @@ type UseChartsResult = {
     latitude: number
     longitude: number
   }) => Promise<void>
+  deleteChart: (chartIdToDelete: string) => Promise<void>
   selectChart: (chartIdToLoad: string) => Promise<void>
   error: string
   status: string
@@ -79,6 +80,14 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
     localStorage.setItem('zodiac_editor.chartId', chartId)
   }, [chartId])
 
+  useEffect(() => {
+    if (chartId) {
+      return
+    }
+    setError('')
+    setStatus('')
+  }, [chartId])
+
   const createChart = async (payload: {
     birthDate: string
     birthTime: string
@@ -117,6 +126,36 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
     loadCharts()
   }
 
+  const deleteChart = async (chartIdToDelete: string) => {
+    if (!jwt) {
+      setError('Login required to delete charts.')
+      return
+    }
+    if (!chartIdToDelete) {
+      setError('Select a chart to delete.')
+      return
+    }
+    const response = await apiFetchWithAuth(`${apiBase}/api/dev/tools/chart/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chart_id: chartIdToDelete }),
+    })
+    if (!response.ok) {
+      const detail = await readApiError(response)
+      setError(detail ?? 'Failed to delete chart.')
+      setStatus('')
+      return
+    }
+    if (chartId === chartIdToDelete) {
+      setChartId('')
+      setChartName('')
+      localStorage.removeItem('zodiac_editor.chartId')
+    }
+    setError('')
+    setStatus(`Deleted chart ${chartIdToDelete}`)
+    loadCharts()
+  }
+
   const selectChart = useCallback(
     async (chartIdToLoad: string) => {
       if (!jwt) {
@@ -127,6 +166,13 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
       setError('')
       const response = await apiFetchWithAuth(`${apiBase}/api/charts/${chartIdToLoad}`)
       if (!response.ok) {
+        if (response.status === 404) {
+          setChartId('')
+          setChartName('')
+          localStorage.removeItem('zodiac_editor.chartId')
+          setError('Chart not found.')
+          return
+        }
         const detail = await readApiError(response)
         setError(detail ?? 'Failed to load chart.')
         return
@@ -188,6 +234,7 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
     setChartName,
     loadCharts,
     createChart,
+    deleteChart,
     selectChart,
     error,
     status,

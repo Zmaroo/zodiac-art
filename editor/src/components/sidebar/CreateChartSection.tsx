@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 import CollapsibleSection from '../CollapsibleSection'
 import NumberField from '../NumberField'
 
@@ -12,7 +14,12 @@ type CreateChartSectionProps = {
   onBirthTimeChange: (value: string) => void
   onLatitudeChange: (value: number) => void
   onLongitudeChange: (value: number) => void
-  onCreateChart: () => void
+  onCreateChart: (payload?: {
+    birthDate: string
+    birthTime: string
+    latitude: number
+    longitude: number
+  }) => void
   onResetSession: () => void
   onFactoryReset: () => void
   onResetView: () => void
@@ -44,6 +51,8 @@ function CreateChartSection({
   resetToSavedEnabled,
   onClearMessages,
 }: CreateChartSectionProps) {
+  const birthDateRef = useRef<HTMLInputElement | null>(null)
+  const birthTimeRef = useRef<HTMLInputElement | null>(null)
   return (
     <CollapsibleSection title="Create Chart" persistKey="create-chart" onToggle={onClearMessages}>
       <label className="field" htmlFor="chart-name">
@@ -64,6 +73,7 @@ function CreateChartSection({
           id="birth-date"
           name="birth-date"
           value={birthDate}
+          ref={birthDateRef}
           onChange={(event) => onBirthDateChange(event.target.value)}
         />
       </label>
@@ -74,13 +84,24 @@ function CreateChartSection({
           id="birth-time"
           name="birth-time"
           value={birthTime}
+          ref={birthTimeRef}
           onChange={(event) => onBirthTimeChange(event.target.value)}
         />
       </label>
       <NumberField label="Latitude" value={latitude} step={0.0001} onChange={onLatitudeChange} />
       <NumberField label="Longitude" value={longitude} step={0.0001} onChange={onLongitudeChange} />
       <div className="button-grid">
-        <button className="secondary" onClick={onCreateChart}>
+        <button
+          className="secondary"
+          onClick={() =>
+            onCreateChart({
+              birthDate: birthDateRef.current?.value ?? birthDate,
+              birthTime: birthTimeRef.current?.value ?? birthTime,
+              latitude,
+              longitude,
+            })
+          }
+        >
           Create chart
         </button>
         <button

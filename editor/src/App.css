@@ -104,6 +104,17 @@
   margin-top: 20px;
 }
 
+.toolbar-actions {
+  margin-top: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ddd3c4;
+}
+
+.toolbar-actions .actions {
+  margin-top: 0;
+}
+
 .undo-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -122,6 +133,11 @@
 .actions button:last-child {
   background: #b59b6d;
   color: #1f1b16;
+}
+
+.actions .danger {
+  background: #c05a43;
+  color: #fffaf1;
 }
 
 .export-row {
@@ -195,6 +211,12 @@
   background: #efe9de;
   color: #2f2a22;
   cursor: pointer;
+}
+
+.secondary.danger {
+  border-color: #b75a44;
+  background: #f2d9d2;
+  color: #5b2012;
 }
 
 .canvas {

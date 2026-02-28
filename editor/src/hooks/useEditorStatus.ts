@@ -6,6 +6,7 @@ type UseEditorStatusParams = {
   authError: string
   authStatus: string
   framesError: string
+  framesStatus: string
   chartsError: string
   chartsStatus: string
   chartSvgError: string
@@ -24,6 +25,7 @@ type UseEditorStatusParams = {
   clearChartsError: () => void
   clearChartsStatus: () => void
   clearFramesError: () => void
+  clearFramesStatus: () => void
   clearFrameCircleStatus: () => void
   clearUploadMessages: () => void
 }
@@ -33,6 +35,7 @@ export function useEditorStatus(params: UseEditorStatusParams) {
     authError,
     authStatus,
     framesError,
+    framesStatus,
     chartsError,
     chartsStatus,
     chartSvgError,
@@ -51,6 +54,7 @@ export function useEditorStatus(params: UseEditorStatusParams) {
     clearChartsError,
     clearChartsStatus,
     clearFramesError,
+    clearFramesStatus,
     clearFrameCircleStatus,
     clearUploadMessages,
   } = params
@@ -71,6 +75,7 @@ export function useEditorStatus(params: UseEditorStatusParams) {
     authError,
     authStatus,
     framesError,
+    framesStatus,
     chartsError,
     chartsStatus,
     chartSvgError,
@@ -115,6 +120,7 @@ export function useEditorStatus(params: UseEditorStatusParams) {
     },
     onClearFramesMessages: () => {
       clearFramesError()
+      clearFramesStatus()
       clearFrameCircleStatus()
     },
     onClearUploadMessages: clearUploadMessages,

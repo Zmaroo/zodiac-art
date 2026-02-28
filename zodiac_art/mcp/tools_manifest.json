@@ -1,0 +1,294 @@
+{
+  "name": "zodiac-tools",
+  "tools": [
+    {
+      "name": "list_frames",
+      "description": "List available frames."
+    },
+    {
+      "name": "list_charts",
+      "description": "List charts with optional filters.",
+      "args": [
+        {"name": "name_contains", "type": "string", "optional": true},
+        {"name": "created_after", "type": "string", "optional": true},
+        {"name": "limit", "type": "number", "optional": true},
+        {"name": "offset", "type": "number", "optional": true}
+      ]
+    },
+    {
+      "name": "get_chart",
+      "description": "Fetch chart details.",
+      "args": [{"name": "chart_id", "type": "string"}]
+    },
+    {
+      "name": "get_frame",
+      "description": "Fetch frame details.",
+      "args": [{"name": "frame_id", "type": "string"}]
+    },
+    {
+      "name": "create_chart",
+      "description": "Create a chart.",
+      "args": [
+        {"name": "name", "type": "string"},
+        {"name": "birth_date", "type": "string"},
+        {"name": "birth_time", "type": "string"},
+        {"name": "latitude", "type": "number"},
+        {"name": "longitude", "type": "number"},
+        {"name": "default_frame_id", "type": "string", "optional": true}
+      ]
+    },
+    {
+      "name": "create_chart_with_frame",
+      "description": "Create a chart with a specific frame.",
+      "args": [
+        {"name": "name", "type": "string"},
+        {"name": "birth_date", "type": "string"},
+        {"name": "birth_time", "type": "string"},
+        {"name": "latitude", "type": "number"},
+        {"name": "longitude", "type": "number"},
+        {"name": "frame_id", "type": "string"}
+      ]
+    },
+    {
+      "name": "duplicate_chart",
+      "description": "Duplicate a chart, optionally for a frame.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string", "optional": true},
+        {"name": "name_suffix", "type": "string", "optional": true}
+      ]
+    },
+    {
+      "name": "seed_test_chart",
+      "description": "Seed a test chart.",
+      "args": [
+        {"name": "name", "type": "string", "optional": true},
+        {"name": "birth_date", "type": "string", "optional": true},
+        {"name": "birth_time", "type": "string", "optional": true},
+        {"name": "latitude", "type": "number", "optional": true},
+        {"name": "longitude", "type": "number", "optional": true},
+        {"name": "default_frame_id", "type": "string", "optional": true}
+      ]
+    },
+    {
+      "name": "get_layout",
+      "description": "Fetch layout + metadata for a chart frame.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"}
+      ]
+    },
+    {
+      "name": "set_chart_fit",
+      "description": "Set chart fit for a frame.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "dx", "type": "number"},
+        {"name": "dy", "type": "number"},
+        {"name": "scale", "type": "number"},
+        {"name": "rotation_deg", "type": "number", "optional": true}
+      ]
+    },
+    {
+      "name": "nudge_chart_fit",
+      "description": "Nudge chart fit for a frame.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "dx", "type": "number", "optional": true},
+        {"name": "dy", "type": "number", "optional": true},
+        {"name": "scale_delta", "type": "number", "optional": true},
+        {"name": "scale_mult", "type": "number", "optional": true},
+        {"name": "rotation_delta", "type": "number", "optional": true}
+      ]
+    },
+    {
+      "name": "set_frame_mask",
+      "description": "Set frame mask circle.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "cx_norm", "type": "number"},
+        {"name": "cy_norm", "type": "number"},
+        {"name": "rx_norm", "type": "number"},
+        {"name": "ry_norm", "type": "number"}
+      ]
+    },
+    {
+      "name": "nudge_frame_mask",
+      "description": "Nudge frame mask circle.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "cx_norm_delta", "type": "number", "optional": true},
+        {"name": "cy_norm_delta", "type": "number", "optional": true},
+        {"name": "rx_norm_delta", "type": "number", "optional": true},
+        {"name": "ry_norm_delta", "type": "number", "optional": true}
+      ]
+    },
+    {
+      "name": "update_layout",
+      "description": "Update layout elements for a frame.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "overrides", "type": "object", "optional": true},
+        {"name": "design", "type": "object", "optional": true},
+        {"name": "chart_fit", "type": "object", "optional": true},
+        {"name": "frame_circle", "type": "object", "optional": true},
+        {"name": "chart_occluders", "type": "array", "optional": true},
+        {"name": "update_meta", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "reset_layout",
+      "description": "Reset layout for a frame.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "clear_chart_fit", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "reset_chart_layout",
+      "description": "Reset base chart layout.",
+      "args": [{"name": "chart_id", "type": "string"}]
+    },
+    {
+      "name": "clear_chart_layout",
+      "description": "Alias for reset_chart_layout.",
+      "args": [{"name": "chart_id", "type": "string"}]
+    },
+    {
+      "name": "delete_chart",
+      "description": "Delete a chart by id.",
+      "args": [{"name": "chart_id", "type": "string"}]
+    },
+    {
+      "name": "delete_chart_by_name",
+      "description": "Delete charts by name.",
+      "args": [
+        {"name": "name", "type": "string"},
+        {"name": "match", "type": "string", "optional": true},
+        {"name": "limit", "type": "number", "optional": true},
+        {"name": "dry_run", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "render_export_chart",
+      "description": "Render a chart to SVG or PNG and write to output/.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string", "optional": true},
+        {"name": "format", "type": "string", "optional": true},
+        {"name": "size", "type": "number", "optional": true},
+        {"name": "chart_only", "type": "boolean", "optional": true},
+        {"name": "export", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "render_batch",
+      "description": "Render multiple charts and write outputs to output/.",
+      "args": [
+        {"name": "chart_ids", "type": "array"},
+        {"name": "frame_id", "type": "string", "optional": true},
+        {"name": "format", "type": "string", "optional": true},
+        {"name": "size", "type": "number", "optional": true},
+        {"name": "chart_only", "type": "boolean", "optional": true},
+        {"name": "export", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "get_editor_state",
+      "description": "Fetch a summary of chart + layout + frame state.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string", "optional": true}
+      ]
+    },
+    {
+      "name": "save_layout_preset",
+      "description": "Save a layout preset from a chart frame.",
+      "args": [
+        {"name": "name", "type": "string"},
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "include_meta", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "apply_layout_preset",
+      "description": "Apply a saved preset to a chart frame.",
+      "args": [
+        {"name": "name", "type": "string"},
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string"},
+        {"name": "apply_meta", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "list_layout_presets",
+      "description": "List saved layout presets."
+    },
+    {
+      "name": "cleanup_charts",
+      "description": "Delete charts by prefix/age.",
+      "args": [
+        {"name": "name_prefix", "type": "string", "optional": true},
+        {"name": "older_than_days", "type": "number", "optional": true},
+        {"name": "limit", "type": "number", "optional": true},
+        {"name": "dry_run", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "frame_asset_check",
+      "description": "Check frame assets and metadata.",
+      "args": [
+        {"name": "tag", "type": "string", "optional": true},
+        {"name": "limit", "type": "number", "optional": true}
+      ]
+    },
+    {
+      "name": "smoke_walkthrough",
+      "description": "Seed, tweak, render, validate, and optionally clean up.",
+      "args": [
+        {"name": "name", "type": "string", "optional": true},
+        {"name": "frame_id", "type": "string", "optional": true},
+        {"name": "format", "type": "string", "optional": true},
+        {"name": "size", "type": "number", "optional": true},
+        {"name": "cleanup", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "validate_chart",
+      "description": "Validate chart layout/metadata/frame and optional render.",
+      "args": [
+        {"name": "chart_id", "type": "string"},
+        {"name": "frame_id", "type": "string", "optional": true},
+        {"name": "render", "type": "boolean", "optional": true}
+      ]
+    },
+    {
+      "name": "diff_layouts",
+      "description": "Diff two chart layouts for a frame.",
+      "args": [
+        {"name": "chart_id_a", "type": "string"},
+        {"name": "chart_id_b", "type": "string"},
+        {"name": "frame_id", "type": "string"}
+      ]
+    },
+    {
+      "name": "seed_walkthrough",
+      "description": "Seed a walkthrough chart and return ids.",
+      "args": [
+        {"name": "name", "type": "string", "optional": true},
+        {"name": "birth_date", "type": "string", "optional": true},
+        {"name": "birth_time", "type": "string", "optional": true},
+        {"name": "latitude", "type": "number", "optional": true},
+        {"name": "longitude", "type": "number", "optional": true},
+        {"name": "frame_id", "type": "string", "optional": true}
+      ]
+    }
+  ]
+}

@@ -62,14 +62,18 @@ export function useEditorApp(): UseEditorAppResult {
     setFrameSearch,
     filteredFrames,
     framesError,
+    framesStatus,
+    deleteFrame,
     reloadFrames,
     clearFramesError,
+    clearFramesStatus,
     charts,
     chartId,
     setChartId,
     chartName,
     setChartName,
     createChart,
+    deleteChart,
     selectChart,
     chartsError,
     chartsStatus,
@@ -433,6 +437,7 @@ export function useEditorApp(): UseEditorAppResult {
     draftStatus,
     draftInfo,
     syncStatus,
+    framesStatus,
     debugExtras: [
       { label: 'Client version', value: String(clientVersion) },
       { label: 'Server version', value: String(serverVersion) },
@@ -458,6 +463,7 @@ export function useEditorApp(): UseEditorAppResult {
     clearChartsError,
     clearChartsStatus,
     clearFramesError,
+    clearFramesStatus,
     clearFrameCircleStatus,
     clearUploadMessages,
   })
@@ -491,6 +497,7 @@ export function useEditorApp(): UseEditorAppResult {
       onLatitudeChange: handleLatitudeChange,
       onLongitudeChange: handleLongitudeChange,
       onCreateChart: handleCreateChart,
+      onDeleteChart: deleteChart,
       onResetSession: handleResetSession,
       onFactoryReset: handleFactoryReset,
       onResetView: handleResetView,
@@ -509,6 +516,7 @@ export function useEditorApp(): UseEditorAppResult {
       selectedFrameSizeLabel: selectedFrameDetail
         ? `${selectedFrameDetail.width}×${selectedFrameDetail.height} px`
         : '',
+      onDeleteFrame: deleteFrame,
     },
     upload: {
       uploadName,

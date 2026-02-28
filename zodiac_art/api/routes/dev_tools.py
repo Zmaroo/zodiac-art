@@ -9,7 +9,16 @@ from typing import Any, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
-from zodiac_art.api.deps import frame_exists, get_storage, load_chart_for_user, require_user
+from zodiac_art.api.deps import (
+    frame_exists,
+    get_frame_store,
+    get_storage,
+    is_admin,
+    load_chart_for_user,
+    require_user,
+)
+from zodiac_art.api.frames_store import PostgresFrameStore
+from zodiac_art.config import STORAGE_ROOT
 from zodiac_art.api.validators import validate_chart_fit_payload, validate_layout_payload
 from zodiac_art.frames.validation import validate_meta
 
@@ -58,6 +67,12 @@ async def _delete_chart_files(storage: Any, chart_id: str) -> None:
     chart_dir = target_storage._chart_dir(chart_id)
     if chart_dir.exists():
         shutil.rmtree(chart_dir)
+
+
+def _delete_frame_files(frame_id: str) -> None:
+    frame_dir = STORAGE_ROOT / "frames" / frame_id
+    if frame_dir.exists():
+        shutil.rmtree(frame_dir)
 
 
 @router.get("/api/dev/tools/layout")
@@ -445,4 +460,37 @@ async def dev_delete_chart(
             await conn.execute("DELETE FROM charts WHERE id = $1", chart_uuid)
     else:
         await _delete_chart_files(storage, chart_id)
+    return {"status": "ok"}
+
+
+@router.post("/api/dev/tools/frame/delete")
+async def dev_delete_frame(
+    request: Request,
+    payload: dict = Body(...),
+    user=Depends(require_user),
+) -> dict:
+    _require_dev_tools()
+    frame_id = payload.get("frame_id")
+    if not isinstance(frame_id, str):
+        raise HTTPException(status_code=400, detail="frame_id is required")
+    frame_store = get_frame_store(request)
+    if not isinstance(frame_store, PostgresFrameStore):
+        raise HTTPException(
+            status_code=500, detail="Frame delete only supported for database frames"
+        )
+    record = await frame_store.get_frame(frame_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Frame not found")
+    if (
+        record.owner_user_id
+        and record.owner_user_id != user.user_id
+        and not is_admin(request, user)
+    ):
+        raise HTTPException(status_code=403, detail="Not authorized to delete frame")
+    async with frame_store.pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM frame_thumbnails WHERE frame_id = $1", frame_store._validate_uuid(frame_id)
+        )
+        await conn.execute("DELETE FROM frames WHERE id = $1", frame_store._validate_uuid(frame_id))
+    _delete_frame_files(frame_id)
     return {"status": "ok"}

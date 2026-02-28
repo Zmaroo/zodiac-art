@@ -6,6 +6,7 @@ type ChartsSectionProps = {
   chartId: string
   onSelectChart: (chartId: string) => void
   onChartIdChange: (value: string) => void
+  onDeleteChart: (chartIdToDelete: string) => void
   onClearMessages: () => void
 }
 
@@ -14,6 +15,7 @@ function ChartsSection({
   chartId,
   onSelectChart,
   onChartIdChange,
+  onDeleteChart,
   onClearMessages,
 }: ChartsSectionProps) {
   return (
@@ -55,6 +57,24 @@ function ChartsSection({
           style={{ marginTop: '8px' }}
         />
       </label>
+      {import.meta.env.DEV ? (
+        <button
+          type="button"
+          className="secondary danger"
+          disabled={!chartId}
+          onClick={() => {
+            if (!chartId) {
+              return
+            }
+            if (!window.confirm('Delete this chart? This cannot be undone.')) {
+              return
+            }
+            onDeleteChart(chartId)
+          }}
+        >
+          Delete chart
+        </button>
+      ) : null}
     </CollapsibleSection>
   )
 }
