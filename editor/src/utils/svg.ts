@@ -16,6 +16,14 @@ export function extractChartInner(svgText: string): string {
   if (chartRoot) {
     const defs = doc.querySelector('defs')
     const defsMarkup = defs ? defs.outerHTML : ''
+    const transform = chartRoot.getAttribute('transform')
+    const clipPath = chartRoot.getAttribute('clip-path')
+    let attrs = ''
+    if (transform) attrs += ` transform="${transform}"`
+    if (clipPath) attrs += ` clip-path="${clipPath}"`
+    if (attrs) {
+      return stripNamespaces(`${defsMarkup}<g${attrs}>${chartRoot.innerHTML}</g>`)
+    }
     return stripNamespaces(`${defsMarkup}${chartRoot.innerHTML}`)
   }
   return stripNamespaces(doc.documentElement.innerHTML)

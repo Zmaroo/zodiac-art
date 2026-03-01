@@ -57,6 +57,7 @@ export function useAuth(defaultApiBase: string): UseAuthResult {
     const response = await apiFetch(`${apiBase}/api/auth/me`, jwt)
     if (!response.ok) {
       setUser(null)
+      setJwt('')
       return
     }
     const data = (await response.json()) as User

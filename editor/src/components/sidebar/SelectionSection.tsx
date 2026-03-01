@@ -14,9 +14,6 @@ type SelectionSectionProps = {
   chartLinesColor: string
   onChartLinesColorChange: (color: string) => void
   onClearChartLinesColor: () => void
-  chartBackgroundColor: string
-  onChartBackgroundColorChange: (color: string) => void
-  onClearChartBackgroundColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
   frameMaskCutoff: number
@@ -48,9 +45,6 @@ function SelectionSection({
   chartLinesColor,
   onChartLinesColorChange,
   onClearChartLinesColor,
-  chartBackgroundColor,
-  onChartBackgroundColorChange,
-  onClearChartBackgroundColor,
   radialMoveEnabled,
   onRadialMoveEnabledChange,
   frameMaskCutoff,
@@ -106,22 +100,7 @@ function SelectionSection({
         </div>
         <div className="hint">Applies to inner/outer rings + cusp lines.</div>
       </label>
-      <label className="field" htmlFor="chart-background-color">
-        Chart background color
-        <div className="color-row">
-          <input
-            type="color"
-            id="chart-background-color"
-            name="chart-background-color"
-            value={chartBackgroundColor || '#ffffff'}
-            onChange={(event) => onChartBackgroundColorChange(event.target.value)}
-          />
-          <button type="button" className="secondary" onClick={onClearChartBackgroundColor}>
-            Clear
-          </button>
-        </div>
-        <div className="hint">Applies to the chart background circle.</div>
-      </label>
+
       <label className="field" htmlFor="selection-color">
         Selected element color
         <div className="color-row">

@@ -44,9 +44,6 @@ type UseDesignSectionViewModelParams = {
   chartLinesColor: string
   onChartLinesColorChange: (color: string) => void
   onClearChartLinesColor: () => void
-  chartBackgroundColor: string
-  onChartBackgroundColorChange: (color: string) => void
-  onClearChartBackgroundColor: () => void
   radialMoveEnabled: boolean
   onRadialMoveEnabledChange: (value: boolean) => void
   frameMaskCutoff: number
@@ -111,9 +108,6 @@ export function useDesignSectionViewModel(
       chartLinesColor: params.chartLinesColor,
       onChartLinesColorChange: params.onChartLinesColorChange,
       onClearChartLinesColor: params.onClearChartLinesColor,
-      chartBackgroundColor: params.chartBackgroundColor,
-      onChartBackgroundColorChange: params.onChartBackgroundColorChange,
-      onClearChartBackgroundColor: params.onClearChartBackgroundColor,
       radialMoveEnabled: params.radialMoveEnabled,
       onRadialMoveEnabledChange: params.onRadialMoveEnabledChange,
       frameMaskCutoff: params.frameMaskCutoff,

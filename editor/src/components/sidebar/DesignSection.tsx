@@ -55,9 +55,6 @@ export type DesignSectionProps = {
     chartLinesColor: string
     onChartLinesColorChange: (color: string) => void
     onClearChartLinesColor: () => void
-    chartBackgroundColor: string
-    onChartBackgroundColorChange: (color: string) => void
-    onClearChartBackgroundColor: () => void
     radialMoveEnabled: boolean
     onRadialMoveEnabledChange: (value: boolean) => void
     frameMaskCutoff: number
@@ -85,6 +82,7 @@ const LAYER_LABELS: Record<LayerOrderKey, string> = {
 const LAYER_SELECTION_IDS: Partial<Record<LayerOrderKey, string>> = {
   background: 'chart.background',
   chart_background_image: 'chart.background_image',
+  chart: 'chartRoot',
 }
 
 const LAYER_ACTIVE_KEYS: Partial<Record<LayerOrderKey, ActiveSelectionLayer>> = {
@@ -180,46 +178,75 @@ function DesignSection({
           label="scale"
           value={backgroundImage.scale}
           step={0.05}
+          min={0.1}
+          max={5.0}
           onChange={backgroundImage.onScaleChange}
         />
         <NumberField
-          label="x"
+          label="X Offset"
           value={backgroundImage.dx}
           step={1}
+          min={-2000}
+          max={2000}
           onChange={backgroundImage.onDxChange}
         />
         <NumberField
-          label="y"
+          label="Y Offset"
           value={backgroundImage.dy}
           step={1}
+          min={-2000}
+          max={2000}
           onChange={backgroundImage.onDyChange}
         />
+        <div style={{ marginTop: '12px' }}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              backgroundImage.onScaleChange(1.0)
+              backgroundImage.onDxChange(0)
+              backgroundImage.onDyChange(0)
+            }}
+            style={{ width: '100%' }}
+          >
+            Fit to chart
+          </button>
+        </div>
       </CollapsibleSection>
 
       <CollapsibleSection title="Chart fit" persistKey="design-chart-fit">
-        <NumberField
-          label="dx"
-          value={chartFit.value.dx}
-          onChange={(value) => chartFit.onChange({ ...chartFit.value, dx: value })}
-        />
-        <NumberField
-          label="dy"
-          value={chartFit.value.dy}
-          onChange={(value) => chartFit.onChange({ ...chartFit.value, dy: value })}
-        />
-        <NumberField
-          label="scale"
-          value={chartFit.value.scale}
-          step={0.01}
-          onChange={(value) => chartFit.onChange({ ...chartFit.value, scale: value })}
-        />
-        <NumberField
-          label="rotation"
-          value={chartFit.value.rotation_deg}
-          step={0.5}
-          onChange={(value) => chartFit.onChange({ ...chartFit.value, rotation_deg: value })}
-        />
-        <div className="hint">Drag to move. Shift+drag to scale. Alt+drag to rotate.</div>
+        <div data-tooltip="Drag to move. Shift+drag to scale. Alt+drag to rotate." style={{ width: 'fit-content' }}>
+          <NumberField
+            label="X Offset"
+            value={chartFit.value.dx}
+            min={-2000}
+            max={2000}
+            onChange={(value) => chartFit.onChange({ ...chartFit.value, dx: value })}
+          />
+          <NumberField
+            label="Y Offset"
+            value={chartFit.value.dy}
+            min={-2000}
+            max={2000}
+            onChange={(value) => chartFit.onChange({ ...chartFit.value, dy: value })}
+          />
+          <NumberField
+            label="scale"
+            value={chartFit.value.scale}
+            step={0.01}
+            min={0.1}
+            max={5.0}
+            onChange={(value) => chartFit.onChange({ ...chartFit.value, scale: value })}
+          />
+          <NumberField
+            label="rotation"
+            value={chartFit.value.rotation_deg}
+            step={0.5}
+            min={-180}
+            max={180}
+            onChange={(value) => chartFit.onChange({ ...chartFit.value, rotation_deg: value })}
+          />
+        </div>
       </CollapsibleSection>
 
       <CollapsibleSection title="Layering" persistKey="design-layering">
@@ -230,14 +257,14 @@ function DesignSection({
             const activeKey = LAYER_ACTIVE_KEYS[layerKey]
             const isActiveLayer = Boolean(
               (activeKey && selection.activeSelectionLayer === activeKey) ||
-                (layerKey === 'background' && selectionId && selectionId === selection.selectedElement)
+              ((layerKey === 'background' || layerKey === 'chart_background_image') && selectionId && selectionId === selection.selectedElement)
             )
             const isSelected = Boolean(selectionId && selectionId === selection.selectedElement)
             const handleLayerActivate = () => {
               if (!activeKey) {
                 return
               }
-              if (layerKey === 'background') {
+              if (layerKey === 'background' || layerKey === 'chart_background_image') {
                 const isActive =
                   selection.activeSelectionLayer === activeKey &&
                   selection.selectedElement === selectionId
@@ -402,26 +429,7 @@ function DesignSection({
           </div>
           <div className="hint">Applies to inner/outer rings + cusp lines.</div>
         </label>
-        <label className="field" htmlFor="chart-background-color">
-          Chart background color
-          <div className="color-row">
-            <input
-              type="color"
-              id="chart-background-color"
-              name="chart-background-color"
-              value={selection.chartBackgroundColor || '#ffffff'}
-              onChange={(event) => selection.onChartBackgroundColorChange(event.target.value)}
-            />
-            <button
-              type="button"
-              className="secondary"
-              onClick={selection.onClearChartBackgroundColor}
-            >
-              Clear
-            </button>
-          </div>
-          <div className="hint">Applies to the chart background circle.</div>
-        </label>
+
         <label className="field" htmlFor="selection-color">
           Selected element color
           <div className="color-row">
@@ -444,7 +452,7 @@ function DesignSection({
           </div>
           {selection.selectionColorMixed ? <div className="hint">Mixed colors</div> : null}
         </label>
-        <label className="field checkbox" htmlFor="radial-move">
+        <label className="field checkbox" htmlFor="radial-move" data-tooltip="Restrict dragged elements to orbit around the chart center.">
           Constrain drag to radial
           <input
             type="checkbox"
@@ -487,8 +495,8 @@ function DesignSection({
           />
           <div className="hint">{selection.frameMaskCutoff}</div>
         </label>
-        <label className="field" htmlFor="frame-mask-offwhite">
-          Offwhite tolerance
+        <label className="field" htmlFor="frame-mask-offwhite" data-tooltip="Controls how aggressively off-white background pixels are removed.">
+          Background Removal Sensitivity
           <input
             type="range"
             id="frame-mask-offwhite"

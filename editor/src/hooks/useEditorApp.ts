@@ -21,6 +21,7 @@ import { useSidebarProps } from './useSidebarProps'
 import { useCanvasProps } from './useCanvasProps'
 import { useEditorSession } from './useEditorSession'
 import { useEditorActionBundle } from './useEditorActionBundle'
+import { useShopStore } from './useShopStore'
 import { CHART_BACKGROUND_ID, CHART_ONLY_ID, DEFAULT_CHART_FIT, DEFAULT_DESIGN } from '../editor/constants'
 
 type UseEditorAppResult = {
@@ -565,9 +566,6 @@ export function useEditorApp(): UseEditorAppResult {
       chartLinesColor,
       onChartLinesColorChange: handleChartLinesColorChange,
       onClearChartLinesColor: handleChartLinesColorClear,
-      chartBackgroundColor,
-      onChartBackgroundColorChange: handleChartBackgroundColorChange,
-      onClearChartBackgroundColor: handleChartBackgroundColorClear,
       radialMoveEnabled,
       onRadialMoveEnabledChange: setRadialMoveEnabled,
       frameMaskCutoff,
@@ -587,6 +585,7 @@ export function useEditorApp(): UseEditorAppResult {
     },
     actions: {
       onSaveAll: handleSaveAllClick,
+      isDirty: clientVersion > serverVersion,
       onUndo: undo,
       onRedo: redo,
       canUndo,
@@ -603,6 +602,7 @@ export function useEditorApp(): UseEditorAppResult {
       onShowFrameCircleDebugChange: setShowFrameCircleDebug,
     },
     draftPrompt,
+    shop: useShopStore(chartId),
   })
 
   const canvasProps = useCanvasProps({

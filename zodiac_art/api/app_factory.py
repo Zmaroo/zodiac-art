@@ -131,6 +131,9 @@ def create_app() -> FastAPI:
     app.include_router(renders.router)
     app.include_router(health.router)
 
+    from zodiac_art.api.routes import shop
+    app.include_router(shop.router)
+
     if get_dev_tools_enabled():
         from zodiac_art.api.routes import dev_tools
 

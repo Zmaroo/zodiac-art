@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChartDetail, ChartListItem } from '../types'
-import { apiFetch, readApiError } from '../api/client'
+import { apiFetch, fetchJsonAuth, readApiError } from '../api/client'
 
 type UseChartsParams = {
   apiBase: string
@@ -64,11 +64,13 @@ export function useCharts(params: UseChartsParams): UseChartsResult {
       setCharts([])
       return
     }
-    apiFetchWithAuth(`${apiBase}/api/charts`)
-      .then((response) => response.json())
+    fetchJsonAuth(`${apiBase}/api/charts`, jwt)
       .then((data: ChartListItem[]) => setCharts(data))
-      .catch((err) => setError(String(err)))
-  }, [apiBase, apiFetchWithAuth, jwt])
+      .catch((err) => {
+        setError(String(err))
+        setCharts([])
+      })
+  }, [apiBase, jwt])
 
   useEffect(() => {
     queueMicrotask(() => {

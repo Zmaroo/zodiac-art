@@ -140,6 +140,22 @@ def get_session_ttl_seconds() -> int:
         return 604800
 
 
+def get_printify_api_token() -> str | None:
+    return os.environ.get("PRINTIFY_API_TOKEN")
+
+
+def get_printify_shop_id() -> str | None:
+    return os.environ.get("PRINTIFY_SHOP_ID")
+
+
+def get_stripe_secret_key() -> str | None:
+    return os.environ.get("STRIPE_SECRET_KEY")
+
+
+def get_stripe_webhook_secret() -> str | None:
+    return os.environ.get("STRIPE_WEBHOOK_SECRET")
+
+
 def _env_int(key: str, default: int) -> int:
     raw = os.environ.get(key)
     if raw is None:

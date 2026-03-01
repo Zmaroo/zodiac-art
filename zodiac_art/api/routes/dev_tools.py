@@ -18,8 +18,8 @@ from zodiac_art.api.deps import (
     require_user,
 )
 from zodiac_art.api.frames_store import PostgresFrameStore
-from zodiac_art.config import STORAGE_ROOT
 from zodiac_art.api.validators import validate_chart_fit_payload, validate_layout_payload
+from zodiac_art.config import STORAGE_ROOT
 from zodiac_art.frames.validation import validate_meta
 
 router = APIRouter()

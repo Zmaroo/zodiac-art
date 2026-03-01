@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Undo2, Redo2, Save, Download, SlidersHorizontal, Settings, ShoppingBag } from 'lucide-react'
 import AccountSection from './sidebar/AccountSection'
 import ChartsSection from './sidebar/ChartsSection'
 import CreateChartSection from './sidebar/CreateChartSection'
@@ -6,6 +7,7 @@ import FramesSection from './sidebar/FramesSection'
 import UploadFrameSection from './sidebar/UploadFrameSection'
 import DebugSection from './sidebar/DebugSection'
 import DesignSection, { type DesignSectionProps } from './sidebar/DesignSection'
+import PrintSection, { type PrintSectionProps } from './sidebar/PrintSection'
 import type { ChartListItem, FrameEntry, User } from '../types'
 
 export type SidebarProps = {
@@ -99,6 +101,7 @@ export type SidebarProps = {
   }
   actions: {
     onSaveAll: () => void
+    isDirty?: boolean
     onUndo: () => void
     onRedo: () => void
     canUndo: boolean
@@ -119,9 +122,10 @@ export type SidebarProps = {
     showFrameCircleDebug: boolean
     onShowFrameCircleDebugChange: (value: boolean) => void
   }
+  shop: PrintSectionProps
 }
 
-function Sidebar({ messages, clears, account, charts, frames, upload, design, actions, draftPrompt, debug }: SidebarProps) {
+function Sidebar({ messages, clears, account, charts, frames, upload, design, actions, draftPrompt, debug, shop }: SidebarProps) {
   const {
     accountError,
     accountStatus,
@@ -195,20 +199,19 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     uploadTags,
     uploadGlobal,
     uploading,
-    userIsAdmin,
     onUploadNameChange,
     onUploadTagsChange,
     onUploadFileChange,
     onUploadGlobalChange,
     onUploadFrame,
   } = upload
-  const { sectionProps } = design
   const {
     onSaveAll,
     onUndo,
     onRedo,
     canUndo,
     canRedo,
+    isDirty,
     onExport,
     exportFormat,
     onExportFormatChange,
@@ -221,9 +224,9 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     onDiscard: onDraftDiscard,
   } = draftPrompt
   const { debugItems, showFrameCircleDebug, onShowFrameCircleDebugChange } = debug
-  const [activeTab, setActiveTab] = useState<'main' | 'design'>(() => {
+  const [activeTab, setActiveTab] = useState<'main' | 'design' | 'print'>(() => {
     const stored = localStorage.getItem('zodiac_editor.sidebarTab')
-    return stored === 'design' ? 'design' : 'main'
+    return (stored === 'design' || stored === 'print') ? stored : 'main'
   })
 
   useEffect(() => {
@@ -237,15 +240,25 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
           className={activeTab === 'main' ? 'active' : ''}
           onClick={() => setActiveTab('main')}
           type="button"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
         >
-          Main
+          <Settings size={16} /> Main
         </button>
         <button
           className={activeTab === 'design' ? 'active' : ''}
           onClick={() => setActiveTab('design')}
           type="button"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
         >
-          Design
+          <SlidersHorizontal size={16} /> Design
+        </button>
+        <button
+          className={activeTab === 'print' ? 'active' : ''}
+          onClick={() => setActiveTab('print')}
+          type="button"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+        >
+          <ShoppingBag size={16} /> Print
         </button>
       </div>
       {draftPromptVisible ? (
@@ -264,15 +277,15 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
       <div className="toolbar-actions">
         <div className="actions">
           <div className="undo-row">
-            <button type="button" className="secondary" onClick={onUndo} disabled={!canUndo}>
-              Undo
+            <button type="button" className="secondary" onClick={onUndo} disabled={!canUndo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <Undo2 size={16} /> Undo
             </button>
-            <button type="button" className="secondary" onClick={onRedo} disabled={!canRedo}>
-              Redo
+            <button type="button" className="secondary" onClick={onRedo} disabled={!canRedo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <Redo2 size={16} /> Redo
             </button>
           </div>
-          <button onClick={onSaveAll} title="Saves layout + metadata (or chart-only fit) to the server.">
-            Save changes
+          <button className={isDirty ? 'primary-action' : 'secondary'} onClick={onSaveAll} title="Saves layout + metadata (or chart-only fit) to the server." style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <Save size={16} /> Save changes
           </button>
           <div className="export-row">
             <select
@@ -290,8 +303,9 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
               onClick={onExport}
               disabled={!exportEnabled}
               title={exportDisabledTitle}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
             >
-              Download
+              <Download size={16} /> Download
             </button>
           </div>
           {actionsError ? <div className="inline-error">{actionsError}</div> : null}
@@ -304,94 +318,113 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
           )}
         </div>
       </div>
-      {activeTab === 'main' ? (
-        <>
-          <AccountSection
-            user={user}
-            authEmail={authEmail}
-            authPassword={authPassword}
-            onAuthEmailChange={onAuthEmailChange}
-            onAuthPasswordChange={onAuthPasswordChange}
-            onLogin={onLogin}
-            onRegister={onRegister}
-            onLogout={onLogout}
-            onClearMessages={onClearAccountMessages}
-          />
-          {accountError ? <div className="inline-error">{accountError}</div> : null}
-          {accountStatus ? <div className="inline-status">{accountStatus}</div> : null}
-          <ChartsSection
-            charts={chartItems}
-            chartId={chartId}
-            onSelectChart={onSelectChart}
-            onChartIdChange={onChartIdChange}
-            onDeleteChart={onDeleteChart}
-            onClearMessages={onClearChartsMessages}
-          />
-          {chartsError ? <div className="inline-error">{chartsError}</div> : null}
-          {chartsStatus ? <div className="inline-status">{chartsStatus}</div> : null}
-          <CreateChartSection
-            chartName={chartName}
-            birthDate={birthDate}
-            birthTime={birthTime}
-            latitude={latitude}
-            longitude={longitude}
-            onChartNameChange={onChartNameChange}
-            onBirthDateChange={onBirthDateChange}
-            onBirthTimeChange={onBirthTimeChange}
-            onLatitudeChange={onLatitudeChange}
-            onLongitudeChange={onLongitudeChange}
-            onCreateChart={onCreateChart}
-            onResetSession={onResetSession}
-            onFactoryReset={onFactoryReset}
-            onResetView={onResetView}
-            onAutoFit={onAutoFit}
-            onResetToSavedFit={onResetToSavedFit}
-            autoFitEnabled={autoFitEnabled}
-            resetToSavedEnabled={resetToSavedEnabled}
-            onClearMessages={onClearCreateChartMessages}
-          />
-          {createChartError ? <div className="inline-error">{createChartError}</div> : null}
-          {createChartStatus ? <div className="inline-status">{createChartStatus}</div> : null}
-          <FramesSection
-            frameSearch={frameSearch}
-            onFrameSearchChange={onFrameSearchChange}
-            selectedId={selectedId}
-            onSelectedIdChange={onSelectedIdChange}
-            filteredFrames={filteredFrames}
-            chartOnlyId={chartOnlyId}
-            selectedFrameSizeLabel={selectedFrameSizeLabel}
-            onDeleteFrame={onDeleteFrame}
-            onClearMessages={onClearFramesMessages}
-          />
-          {framesError ? <div className="inline-error">{framesError}</div> : null}
-          {framesStatus ? <div className="inline-status">{framesStatus}</div> : null}
-          <UploadFrameSection
-            uploadName={uploadName}
-            uploadTags={uploadTags}
-            uploadGlobal={uploadGlobal}
-            uploading={uploading}
-            userIsAdmin={userIsAdmin}
-            onUploadNameChange={onUploadNameChange}
-            onUploadTagsChange={onUploadTagsChange}
-            onUploadFileChange={onUploadFileChange}
-            onUploadGlobalChange={onUploadGlobalChange}
-            onUploadFrame={onUploadFrame}
-            onClearMessages={onClearUploadMessages}
-          />
-          {uploadError ? <div className="inline-error">{uploadError}</div> : null}
-          {uploadStatus ? <div className="inline-status">{uploadStatus}</div> : null}
-          {import.meta.env.DEV ? (
-            <DebugSection
-              showFrameCircle={showFrameCircleDebug}
-              onShowFrameCircleChange={onShowFrameCircleDebugChange}
-              debugItems={debugItems}
+      {activeTab === 'main' && (
+        <div className="sidebar-sections-wrapper">
+          <div className="sections">
+            <AccountSection
+              user={user}
+              authEmail={authEmail}
+              authPassword={authPassword}
+              onAuthEmailChange={onAuthEmailChange}
+              onAuthPasswordChange={onAuthPasswordChange}
+              onLogin={onLogin}
+              onRegister={onRegister}
+              onLogout={onLogout}
+              onClearMessages={onClearAccountMessages}
             />
-          ) : null}
-        </>
-      ) : (
-        <>
-          <DesignSection {...sectionProps} />
-        </>
+            {accountError ? <div className="inline-error">{accountError}</div> : null}
+            {accountStatus ? <div className="inline-status">{accountStatus}</div> : null}
+
+            <ChartsSection
+              charts={chartItems}
+              chartId={chartId}
+              onSelectChart={onSelectChart}
+              onChartIdChange={onChartIdChange}
+              onDeleteChart={onDeleteChart}
+              onClearMessages={onClearChartsMessages}
+            />
+            {chartsError ? <div className="inline-error">{chartsError}</div> : null}
+            {chartsStatus ? <div className="inline-status">{chartsStatus}</div> : null}
+
+            <CreateChartSection
+              chartName={chartName}
+              birthDate={birthDate}
+              birthTime={birthTime}
+              latitude={latitude}
+              longitude={longitude}
+              onChartNameChange={onChartNameChange}
+              onBirthDateChange={onBirthDateChange}
+              onBirthTimeChange={onBirthTimeChange}
+              onLatitudeChange={onLatitudeChange}
+              onLongitudeChange={onLongitudeChange}
+              onCreateChart={onCreateChart}
+              onResetSession={onResetSession}
+              onFactoryReset={onFactoryReset}
+              onResetView={onResetView}
+              onAutoFit={onAutoFit}
+              onResetToSavedFit={onResetToSavedFit}
+              autoFitEnabled={autoFitEnabled}
+              resetToSavedEnabled={resetToSavedEnabled}
+              onClearMessages={onClearCreateChartMessages}
+            />
+            {createChartError ? <div className="inline-error">{createChartError}</div> : null}
+            {createChartStatus ? <div className="inline-status">{createChartStatus}</div> : null}
+
+            <FramesSection
+              frameSearch={frameSearch}
+              onFrameSearchChange={onFrameSearchChange}
+              selectedId={selectedId}
+              onSelectedIdChange={onSelectedIdChange}
+              filteredFrames={filteredFrames}
+              chartOnlyId={chartOnlyId}
+              selectedFrameSizeLabel={selectedFrameSizeLabel}
+              onDeleteFrame={onDeleteFrame}
+              onClearMessages={onClearFramesMessages}
+            />
+            {framesError ? <div className="inline-error">{framesError}</div> : null}
+            {framesStatus ? <div className="inline-status">{framesStatus}</div> : null}
+
+            <UploadFrameSection
+              uploadName={uploadName}
+              uploadTags={uploadTags}
+              uploadGlobal={uploadGlobal}
+              uploading={uploading}
+              onUploadNameChange={onUploadNameChange}
+              onUploadTagsChange={onUploadTagsChange}
+              onUploadFileChange={onUploadFileChange}
+              onUploadGlobalChange={onUploadGlobalChange}
+              onUploadFrame={onUploadFrame}
+              onClearMessages={onClearUploadMessages}
+              userIsAdmin={upload.userIsAdmin}
+            />
+            {uploadError ? <div className="inline-error">{uploadError}</div> : null}
+            {uploadStatus ? <div className="inline-status">{uploadStatus}</div> : null}
+
+            {import.meta.env.DEV ? (
+              <DebugSection
+                debugItems={debugItems}
+                showFrameCircle={showFrameCircleDebug}
+                onShowFrameCircleChange={onShowFrameCircleDebugChange}
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'design' && (
+        <div className="sidebar-sections-wrapper">
+          <div className="sections">
+            <DesignSection {...design.sectionProps} />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'print' && (
+        <div className="sidebar-sections-wrapper">
+          <div className="sections">
+            <PrintSection {...shop} />
+          </div>
+        </div>
       )}
     </aside>
   )

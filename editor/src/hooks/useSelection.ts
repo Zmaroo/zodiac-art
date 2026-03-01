@@ -58,7 +58,7 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
     }
     const uniqueIds = Array.from(idSet).sort()
     const groups = {
-      Chart: [] as { id: string; label: string }[],
+      Layers: [] as { id: string; label: string }[],
       Planets: [] as { id: string; label: string }[],
       Signs: [] as { id: string; label: string }[],
       Ascendant: [] as { id: string; label: string }[],
@@ -67,7 +67,7 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
     uniqueIds.forEach((id) => {
       const item = { id, label: formatSelectionLabel(id) }
       if (id === 'chartRoot') {
-        groups.Chart.push(item)
+        groups.Layers.push(item)
       } else if (id === 'asc.marker') {
         groups.Ascendant.push(item)
       } else if (id.startsWith('planet.')) {
@@ -79,11 +79,15 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
       }
     })
     const chartOrder = new Map([['chartRoot', 0]])
-    groups.Chart.sort((a, b) => {
+    groups.Layers.sort((a, b) => {
       const aRank = chartOrder.get(a.id) ?? 999
       const bRank = chartOrder.get(b.id) ?? 999
       return aRank - bRank
     })
+    groups.Layers.push(
+      { id: CHART_BACKGROUND_ID, label: 'Chart background' },
+      { id: BACKGROUND_IMAGE_ID, label: 'Background image' }
+    )
     const grouped = Object.entries(groups)
       .filter(([, items]) => items.length > 0)
       .map(([label, items]) => ({ label, items }))
@@ -93,7 +97,10 @@ export function useSelection(params: UseSelectionParams): UseSelectionResult {
       { id: BULK_SIGNS, label: 'All signs' },
       { id: BULK_GLYPHS, label: 'All glyphs' },
     ]
-    return [{ label: 'Bulk', items: bulkItems }, ...grouped]
+    return [
+      { label: 'Bulk', items: bulkItems },
+      ...grouped
+    ]
   }, [chartSvg, meta])
 
   const selectableElements = useMemo(

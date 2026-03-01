@@ -7,8 +7,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, cast
-from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv

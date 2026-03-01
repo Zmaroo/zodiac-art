@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
 
 type CollapsibleSectionProps = {
   title: string
@@ -55,7 +56,7 @@ function CollapsibleSection({
         aria-controls={contentId}
       >
         <h2>{title}</h2>
-        <span className={`arrow ${isOpen ? 'open' : 'closed'}`}>▼</span>
+        <ChevronDown size={18} className={`arrow ${isOpen ? 'open' : 'closed'}`} />
       </button>
       {isOpen ? (
         <div id={contentId}>

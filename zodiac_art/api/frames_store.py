@@ -329,7 +329,12 @@ def template_metadata_from_opening(
     ring_inner_ratio: float | None = None,
 ) -> dict:
     width, height = image.size
-    center_x, center_y, radius = detect_opening_circle(image)
+    try:
+        center_x, center_y, radius = detect_opening_circle(image)
+    except ValueError:
+        center_x = width / 2
+        center_y = height / 2
+        radius = width * 0.45
     ring_outer = float(radius)
     ratio = DEFAULT_RING_INNER_RATIO if ring_inner_ratio is None else float(ring_inner_ratio)
     ring_inner = float(radius) * ratio

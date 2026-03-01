@@ -13,6 +13,7 @@ type UseSidebarPropsParams = {
   draftPrompt: SidebarProps['draftPrompt']
   debug: SidebarProps['debug']
   design: Parameters<typeof useDesignSectionViewModel>[0]
+  shop: SidebarProps['shop']
 }
 
 export function useSidebarProps(params: UseSidebarPropsParams): SidebarProps {
@@ -28,5 +29,6 @@ export function useSidebarProps(params: UseSidebarPropsParams): SidebarProps {
     actions: params.actions,
     draftPrompt: params.draftPrompt,
     debug: params.debug,
+    shop: params.shop,
   })
 }
