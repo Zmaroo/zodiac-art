@@ -290,6 +290,7 @@ export function useEditorApp(): UseEditorAppResult {
     undo,
     redo,
     clearActionsMessages,
+    handleExportChartOnlySvgToSdxl,
   } = useEditorActionBundle({
     apiBase,
     jwt,
@@ -341,8 +342,6 @@ export function useEditorApp(): UseEditorAppResult {
     handleBackgroundImageScaleChange,
     handleBackgroundImageDxChange,
     handleBackgroundImageDyChange,
-    handleChartBackgroundColorChange,
-    handleChartBackgroundColorClear,
     handleActiveSelectionLayerChange,
     setSelectedElement: setSelectedElementFromHandlers,
   } = useEditorInputHandlers({
@@ -595,6 +594,7 @@ export function useEditorApp(): UseEditorAppResult {
       onExportFormatChange: setExportFormat,
       exportEnabled,
       exportDisabledTitle,
+      onExportChartOnlySvg: handleExportChartOnlySvgToSdxl,
     },
     debug: {
       debugItems,

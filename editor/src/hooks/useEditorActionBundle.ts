@@ -101,7 +101,14 @@ export function useEditorActionBundle(params: UseEditorActionBundleParams) {
     setStatus('')
   }
 
-  const { exportFormat, setExportFormat, exportEnabled, exportDisabledTitle, handleExport } = useExport({
+  const {
+    exportFormat,
+    setExportFormat,
+    exportEnabled,
+    exportDisabledTitle,
+    handleExport,
+    handleExportChartOnlySvgToSdxl,
+  } = useExport({
     apiBase,
     jwt,
     chartId,
@@ -148,5 +155,6 @@ export function useEditorActionBundle(params: UseEditorActionBundleParams) {
     undo,
     redo,
     clearActionsMessages,
+    handleExportChartOnlySvgToSdxl,
   }
 }

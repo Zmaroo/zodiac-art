@@ -86,11 +86,42 @@ export function useExport(params: UseExportParams) {
     }
   }
 
+  const handleExportChartOnlySvgToSdxl = async () => {
+    clearActionsMessages()
+    if (!chartId) {
+      setError('Select a chart before exporting.')
+      return
+    }
+
+    const parts = [chartName?.trim() || `chart-${chartId}`, selectedFrameDetail?.name]
+    const baseName = sanitizeFileName(parts.filter(Boolean).join('-')) || `chart-${chartId}`
+    const filename = `${baseName}`
+
+    const url = `${apiBase}/api/charts/${chartId}/export_to_sdxl`
+    try {
+      const response = await apiFetch(url, jwt, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename }),
+      })
+      if (!response.ok) {
+        const message = await readApiError(response)
+        throw new Error(message || `Failed to export chart-only SVG to SDXL folder.`)
+      }
+      setStatus(`Exported chart-only SVG to SDXL.`)
+    } catch (err) {
+      setError(String(err))
+    }
+  }
+
   return {
     exportFormat,
     setExportFormat,
     exportEnabled,
     exportDisabledTitle,
     handleExport,
+    handleExportChartOnlySvgToSdxl,
   }
 }

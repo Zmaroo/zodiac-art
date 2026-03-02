@@ -10,7 +10,7 @@ app = create_app()
 def main() -> None:
     import uvicorn
 
-    uvicorn.run("zodiac_art.api.app:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("zodiac_art.api.app:app", host="127.0.0.1", port=8000, reload=True)
 
 
 if __name__ == "__main__":

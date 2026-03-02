@@ -1,8 +1,10 @@
+
 """Render routes."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 
 from zodiac_art.api.auth import AuthUser
 from zodiac_art.api.deps import frame_exists, get_storage, load_chart_for_user, require_user
@@ -18,6 +20,10 @@ from zodiac_art.api.validators import (
     validate_chart_id,
     validate_glyph_outline_color,
 )
+
+import os
+import aiofiles
+
 
 router = APIRouter()
 
@@ -366,3 +372,39 @@ async def render_export_chart_only_png(
     if etag_matches(request, etag):
         return Response(status_code=304, headers=headers)
     return Response(content=png_bytes, media_type="image/png", headers=headers)
+
+
+class ExportPayload(BaseModel):
+    filename: str
+
+@router.post("/api/charts/{chart_id}/export_to_sdxl")
+async def render_export_to_sdxl_svg(
+    request: Request,
+    chart_id: str,
+    payload: ExportPayload,
+    glyph_glow: bool = False,
+    glyph_outline_color: str | None = None,
+    user: AuthUser = Depends(require_user),
+) -> Response:
+    validate_chart_id(chart_id)
+    validate_glyph_outline_color(glyph_outline_color)
+    filename = payload.filename
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename is required")
+
+    record = await load_chart_for_user(request, chart_id, user.user_id)
+    result = await render_chart_only_svg(
+        get_storage(request),
+        record,
+        glyph_glow=glyph_glow,
+        glyph_outline_color=glyph_outline_color,
+    )
+
+    target_dir = "/Users/michaelmarler/Projects/sdxl-frame-gen/svg"
+    os.makedirs(target_dir, exist_ok=True)
+    file_path = os.path.join(target_dir, f"{filename}.svg")
+
+    async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
+        await f.write(result.svg)
+
+    return Response(content='{"status": "ok"}', media_type="application/json")

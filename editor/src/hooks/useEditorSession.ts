@@ -37,14 +37,18 @@ type UseEditorSessionResult = {
   setFrameSearch: ReturnType<typeof useFrames>['setFrameSearch']
   filteredFrames: ReturnType<typeof useFrames>['filteredFrames']
   framesError: string
+  framesStatus: string
+  deleteFrame: ReturnType<typeof useFrames>['deleteFrame']
   reloadFrames: ReturnType<typeof useFrames>['reload']
   clearFramesError: ReturnType<typeof useFrames>['clearError']
+  clearFramesStatus: ReturnType<typeof useFrames>['clearStatus']
   charts: ReturnType<typeof useCharts>['charts']
   chartId: string
   setChartId: ReturnType<typeof useCharts>['setChartId']
   chartName: string
   setChartName: ReturnType<typeof useCharts>['setChartName']
   createChart: ReturnType<typeof useCharts>['createChart']
+  deleteChart: ReturnType<typeof useCharts>['deleteChart']
   selectChart: ReturnType<typeof useCharts>['selectChart']
   chartsError: string
   chartsStatus: string

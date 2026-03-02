@@ -111,6 +111,7 @@ export type SidebarProps = {
     onExportFormatChange: (value: 'png' | 'svg') => void
     exportEnabled: boolean
     exportDisabledTitle: string
+    onExportChartOnlySvg: () => void
   }
   draftPrompt: {
     visible: boolean
@@ -217,6 +218,7 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
     onExportFormatChange,
     exportEnabled,
     exportDisabledTitle,
+    onExportChartOnlySvg,
   } = actions
   const {
     visible: draftPromptVisible,
@@ -308,6 +310,15 @@ function Sidebar({ messages, clears, account, charts, frames, upload, design, ac
               <Download size={16} /> Download
             </button>
           </div>
+          <button
+            className="secondary"
+            onClick={onExportChartOnlySvg}
+            disabled={!actions.exportEnabled}
+            title={actions.exportDisabledTitle}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '8px' }}
+          >
+            <Download size={16} /> Export Chart Only SVG
+          </button>
           {actionsError ? <div className="inline-error">{actionsError}</div> : null}
           {actionsStatus ? <div className="inline-status">{actionsStatus}</div> : null}
           {(draftStatus || syncStatus) && (
