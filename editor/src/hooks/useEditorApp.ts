@@ -297,6 +297,7 @@ export function useEditorApp(): UseEditorAppResult {
     chartId,
     selectedId,
     isChartOnly,
+    isDirty: clientVersion > serverVersion,
     meta,
     chartFit,
     overrides,

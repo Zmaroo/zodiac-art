@@ -99,6 +99,38 @@ class SvgChartRenderer:
         )
         dwg.viewbox(0, 0, self.settings.width, self.settings.height)
 
+        # Embed ring geometry metadata for FrameCreator (and other consumers) so they
+        # can snap guide/protected circles to the exact ring boundaries without pixel scanning.
+        class MetadataElement(BaseElement):
+            elementname = "metadata"
+
+            @property
+            def debug(self) -> bool:
+                return False
+
+        class ChartRingsElement(BaseElement):
+            elementname = "framecreator:chartRings"
+
+            @property
+            def debug(self) -> bool:
+                return False
+
+        meta = MetadataElement()
+        ring_meta = ChartRingsElement()
+        ring_meta.attribs.update(
+            {
+                "xmlns:framecreator": "https://github.com/Zmaroo/FrameCreator",
+                "centerX": f"{self.settings.center_x:.4f}",
+                "centerY": f"{self.settings.center_y:.4f}",
+                "outerRadius": f"{self.settings.radius * self.settings.sign_ring_outer_ratio:.4f}",
+                "innerRadius": f"{self.settings.radius * self.settings.sign_ring_inner_ratio:.4f}",
+                "planetRadius": f"{self.settings.radius * self.settings.planet_ring_ratio:.4f}",
+                "totalRadius": f"{self.settings.radius:.4f}",
+            }
+        )
+        meta.add(ring_meta)
+        dwg.add(meta)
+
         glyph_mode = self.settings.glyph_mode
         glow_filter = None
         if glyph_glow:

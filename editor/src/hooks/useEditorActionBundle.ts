@@ -20,6 +20,7 @@ type UseEditorActionBundleParams = {
   chartId: string
   selectedId: string
   isChartOnly: boolean
+  isDirty: boolean
   meta: ChartMeta | null
   chartFit: ChartFit
   overrides: Record<string, Offset>
@@ -45,6 +46,7 @@ export function useEditorActionBundle(params: UseEditorActionBundleParams) {
     chartId,
     selectedId,
     isChartOnly,
+    isDirty,
     meta,
     chartFit,
     overrides,
@@ -115,6 +117,7 @@ export function useEditorActionBundle(params: UseEditorActionBundleParams) {
     chartName,
     selectedId,
     isChartOnly,
+    isDirty,
     selectedFrameDetail,
     setError,
     setStatus,

@@ -9,6 +9,7 @@ type UseExportParams = {
   chartName: string
   selectedId: string
   isChartOnly: boolean
+  isDirty?: boolean
   selectedFrameDetail: FrameDetail | null
   setError: (value: string) => void
   setStatus: (value: string) => void
@@ -23,6 +24,7 @@ export function useExport(params: UseExportParams) {
     chartName,
     selectedId,
     isChartOnly,
+    isDirty,
     selectedFrameDetail,
     setError,
     setStatus,
@@ -45,6 +47,10 @@ export function useExport(params: UseExportParams) {
     clearActionsMessages()
     if (!chartId) {
       setError('Select a chart before exporting.')
+      return
+    }
+    if (isDirty) {
+      setError('Save the chart before exporting.')
       return
     }
     if (!isChartOnly && !selectedId) {
@@ -90,6 +96,10 @@ export function useExport(params: UseExportParams) {
     clearActionsMessages()
     if (!chartId) {
       setError('Select a chart before exporting.')
+      return
+    }
+    if (isDirty) {
+      setError('Save the chart before exporting.')
       return
     }
 
